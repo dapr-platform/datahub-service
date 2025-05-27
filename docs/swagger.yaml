@@ -1,0 +1,3010 @@
+basePath: /swagger/datahub-service
+definitions:
+  controllers.APIResponse:
+    properties:
+      data: {}
+      msg:
+        example: 操作成功
+        type: string
+      status:
+        example: 0
+        type: integer
+    type: object
+  controllers.ApproveDataAccessRequestRequest:
+    properties:
+      approved:
+        type: boolean
+      comment:
+        type: string
+    type: object
+  controllers.CreateApiApplicationRequest:
+    properties:
+      app_secret:
+        type: string
+      contact_email:
+        type: string
+      contact_person:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    required:
+    - app_secret
+    - contact_email
+    - contact_person
+    - name
+    type: object
+  controllers.CreateBasicLibraryRequest:
+    properties:
+      description:
+        example: 存储用户基础信息的数据库
+        type: string
+      name_en:
+        example: user_basic_library
+        type: string
+      name_zh:
+        example: 用户数据基础库
+        type: string
+    required:
+    - name_en
+    - name_zh
+    type: object
+  controllers.CreateThematicInterfaceRequest:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      description:
+        example: 实时用户行为事件数据接口
+        type: string
+      library_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      name_en:
+        example: user_behavior_events
+        type: string
+      name_zh:
+        example: 用户行为事件接口
+        type: string
+      type:
+        example: realtime
+        type: string
+    required:
+    - config
+    - library_id
+    - name_en
+    - name_zh
+    - type
+    type: object
+  controllers.CreateThematicLibraryRequest:
+    properties:
+      access_level:
+        example: internal
+        type: string
+      category:
+        example: analysis
+        type: string
+      code:
+        example: user_behavior_analysis
+        type: string
+      description:
+        example: 用户行为数据分析和挖掘
+        type: string
+      domain:
+        example: user
+        type: string
+      name:
+        example: 用户行为分析主题库
+        type: string
+      retention_period:
+        example: 365
+        type: integer
+      source_libraries:
+        example:
+        - user_basic_library
+        - event_basic_library
+        items:
+          type: string
+        type: array
+      tags:
+        example:
+        - 用户
+        - 行为
+        - 分析
+        items:
+          type: string
+        type: array
+      update_frequency:
+        example: daily
+        type: string
+    required:
+    - category
+    - code
+    - domain
+    - name
+    type: object
+  controllers.HealthResponse:
+    properties:
+      service:
+        example: datahub-service
+        type: string
+      status:
+        example: ok
+        type: string
+      timestamp:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      version:
+        example: 1.0.0
+        type: string
+    type: object
+  controllers.PaginatedResponse:
+    properties:
+      data: {}
+      msg:
+        example: 操作成功
+        type: string
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      status:
+        example: 0
+        type: integer
+      total:
+        example: 100
+        type: integer
+    type: object
+  controllers.UpdateBasicLibraryRequest:
+    properties:
+      description:
+        example: 存储用户基础信息的数据库
+        type: string
+      name_zh:
+        example: 用户数据基础库
+        type: string
+      status:
+        example: active
+        type: string
+    type: object
+  controllers.UpdateThematicLibraryRequest:
+    properties:
+      access_level:
+        example: internal
+        type: string
+      description:
+        example: 用户行为数据分析和挖掘
+        type: string
+      name:
+        example: 用户行为分析主题库
+        type: string
+      retention_period:
+        example: 365
+        type: integer
+      status:
+        example: active
+        type: string
+      tags:
+        example:
+        - 用户
+        - 行为
+        - 分析
+        items:
+          type: string
+        type: array
+      update_frequency:
+        example: daily
+        type: string
+    type: object
+  models.ApiApplication:
+    properties:
+      app_key:
+        type: string
+      app_secret_hash:
+        type: string
+      contact_email:
+        type: string
+      contact_person:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      status:
+        description: active/inactive
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.ApiRateLimit:
+    properties:
+      api_path:
+        type: string
+      application:
+        $ref: '#/definitions/models.ApiApplication'
+      application_id:
+        type: string
+      id:
+        type: string
+      is_enabled:
+        type: boolean
+      max_requests:
+        description: 最大请求数
+        type: integer
+      time_window:
+        description: 时间窗口，单位秒
+        type: integer
+    type: object
+  models.ApiUsageLog:
+    properties:
+      api_path:
+        type: string
+      application:
+        $ref: '#/definitions/models.ApiApplication'
+      application_id:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: string
+      method:
+        type: string
+      request_ip:
+        type: string
+      request_size:
+        type: integer
+      request_time:
+        type: string
+      response_size:
+        type: integer
+      response_time:
+        description: 响应时间，毫秒
+        type: integer
+      status_code:
+        type: integer
+      user_agent:
+        type: string
+      user_id:
+        type: string
+      user_name:
+        type: string
+    type: object
+  models.BasicLibrary:
+    properties:
+      created_at:
+        type: string
+      description:
+        example: 存储用户基础信息的数据库
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      interfaces:
+        description: 关联关系
+        items:
+          $ref: '#/definitions/models.DataInterface'
+        type: array
+      name_en:
+        example: user_basic_library
+        type: string
+      name_zh:
+        example: 用户数据基础库
+        type: string
+      status:
+        example: active
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.CleansingRule:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      data_interface:
+        allOf:
+        - $ref: '#/definitions/models.DataInterface'
+        description: 关联关系
+      id:
+        type: string
+      interface_id:
+        type: string
+      is_enabled:
+        type: boolean
+      order_num:
+        type: integer
+      type:
+        type: string
+    type: object
+  models.DataAccessRequest:
+    properties:
+      access_permission:
+        description: read/write
+        type: string
+      approval_comment:
+        type: string
+      approved_at:
+        type: string
+      approver_id:
+        type: string
+      approver_name:
+        type: string
+      id:
+        type: string
+      request_reason:
+        type: string
+      requested_at:
+        type: string
+      requester_id:
+        type: string
+      requester_name:
+        type: string
+      resource_id:
+        type: string
+      resource_type:
+        description: thematic_library/basic_library/interface
+        type: string
+      status:
+        description: pending/approved/rejected/expired
+        type: string
+      valid_until:
+        type: string
+    type: object
+  models.DataFlowGraph:
+    properties:
+      created_at:
+        type: string
+      definition:
+        additionalProperties: true
+        type: object
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      nodes:
+        items:
+          $ref: '#/definitions/models.FlowNode'
+        type: array
+      status:
+        description: draft, active, inactive
+        type: string
+      thematic_interface:
+        allOf:
+        - $ref: '#/definitions/models.ThematicInterface'
+        description: 关联关系
+      thematic_interface_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.DataInterface:
+    properties:
+      basic_library:
+        allOf:
+        - $ref: '#/definitions/models.BasicLibrary'
+        description: 关联关系
+      clean_rules:
+        items:
+          $ref: '#/definitions/models.CleansingRule'
+        type: array
+      created_at:
+        type: string
+      data_source:
+        $ref: '#/definitions/models.DataSource'
+      description:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/models.InterfaceField'
+        type: array
+      id:
+        type: string
+      library_id:
+        type: string
+      name_en:
+        type: string
+      name_zh:
+        type: string
+      status:
+        type: string
+      type:
+        description: realtime, batch
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.DataMaskingRule:
+    properties:
+      created_at:
+        type: string
+      creator_id:
+        type: string
+      creator_name:
+        type: string
+      data_source:
+        type: string
+      data_table:
+        type: string
+      field_name:
+        type: string
+      field_type:
+        type: string
+      id:
+        type: string
+      is_enabled:
+        type: boolean
+      masking_config:
+        additionalProperties: true
+        type: object
+      masking_type:
+        description: mask/replace/encrypt/pseudonymize
+        type: string
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.DataQualityReport:
+    properties:
+      generated_at:
+        type: string
+      generated_by:
+        type: string
+      generator_name:
+        type: string
+      id:
+        type: string
+      issues:
+        additionalProperties: true
+        type: object
+      quality_metrics:
+        additionalProperties: true
+        type: object
+      quality_score:
+        type: number
+      recommendations:
+        additionalProperties: true
+        type: object
+      related_object_id:
+        type: string
+      related_object_type:
+        type: string
+      report_name:
+        type: string
+    type: object
+  models.DataSource:
+    properties:
+      connection_config:
+        additionalProperties: true
+        type: object
+      created_at:
+        type: string
+      data_interface:
+        allOf:
+        - $ref: '#/definitions/models.DataInterface'
+        description: 关联关系
+      id:
+        type: string
+      interface_id:
+        type: string
+      params_config:
+        additionalProperties: true
+        type: object
+      type:
+        description: kafka, redis, nats, http, db, hostpath
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.DataSubscription:
+    properties:
+      created_at:
+        type: string
+      filter_condition:
+        additionalProperties: true
+        type: object
+      id:
+        type: string
+      notification_config:
+        additionalProperties: true
+        type: object
+      notification_method:
+        description: webhook/message_queue/email
+        type: string
+      resource_id:
+        type: string
+      resource_type:
+        description: thematic_interface/basic_interface
+        type: string
+      status:
+        description: active/paused/terminated
+        type: string
+      subscriber_id:
+        type: string
+      subscriber_type:
+        description: user/application
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.DataSyncLog:
+    properties:
+      details:
+        additionalProperties: true
+        type: object
+      end_time:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: string
+      records_error:
+        type: integer
+      records_sync:
+        type: integer
+      records_total:
+        type: integer
+      start_time:
+        type: string
+      status:
+        description: running/success/failure
+        type: string
+      task:
+        $ref: '#/definitions/models.DataSyncTask'
+      task_id:
+        type: string
+    type: object
+  models.DataSyncTask:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: string
+      creator_name:
+        type: string
+      id:
+        type: string
+      last_sync_time:
+        type: string
+      name:
+        type: string
+      next_sync_time:
+        type: string
+      schedule_config:
+        additionalProperties: true
+        type: object
+      source_config:
+        additionalProperties: true
+        type: object
+      source_type:
+        description: database/api/file
+        type: string
+      status:
+        description: active/inactive/error
+        type: string
+      sync_strategy:
+        description: full/incremental
+        type: string
+      target_config:
+        additionalProperties: true
+        type: object
+      target_type:
+        description: database/api/file
+        type: string
+      transform_rules:
+        additionalProperties: true
+        type: object
+      updated_at:
+        type: string
+    type: object
+  models.FlowNode:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      data_flow_graph:
+        allOf:
+        - $ref: '#/definitions/models.DataFlowGraph'
+        description: 关联关系
+      flow_graph_id:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      position_x:
+        type: integer
+      position_y:
+        type: integer
+      type:
+        description: datasource, api, file, filter, transform, aggregate, output
+        type: string
+    type: object
+  models.InterfaceField:
+    properties:
+      data_interface:
+        allOf:
+        - $ref: '#/definitions/models.DataInterface'
+        description: 关联关系
+      data_type:
+        type: string
+      default_value:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      interface_id:
+        type: string
+      is_nullable:
+        type: boolean
+      is_primary_key:
+        type: boolean
+      name_en:
+        type: string
+      name_zh:
+        type: string
+      order_num:
+        type: integer
+    type: object
+  models.Metadata:
+    properties:
+      content:
+        additionalProperties: true
+        type: object
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      related_object_id:
+        type: string
+      related_object_type:
+        description: basic_library/data_interface/thematic_library等
+        type: string
+      type:
+        description: technical/business/management
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.QualityRule:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      created_at:
+        type: string
+      id:
+        type: string
+      is_enabled:
+        type: boolean
+      name:
+        type: string
+      related_object_id:
+        type: string
+      related_object_type:
+        description: interface/thematic_interface
+        type: string
+      type:
+        description: completeness/standardization/consistency/accuracy/uniqueness/timeliness
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.SystemLog:
+    properties:
+      id:
+        type: string
+      object_id:
+        type: string
+      object_type:
+        description: basic_library/thematic_library/interface/user等
+        type: string
+      operation_content:
+        additionalProperties: true
+        type: object
+      operation_result:
+        description: success/failure
+        type: string
+      operation_time:
+        type: string
+      operation_type:
+        description: create/update/delete/query等
+        type: string
+      operator_id:
+        type: string
+      operator_ip:
+        type: string
+      operator_name:
+        type: string
+    type: object
+  models.ThematicInterface:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      created_at:
+        type: string
+      description:
+        type: string
+      flow_graphs:
+        items:
+          $ref: '#/definitions/models.DataFlowGraph'
+        type: array
+      id:
+        type: string
+      library_id:
+        type: string
+      name_en:
+        type: string
+      name_zh:
+        type: string
+      status:
+        type: string
+      thematic_library:
+        allOf:
+        - $ref: '#/definitions/models.ThematicLibrary'
+        description: 关联关系
+      type:
+        description: realtime, http
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.ThematicLibrary:
+    properties:
+      access_level:
+        description: public, internal, private
+        type: string
+      authorized_roles:
+        items:
+          type: string
+        type: array
+      authorized_users:
+        items:
+          type: string
+        type: array
+      category:
+        description: business, technical, analysis, report
+        type: string
+      code:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      domain:
+        description: user, order, product, finance, marketing
+        type: string
+      id:
+        type: string
+      interfaces:
+        description: 关联关系
+        items:
+          $ref: '#/definitions/models.ThematicInterface'
+        type: array
+      name:
+        type: string
+      publish_status:
+        description: draft, published, archived
+        type: string
+      retention_period:
+        type: integer
+      source_libraries:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+      tables:
+        additionalProperties: true
+        type: object
+      tags:
+        items:
+          type: string
+        type: array
+      update_frequency:
+        description: realtime, hourly, daily, weekly, monthly
+        type: string
+      updated_at:
+        type: string
+      version:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: 智慧园区数据底座后台服务，提供数据采集、处理、存储、治理和共享功能
+  title: 数据底座服务 API
+  version: "1.0"
+paths:
+  /basic-libraries:
+    get:
+      description: 分页获取数据基础库列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 状态筛选
+        enum:
+        - active
+        - inactive
+        - archived
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.BasicLibrary'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据基础库列表
+      tags:
+      - 数据基础库
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据基础库
+      parameters:
+      - description: 数据基础库信息
+        in: body
+        name: library
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateBasicLibraryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.BasicLibrary'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据基础库
+      tags:
+      - 数据基础库
+  /basic-libraries/{id}:
+    delete:
+      description: 软删除数据基础库（更新状态为archived）
+      parameters:
+      - description: 数据基础库ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除数据基础库
+      tags:
+      - 数据基础库
+    get:
+      description: 根据ID获取数据基础库详细信息
+      parameters:
+      - description: 数据基础库ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.BasicLibrary'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据基础库详情
+      tags:
+      - 数据基础库
+    put:
+      consumes:
+      - application/json
+      description: 更新数据基础库信息
+      parameters:
+      - description: 数据基础库ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: library
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateBasicLibraryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新数据基础库
+      tags:
+      - 数据基础库
+  /governance/masking-rules:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据脱敏规则列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 数据源
+        in: query
+        name: data_source
+        type: string
+      - description: 脱敏类型
+        in: query
+        name: masking_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.DataMaskingRule'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据脱敏规则列表
+      tags:
+      - 数据治理
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据脱敏规则
+      parameters:
+      - description: 数据脱敏规则信息
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/models.DataMaskingRule'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DataMaskingRule'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据脱敏规则
+      tags:
+      - 数据治理
+  /governance/masking-rules/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的数据脱敏规则
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除数据脱敏规则
+      tags:
+      - 数据治理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据脱敏规则详情
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DataMaskingRule'
+              type: object
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据脱敏规则
+      tags:
+      - 数据治理
+    put:
+      consumes:
+      - application/json
+      description: 更新数据脱敏规则信息
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新数据脱敏规则
+      tags:
+      - 数据治理
+  /governance/metadata:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取元数据列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 元数据类型
+        in: query
+        name: type
+        type: string
+      - description: 元数据名称
+        in: query
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Metadata'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取元数据列表
+      tags:
+      - 数据治理
+    post:
+      consumes:
+      - application/json
+      description: 创建新的元数据
+      parameters:
+      - description: 元数据信息
+        in: body
+        name: metadata
+        required: true
+        schema:
+          $ref: '#/definitions/models.Metadata'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Metadata'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建元数据
+      tags:
+      - 数据治理
+  /governance/metadata/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的元数据
+      parameters:
+      - description: 元数据ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 元数据不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除元数据
+      tags:
+      - 数据治理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取元数据详情
+      parameters:
+      - description: 元数据ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Metadata'
+              type: object
+        "404":
+          description: 元数据不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取元数据
+      tags:
+      - 数据治理
+    put:
+      consumes:
+      - application/json
+      description: 更新元数据信息
+      parameters:
+      - description: 元数据ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 元数据不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新元数据
+      tags:
+      - 数据治理
+  /governance/quality-check:
+    post:
+      consumes:
+      - application/json
+      description: 对指定对象执行数据质量检查并生成报告
+      parameters:
+      - description: 对象ID
+        in: query
+        name: object_id
+        required: true
+        type: string
+      - description: 对象类型
+        in: query
+        name: object_type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 检查成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DataQualityReport'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 执行数据质量检查
+      tags:
+      - 数据治理
+  /governance/quality-reports:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据质量报告列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 对象类型
+        in: query
+        name: object_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.DataQualityReport'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据质量报告列表
+      tags:
+      - 数据治理
+  /governance/quality-reports/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据质量报告详情
+      parameters:
+      - description: 报告ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DataQualityReport'
+              type: object
+        "404":
+          description: 报告不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据质量报告
+      tags:
+      - 数据治理
+  /governance/quality-rules:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据质量规则列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 规则类型
+        in: query
+        name: type
+        type: string
+      - description: 关联对象类型
+        in: query
+        name: object_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.QualityRule'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据质量规则列表
+      tags:
+      - 数据治理
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据质量规则
+      parameters:
+      - description: 数据质量规则信息
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/models.QualityRule'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.QualityRule'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据质量规则
+      tags:
+      - 数据治理
+  /governance/quality-rules/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的数据质量规则
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除数据质量规则
+      tags:
+      - 数据治理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据质量规则详情
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.QualityRule'
+              type: object
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据质量规则
+      tags:
+      - 数据治理
+    put:
+      consumes:
+      - application/json
+      description: 更新数据质量规则信息
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新数据质量规则
+      tags:
+      - 数据治理
+  /governance/system-logs:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取系统日志列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 操作类型
+        in: query
+        name: operation_type
+        type: string
+      - description: 对象类型
+        in: query
+        name: object_type
+        type: string
+      - description: 开始时间
+        in: query
+        name: start_time
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.SystemLog'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取系统日志列表
+      tags:
+      - 数据治理
+  /health:
+    get:
+      description: 检查服务健康状态
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.HealthResponse'
+      summary: 健康检查
+      tags:
+      - 系统
+  /ready:
+    get:
+      description: 检查服务是否就绪
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.HealthResponse'
+      summary: 就绪检查
+      tags:
+      - 系统
+  /sharing/api-applications:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取API应用列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 应用状态
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.ApiApplication'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取API应用列表
+      tags:
+      - 数据共享服务
+    post:
+      consumes:
+      - application/json
+      description: 创建新的API接入应用
+      parameters:
+      - description: API应用信息
+        in: body
+        name: app
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateApiApplicationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ApiApplication'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建API应用
+      tags:
+      - 数据共享服务
+  /sharing/api-applications/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的API应用
+      parameters:
+      - description: 应用ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 应用不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除API应用
+      tags:
+      - 数据共享服务
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取API应用详情
+      parameters:
+      - description: 应用ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ApiApplication'
+              type: object
+        "404":
+          description: 应用不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取API应用
+      tags:
+      - 数据共享服务
+    put:
+      consumes:
+      - application/json
+      description: 更新API应用信息
+      parameters:
+      - description: 应用ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 应用不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新API应用
+      tags:
+      - 数据共享服务
+  /sharing/api-rate-limits:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取API限流规则列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 应用ID
+        in: query
+        name: application_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.ApiRateLimit'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取API限流规则列表
+      tags:
+      - 数据共享服务
+    post:
+      consumes:
+      - application/json
+      description: 创建新的API限流规则
+      parameters:
+      - description: API限流规则信息
+        in: body
+        name: limit
+        required: true
+        schema:
+          $ref: '#/definitions/models.ApiRateLimit'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ApiRateLimit'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建API限流规则
+      tags:
+      - 数据共享服务
+  /sharing/api-rate-limits/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的API限流规则
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除API限流规则
+      tags:
+      - 数据共享服务
+    put:
+      consumes:
+      - application/json
+      description: 更新API限流规则信息
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新API限流规则
+      tags:
+      - 数据共享服务
+  /sharing/api-usage-logs:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取API使用日志列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 应用ID
+        in: query
+        name: application_id
+        type: string
+      - description: 用户ID
+        in: query
+        name: user_id
+        type: string
+      - description: 开始时间
+        in: query
+        name: start_time
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.ApiUsageLog'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取API使用日志列表
+      tags:
+      - 数据共享服务
+  /sharing/data-access-requests:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据使用申请列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 申请人ID
+        in: query
+        name: requester_id
+        type: string
+      - description: 资源类型
+        in: query
+        name: resource_type
+        type: string
+      - description: 申请状态
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.DataAccessRequest'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据使用申请列表
+      tags:
+      - 数据共享服务
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据使用申请
+      parameters:
+      - description: 数据使用申请信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.DataAccessRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DataAccessRequest'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据使用申请
+      tags:
+      - 数据共享服务
+  /sharing/data-access-requests/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据使用申请详情
+      parameters:
+      - description: 申请ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DataAccessRequest'
+              type: object
+        "404":
+          description: 申请不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据使用申请
+      tags:
+      - 数据共享服务
+  /sharing/data-access-requests/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: 审批数据使用申请
+      parameters:
+      - description: 申请ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 审批信息
+        in: body
+        name: approval
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ApproveDataAccessRequestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 审批成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 申请不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 审批数据使用申请
+      tags:
+      - 数据共享服务
+  /sharing/data-subscriptions:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据订阅列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 订阅者ID
+        in: query
+        name: subscriber_id
+        type: string
+      - description: 资源类型
+        in: query
+        name: resource_type
+        type: string
+      - description: 订阅状态
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.DataSubscription'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据订阅列表
+      tags:
+      - 数据共享服务
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据订阅
+      parameters:
+      - description: 数据订阅信息
+        in: body
+        name: subscription
+        required: true
+        schema:
+          $ref: '#/definitions/models.DataSubscription'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DataSubscription'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据订阅
+      tags:
+      - 数据共享服务
+  /sharing/data-subscriptions/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的数据订阅
+      parameters:
+      - description: 订阅ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 订阅不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除数据订阅
+      tags:
+      - 数据共享服务
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据订阅详情
+      parameters:
+      - description: 订阅ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DataSubscription'
+              type: object
+        "404":
+          description: 订阅不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据订阅
+      tags:
+      - 数据共享服务
+    put:
+      consumes:
+      - application/json
+      description: 更新数据订阅信息
+      parameters:
+      - description: 订阅ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 订阅不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新数据订阅
+      tags:
+      - 数据共享服务
+  /sharing/data-sync-logs:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据同步日志列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 任务ID
+        in: query
+        name: task_id
+        type: string
+      - description: 日志状态
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.DataSyncLog'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据同步日志列表
+      tags:
+      - 数据共享服务
+  /sharing/data-sync-tasks:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据同步任务列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 任务状态
+        in: query
+        name: status
+        type: string
+      - description: 创建人ID
+        in: query
+        name: created_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.DataSyncTask'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据同步任务列表
+      tags:
+      - 数据共享服务
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据同步任务
+      parameters:
+      - description: 数据同步任务信息
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/models.DataSyncTask'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DataSyncTask'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据同步任务
+      tags:
+      - 数据共享服务
+  /sharing/data-sync-tasks/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的数据同步任务
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 任务不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除数据同步任务
+      tags:
+      - 数据共享服务
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据同步任务详情
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DataSyncTask'
+              type: object
+        "404":
+          description: 任务不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据同步任务
+      tags:
+      - 数据共享服务
+    put:
+      consumes:
+      - application/json
+      description: 更新数据同步任务信息
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 任务不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新数据同步任务
+      tags:
+      - 数据共享服务
+  /thematic-interfaces:
+    get:
+      description: 分页获取主题库接口列表
+      parameters:
+      - description: 主题库ID筛选
+        in: query
+        name: library_id
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.ThematicInterface'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取主题库接口列表
+      tags:
+      - 数据主题库
+    post:
+      consumes:
+      - application/json
+      description: 为主题库创建新的数据接口
+      parameters:
+      - description: 主题库接口信息
+        in: body
+        name: interface
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateThematicInterfaceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ThematicInterface'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建主题库接口
+      tags:
+      - 数据主题库
+  /thematic-interfaces/{id}:
+    get:
+      description: 根据ID获取主题库接口详细信息
+      parameters:
+      - description: 主题库接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ThematicInterface'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取主题库接口详情
+      tags:
+      - 数据主题库
+  /thematic-libraries:
+    get:
+      description: 分页获取数据主题库列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 主题分类筛选
+        enum:
+        - business
+        - technical
+        - analysis
+        - report
+        in: query
+        name: category
+        type: string
+      - description: 数据域筛选
+        enum:
+        - user
+        - order
+        - product
+        - finance
+        - marketing
+        in: query
+        name: domain
+        type: string
+      - description: 状态筛选
+        enum:
+        - active
+        - inactive
+        - archived
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.ThematicLibrary'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据主题库列表
+      tags:
+      - 数据主题库
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据主题库
+      parameters:
+      - description: 数据主题库信息
+        in: body
+        name: library
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateThematicLibraryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ThematicLibrary'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据主题库
+      tags:
+      - 数据主题库
+  /thematic-libraries/{id}:
+    delete:
+      description: 软删除数据主题库（更新状态为archived）
+      parameters:
+      - description: 数据主题库ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除数据主题库
+      tags:
+      - 数据主题库
+    get:
+      description: 根据ID获取数据主题库详细信息
+      parameters:
+      - description: 数据主题库ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ThematicLibrary'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据主题库详情
+      tags:
+      - 数据主题库
+    put:
+      consumes:
+      - application/json
+      description: 更新数据主题库信息
+      parameters:
+      - description: 数据主题库ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: library
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateThematicLibraryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新数据主题库
+      tags:
+      - 数据主题库
+  /thematic-libraries/{id}/publish:
+    post:
+      description: 将主题库状态更新为已发布
+      parameters:
+      - description: 数据主题库ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 发布数据主题库
+      tags:
+      - 数据主题库
+swagger: "2.0"
