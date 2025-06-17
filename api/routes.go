@@ -44,15 +44,93 @@ func InitRoute(r *chi.Mux) {
 	r.Get("/health", healthController.Health)
 	r.Get("/ready", healthController.Ready)
 
-	// 数据基础库管理
+	// SSE事件订阅
+	eventController := controllers.NewEventController()
+	r.Get("/sse/{user_name}", eventController.HandleSSE)
+
+	// 事件管理
+	r.Route("/events", func(r chi.Router) {
+		r.Post("/send", eventController.SendEvent)
+		r.Post("/broadcast", eventController.BroadcastEvent)
+
+	})
+	r.Route("/tables", func(r chi.Router) {
+		tableController := controllers.NewTableController()
+		r.Post("/manage-schema", tableController.ManageTableSchema)
+	})
+
+	// 数据基础库管理（CRUD通过PostgREST实现）
 	r.Route("/basic-libraries", func(r chi.Router) {
 		basicLibraryController := controllers.NewBasicLibraryController()
 
-		r.Post("/", basicLibraryController.CreateBasicLibrary)
-		r.Get("/", basicLibraryController.GetBasicLibraries)
-		r.Get("/{id}", basicLibraryController.GetBasicLibrary)
-		r.Put("/{id}", basicLibraryController.UpdateBasicLibrary)
-		r.Delete("/{id}", basicLibraryController.DeleteBasicLibrary)
+		// 数据源测试
+		r.Post("/test-datasource", basicLibraryController.TestDataSource)
+
+		// 接口调用测试
+		r.Post("/test-interface", basicLibraryController.TestInterface)
+
+		// 调度配置
+		r.Post("/configure-schedule", basicLibraryController.ConfigureSchedule)
+
+		// 数据源状态查询
+		r.Get("/datasource-status/{id}", basicLibraryController.GetDataSourceStatus)
+
+		// 接口数据预览
+		r.Get("/interface-preview/{id}", basicLibraryController.PreviewInterfaceData)
+		// 添加数据基础库,需要创建schema
+		r.Post("/add-basic-library", basicLibraryController.AddBasicLibrary)
+		// 删除数据基础库，需要删除schema
+		r.Post("/delete-basic-library", basicLibraryController.DeleteBasicLibrary)
+
+		// 添加数据源
+		r.Post("/add-datasource", basicLibraryController.AddDataSource)
+		// 删除数据源
+		r.Post("/delete-datasource", basicLibraryController.DeleteDataSource)
+
+		// 添加数据接口
+		r.Post("/add-interface", basicLibraryController.AddInterface)
+		// 删除数据接口
+		r.Post("/delete-interface", basicLibraryController.DeleteInterface)
+
+		// 数据同步任务管理
+		r.Route("/sync", func(r chi.Router) {
+			syncController := controllers.NewSyncController()
+
+			// 同步任务CRUD
+			r.Route("/tasks", func(r chi.Router) {
+				// 基础CRUD操作
+				r.Post("/", syncController.CreateSyncTask)
+				r.Get("/", syncController.GetSyncTasks)
+				r.Get("/{id}", syncController.GetSyncTask)
+				r.Put("/{id}", syncController.UpdateSyncTask)
+				r.Delete("/{id}", syncController.DeleteSyncTask)
+
+				// 任务控制操作
+				r.Post("/{id}/cancel", syncController.CancelSyncTask)
+				r.Post("/{id}/retry", syncController.RetryTask)
+				r.Post("/{id}/start", syncController.StartSyncTask)
+				r.Post("/{id}/stop", syncController.StopSyncTask)
+				r.Get("/{id}/status", syncController.GetSyncTaskStatus)
+
+				// 批量操作
+				r.Post("/batch-delete", syncController.BatchDeleteSyncTasks)
+				r.Post("/cleanup", syncController.CleanupCompletedTasks)
+
+				// 统计信息
+				r.Get("/statistics", syncController.GetTaskStatistics)
+			})
+		})
+
+	})
+	r.Route("/meta", func(r chi.Router) {
+		metaController := controllers.NewMetaController()
+		r.Get("/basic-libraries/data-sources", metaController.GetDataSourceTypes)
+		r.Get("/basic-libraries/data-interface-configs", metaController.GetDataInterfaceConfigs)
+		r.Get("/basic-libraries/sync-task-types", metaController.GetSyncTaskTypes)
+		r.Get("/basic-libraries/sync-task-meta", metaController.GetSyncTaskRelated)
+		r.Get("/thematic-libraries/categories", metaController.GetThematicLibraryCategories)
+		r.Get("/thematic-libraries/domains", metaController.GetThematicLibraryDomains)
+		r.Get("/thematic-libraries/access-levels", metaController.GetThematicLibraryAccessLevels)
 	})
 
 	// 数据主题库管理
@@ -60,24 +138,21 @@ func InitRoute(r *chi.Mux) {
 		thematicLibraryController := controllers.NewThematicLibraryController()
 
 		r.Post("/", thematicLibraryController.CreateThematicLibrary)
-		r.Get("/", thematicLibraryController.GetThematicLibraries)
 		r.Get("/{id}", thematicLibraryController.GetThematicLibrary)
 		r.Put("/{id}", thematicLibraryController.UpdateThematicLibrary)
 		r.Delete("/{id}", thematicLibraryController.DeleteThematicLibrary)
 		r.Post("/{id}/publish", thematicLibraryController.PublishThematicLibrary)
 	})
 
-	// 主题库接口管理
+	// 主题接口管理
 	r.Route("/thematic-interfaces", func(r chi.Router) {
 		thematicLibraryController := controllers.NewThematicLibraryController()
 
 		r.Post("/", thematicLibraryController.CreateThematicInterface)
-		r.Get("/", thematicLibraryController.GetThematicInterfaces)
 		r.Get("/{id}", thematicLibraryController.GetThematicInterface)
+		r.Put("/{id}", thematicLibraryController.UpdateThematicInterface)
+		r.Delete("/{id}", thematicLibraryController.DeleteThematicInterface)
 	})
-
-	// 访问控制管理已移除，改为使用PostgREST RBAC
-	// 权限管理通过PostgREST提供，详见ai_docs/postgrest_rbac_guide.md
 
 	// 数据治理
 	r.Route("/governance", func(r chi.Router) {
@@ -176,4 +251,130 @@ func InitRoute(r *chi.Mux) {
 		// API使用日志管理
 		r.Get("/api-usage-logs", sharingController.GetApiUsageLogs)
 	})
+
+	// 数据质量管理
+	r.Route("/quality", func(r chi.Router) {
+		qualityController := controllers.NewQualityController()
+
+		// 质量规则管理
+		r.Route("/rules", func(r chi.Router) {
+			r.Post("/", qualityController.CreateQualityRule)
+			r.Get("/", qualityController.GetQualityRules)
+			r.Get("/{id}", qualityController.GetQualityRule)
+			r.Put("/{id}", qualityController.UpdateQualityRule)
+			r.Delete("/{id}", qualityController.DeleteQualityRule)
+		})
+
+		// 质量检查
+		r.Route("/checks", func(r chi.Router) {
+			r.Post("/", qualityController.ExecuteQualityCheck)
+			r.Get("/", qualityController.GetQualityChecks)
+			r.Get("/{id}", qualityController.GetQualityCheck)
+		})
+
+		// 清洗规则管理
+		r.Route("/cleansing", func(r chi.Router) {
+			r.Post("/", qualityController.CreateCleansingRule)
+			r.Get("/", qualityController.GetCleansingRules)
+			r.Post("/{id}/execute", qualityController.ExecuteCleansingRule)
+		})
+
+		// 质量报告
+		r.Route("/reports", func(r chi.Router) {
+			r.Get("/", qualityController.GetQualityReports)
+			r.Get("/{id}", qualityController.GetQualityReport)
+			r.Post("/generate", qualityController.GenerateQualityReport)
+		})
+
+		// 问题追踪
+		r.Route("/issues", func(r chi.Router) {
+			r.Get("/", qualityController.GetQualityIssues)
+			r.Post("/{id}/resolve", qualityController.ResolveQualityIssue)
+		})
+
+		// 质量指标
+		r.Get("/metrics", qualityController.GetQualityMetrics)
+	})
+
+	// 监控管理
+	r.Route("/monitoring", func(r chi.Router) {
+		monitoringController := controllers.NewMonitoringController()
+
+		// 监控指标
+		r.Route("/metrics", func(r chi.Router) {
+			r.Get("/system", monitoringController.GetSystemMetrics)
+			r.Get("/performance", monitoringController.GetPerformanceMetrics)
+		})
+
+		// 告警管理
+		r.Route("/alerts", func(r chi.Router) {
+			r.Get("/", monitoringController.GetAlerts)
+			r.Get("/{id}", monitoringController.GetAlert)
+			r.Post("/{id}/acknowledge", monitoringController.AcknowledgeAlert)
+			r.Post("/{id}/resolve", monitoringController.ResolveAlert)
+		})
+
+		// 告警规则
+		r.Route("/alert-rules", func(r chi.Router) {
+			r.Post("/", monitoringController.CreateAlertRule)
+			r.Get("/", monitoringController.GetAlertRules)
+			r.Put("/{id}", monitoringController.UpdateAlertRule)
+			r.Delete("/{id}", monitoringController.DeleteAlertRule)
+		})
+
+		// 健康检查
+		r.Route("/health", func(r chi.Router) {
+			r.Get("/", monitoringController.GetHealthStatus)
+			r.Get("/checks", monitoringController.GetHealthChecks)
+		})
+
+		// 服务状态
+		r.Get("/services", monitoringController.GetServiceStatus)
+
+		// 监控仪表板
+		r.Get("/dashboard", monitoringController.GetMonitoringDashboard)
+
+		// 性能报告
+		r.Get("/performance-report", monitoringController.GeneratePerformanceReport)
+	})
+
+	// 调度管理 - 暂时注释掉，等待SchedulerController实现
+	/*
+		r.Route("/scheduler", func(r chi.Router) {
+			schedulerController := controllers.NewSchedulerController()
+
+			// 调度任务管理
+			r.Route("/tasks", func(r chi.Router) {
+				r.Post("/", schedulerController.CreateScheduledTask)
+				r.Get("/", schedulerController.GetScheduledTasks)
+				r.Get("/{id}", schedulerController.GetScheduledTask)
+				r.Put("/{id}", schedulerController.UpdateScheduledTask)
+				r.Delete("/{id}", schedulerController.DeleteScheduledTask)
+			})
+
+			// 任务执行控制
+			r.Route("/control", func(r chi.Router) {
+				r.Post("/start/{id}", schedulerController.StartTask)
+				r.Post("/stop/{id}", schedulerController.StopTask)
+				r.Post("/pause/{id}", schedulerController.PauseTask)
+				r.Post("/resume/{id}", schedulerController.ResumeTask)
+				r.Post("/trigger/{id}", schedulerController.TriggerTask)
+			})
+
+			// 执行历史
+			r.Route("/executions", func(r chi.Router) {
+				r.Get("/", schedulerController.GetTaskExecutions)
+				r.Get("/{execution_id}", schedulerController.GetTaskExecution)
+			})
+
+			// 重试管理
+			r.Route("/retry", func(r chi.Router) {
+				r.Post("/{execution_id}", schedulerController.RetryFailedTask)
+				r.Get("/tasks", schedulerController.GetRetryTasks)
+			})
+
+			// 统计信息
+			r.Get("/stats", schedulerController.GetTaskStats)
+		})
+	*/
 }

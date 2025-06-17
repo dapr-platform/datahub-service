@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+<代码规则>
+- 每个文件代码不要超过500行，可以拆分多个模块、多个类
+- 代码编写要符合 SOLID 原则
+</代码规则>

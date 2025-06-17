@@ -53,8 +53,5 @@ temp/
 .DS_Store
 Thumbs.db
 
-.cursor
 datahub-service
-ai_docs
 start.sh
-memory-bank

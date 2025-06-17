@@ -1,0 +1,2 @@
+对于1对多等关联关系的情况，要使用json_agg 或者jsonb_build_object等方式创建json字段（对象或array）
+视图要有comment，并且对视图中的json_agg或者 jsonb_build_object字段，comment内容要有引用表每个字段的信息

@@ -28,13 +28,29 @@ type QualityRule struct {
 	RelatedObjectType string                 `gorm:"not null" json:"related_object_type"` // interface/thematic_interface
 	IsEnabled         bool                   `gorm:"not null;default:true" json:"is_enabled"`
 	CreatedAt         time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	CreatedBy         string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
 	UpdatedAt         time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	UpdatedBy         string                 `gorm:"not null;default:'system';size:100" json:"updated_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (q *QualityRule) BeforeCreate(tx *gorm.DB) error {
 	if q.ID == "" {
 		q.ID = uuid.New().String()
+	}
+	if q.CreatedBy == "" {
+		q.CreatedBy = "system"
+	}
+	if q.UpdatedBy == "" {
+		q.UpdatedBy = "system"
+	}
+	return nil
+}
+
+// BeforeUpdate 更新前钩子
+func (q *QualityRule) BeforeUpdate(tx *gorm.DB) error {
+	if q.UpdatedBy == "" {
+		q.UpdatedBy = "system"
 	}
 	return nil
 }
@@ -48,13 +64,29 @@ type Metadata struct {
 	RelatedObjectID   *string                `json:"related_object_id"`
 	RelatedObjectType *string                `json:"related_object_type"` // basic_library/data_interface/thematic_library等
 	CreatedAt         time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	CreatedBy         string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
 	UpdatedAt         time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	UpdatedBy         string                 `gorm:"not null;default:'system';size:100" json:"updated_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (m *Metadata) BeforeCreate(tx *gorm.DB) error {
 	if m.ID == "" {
 		m.ID = uuid.New().String()
+	}
+	if m.CreatedBy == "" {
+		m.CreatedBy = "system"
+	}
+	if m.UpdatedBy == "" {
+		m.UpdatedBy = "system"
+	}
+	return nil
+}
+
+// BeforeUpdate 更新前钩子
+func (m *Metadata) BeforeUpdate(tx *gorm.DB) error {
+	if m.UpdatedBy == "" {
+		m.UpdatedBy = "system"
 	}
 	return nil
 }
@@ -73,13 +105,29 @@ type DataMaskingRule struct {
 	CreatorID     string                 `gorm:"not null" json:"creator_id"`
 	CreatorName   string                 `json:"creator_name"`
 	CreatedAt     time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	CreatedBy     string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
 	UpdatedAt     time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	UpdatedBy     string                 `gorm:"not null;default:'system';size:100" json:"updated_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (d *DataMaskingRule) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
 		d.ID = uuid.New().String()
+	}
+	if d.CreatedBy == "" {
+		d.CreatedBy = "system"
+	}
+	if d.UpdatedBy == "" {
+		d.UpdatedBy = "system"
+	}
+	return nil
+}
+
+// BeforeUpdate 更新前钩子
+func (d *DataMaskingRule) BeforeUpdate(tx *gorm.DB) error {
+	if d.UpdatedBy == "" {
+		d.UpdatedBy = "system"
 	}
 	return nil
 }
@@ -96,12 +144,16 @@ type SystemLog struct {
 	OperationContent map[string]interface{} `gorm:"type:jsonb;not null" json:"operation_content"`
 	OperationTime    time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"operation_time"`
 	OperationResult  string                 `gorm:"not null" json:"operation_result"` // success/failure
+	CreatedBy        string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (s *SystemLog) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
 		s.ID = uuid.New().String()
+	}
+	if s.CreatedBy == "" {
+		s.CreatedBy = "system"
 	}
 	return nil
 }
@@ -117,13 +169,29 @@ type BackupConfig struct {
 	StorageLocation string                 `gorm:"not null" json:"storage_location"`
 	IsEnabled       bool                   `gorm:"not null;default:true" json:"is_enabled"`
 	CreatedAt       time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	CreatedBy       string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
 	UpdatedAt       time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	UpdatedBy       string                 `gorm:"not null;default:'system';size:100" json:"updated_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (b *BackupConfig) BeforeCreate(tx *gorm.DB) error {
 	if b.ID == "" {
 		b.ID = uuid.New().String()
+	}
+	if b.CreatedBy == "" {
+		b.CreatedBy = "system"
+	}
+	if b.UpdatedBy == "" {
+		b.UpdatedBy = "system"
+	}
+	return nil
+}
+
+// BeforeUpdate 更新前钩子
+func (b *BackupConfig) BeforeUpdate(tx *gorm.DB) error {
+	if b.UpdatedBy == "" {
+		b.UpdatedBy = "system"
 	}
 	return nil
 }
@@ -139,12 +207,16 @@ type BackupRecord struct {
 	Status         string        `gorm:"not null" json:"status"` // in_progress/success/failure
 	FilePath       *string       `json:"file_path"`
 	ErrorMessage   *string       `json:"error_message"`
+	CreatedBy      string        `gorm:"not null;default:'system';size:100" json:"created_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (b *BackupRecord) BeforeCreate(tx *gorm.DB) error {
 	if b.ID == "" {
 		b.ID = uuid.New().String()
+	}
+	if b.CreatedBy == "" {
+		b.CreatedBy = "system"
 	}
 	return nil
 }
@@ -162,12 +234,16 @@ type DataQualityReport struct {
 	GeneratedAt       time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"generated_at"`
 	GeneratedBy       string                 `gorm:"not null" json:"generated_by"`
 	GeneratorName     string                 `json:"generator_name"`
+	CreatedBy         string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (d *DataQualityReport) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
 		d.ID = uuid.New().String()
+	}
+	if d.CreatedBy == "" {
+		d.CreatedBy = "system"
 	}
 	return nil
 }

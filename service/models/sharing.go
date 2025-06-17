@@ -29,13 +29,29 @@ type ApiApplication struct {
 	ContactEmail  string    `gorm:"not null" json:"contact_email"`
 	Status        string    `gorm:"not null;default:'active'" json:"status"` // active/inactive
 	CreatedAt     time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	CreatedBy     string    `gorm:"not null;default:'system';size:100" json:"created_by"`
 	UpdatedAt     time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	UpdatedBy     string    `gorm:"not null;default:'system';size:100" json:"updated_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (a *ApiApplication) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
 		a.ID = uuid.New().String()
+	}
+	if a.CreatedBy == "" {
+		a.CreatedBy = "system"
+	}
+	if a.UpdatedBy == "" {
+		a.UpdatedBy = "system"
+	}
+	return nil
+}
+
+// BeforeUpdate 更新前钩子
+func (a *ApiApplication) BeforeUpdate(tx *gorm.DB) error {
+	if a.UpdatedBy == "" {
+		a.UpdatedBy = "system"
 	}
 	return nil
 }
@@ -49,12 +65,17 @@ type ApiRateLimit struct {
 	TimeWindow    int             `gorm:"not null" json:"time_window"`  // 时间窗口，单位秒
 	MaxRequests   int             `gorm:"not null" json:"max_requests"` // 最大请求数
 	IsEnabled     bool            `gorm:"not null;default:true" json:"is_enabled"`
+	CreatedAt     time.Time       `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	CreatedBy     string          `gorm:"not null;default:'system';size:100" json:"created_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (a *ApiRateLimit) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
 		a.ID = uuid.New().String()
+	}
+	if a.CreatedBy == "" {
+		a.CreatedBy = "system"
 	}
 	return nil
 }
@@ -71,13 +92,29 @@ type DataSubscription struct {
 	FilterCondition    map[string]interface{} `gorm:"type:jsonb" json:"filter_condition"`
 	Status             string                 `gorm:"not null;default:'active'" json:"status"` // active/paused/terminated
 	CreatedAt          time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	CreatedBy          string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
 	UpdatedAt          time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	UpdatedBy          string                 `gorm:"not null;default:'system';size:100" json:"updated_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (d *DataSubscription) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
 		d.ID = uuid.New().String()
+	}
+	if d.CreatedBy == "" {
+		d.CreatedBy = "system"
+	}
+	if d.UpdatedBy == "" {
+		d.UpdatedBy = "system"
+	}
+	return nil
+}
+
+// BeforeUpdate 更新前钩子
+func (d *DataSubscription) BeforeUpdate(tx *gorm.DB) error {
+	if d.UpdatedBy == "" {
+		d.UpdatedBy = "system"
 	}
 	return nil
 }
@@ -97,6 +134,7 @@ type DataAccessRequest struct {
 	ApproverID       *string    `json:"approver_id"`
 	ApproverName     *string    `json:"approver_name"`
 	RequestedAt      time.Time  `gorm:"not null;default:CURRENT_TIMESTAMP" json:"requested_at"`
+	CreatedBy        string     `gorm:"not null;default:'system';size:100" json:"created_by"`
 	ApprovedAt       *time.Time `json:"approved_at"`
 }
 
@@ -104,6 +142,9 @@ type DataAccessRequest struct {
 func (d *DataAccessRequest) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
 		d.ID = uuid.New().String()
+	}
+	if d.CreatedBy == "" {
+		d.CreatedBy = "system"
 	}
 	return nil
 }
@@ -126,12 +167,24 @@ type DataSyncTask struct {
 	CreatorName    string                 `json:"creator_name"`
 	CreatedAt      time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt      time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	UpdatedBy      string                 `gorm:"not null;default:'system';size:100" json:"updated_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (d *DataSyncTask) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
 		d.ID = uuid.New().String()
+	}
+	if d.UpdatedBy == "" {
+		d.UpdatedBy = "system"
+	}
+	return nil
+}
+
+// BeforeUpdate 更新前钩子
+func (d *DataSyncTask) BeforeUpdate(tx *gorm.DB) error {
+	if d.UpdatedBy == "" {
+		d.UpdatedBy = "system"
 	}
 	return nil
 }
@@ -149,12 +202,16 @@ type DataSyncLog struct {
 	RecordsError int64                  `gorm:"default:0" json:"records_error"`
 	ErrorMessage *string                `json:"error_message"`
 	Details      map[string]interface{} `gorm:"type:jsonb" json:"details"`
+	CreatedBy    string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (d *DataSyncLog) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
 		d.ID = uuid.New().String()
+	}
+	if d.CreatedBy == "" {
+		d.CreatedBy = "system"
 	}
 	return nil
 }
@@ -176,12 +233,16 @@ type ApiUsageLog struct {
 	RequestSize   int64           `gorm:"default:0" json:"request_size"`
 	ResponseSize  int64           `gorm:"default:0" json:"response_size"`
 	ErrorMessage  *string         `json:"error_message"`
+	CreatedBy     string          `gorm:"not null;default:'system';size:100" json:"created_by"`
 }
 
 // BeforeCreate 创建前钩子
 func (a *ApiUsageLog) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
 		a.ID = uuid.New().String()
+	}
+	if a.CreatedBy == "" {
+		a.CreatedBy = "system"
 	}
 	return nil
 }

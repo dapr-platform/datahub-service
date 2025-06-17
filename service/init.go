@@ -12,7 +12,10 @@
 package service
 
 import (
+	"datahub-service/service/basic_library"
 	"datahub-service/service/database"
+	"datahub-service/service/sync_engine"
+	"datahub-service/service/thematic_library"
 	"fmt"
 	"log"
 	"os"
@@ -21,11 +24,19 @@ import (
 	"gorm.io/gorm"
 )
 
-var DB *gorm.DB
+var (
+	DB                           *gorm.DB
+	GlobalEventService           *EventService
+	GlobalBasicLibraryService    *basic_library.Service
+	GlobalThematicLibraryService *thematic_library.Service
+	GlobalSyncEngine             *sync_engine.SyncEngine
+	GlobalSchemaService          *database.SchemaService
+)
 
 func init() {
 	initDatabase()
 	runMigrations()
+	initServices()
 }
 
 // initDatabase 初始化数据库连接
@@ -75,4 +86,19 @@ func runMigrations() {
 	if err := database.InitializeData(DB); err != nil {
 		log.Fatalf("基础数据初始化失败: %v", err)
 	}
+	if err := database.AutoMigrateView(DB); err != nil {
+		log.Fatalf("视图迁移失败: %v", err)
+	}
+}
+
+// initServices 初始化服务
+func initServices() {
+	// 初始化事件服务
+	GlobalEventService = NewEventService(DB)
+	// 将事件服务作为参数传递给BasicLibraryService
+	GlobalBasicLibraryService = basic_library.NewService(DB, GlobalEventService)
+	GlobalThematicLibraryService = thematic_library.NewService(DB)
+	GlobalSyncEngine = sync_engine.NewSyncEngine(DB, 10)
+	GlobalSchemaService = database.NewSchemaService(DB)
+	log.Println("服务初始化完成")
 }

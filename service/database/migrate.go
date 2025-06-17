@@ -6,7 +6,7 @@
  * @stateFlow 应用启动时执行数据库迁移
  * @rules 确保数据库结构与模型定义保持一致
  * @dependencies datahub-service/service/models, gorm.io/gorm
- * @refs dev_docs/backend_requirements.md
+ * @refs dev_docs/backend_requirements.md, service/models/datasource_types.go
  */
 
 package database
@@ -27,8 +27,11 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.BasicLibrary{},
 		&models.DataInterface{},
 		&models.DataSource{},
-		&models.InterfaceField{},
 		&models.CleansingRule{},
+		&models.ScheduleConfig{},
+		&models.DataSourceStatus{},
+		&models.InterfaceStatus{},
+		&models.SyncTask{},
 	)
 	if err != nil {
 		return err
@@ -75,6 +78,17 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
+	// 事件管理相关表
+	err = db.AutoMigrate(
+		&models.SSEEvent{},
+		&models.DBEventListener{},
+		&models.DBChangeEvent{},
+		&models.SSEConnection{},
+	)
+	if err != nil {
+		return err
+	}
+
 	log.Println("数据库迁移完成")
 	return nil
 }
@@ -82,6 +96,13 @@ func AutoMigrate(db *gorm.DB) error {
 // InitializeData 初始化基础数据
 func InitializeData(db *gorm.DB) error {
 	log.Println("开始初始化基础数据...")
+
+	// 数据源类型元数据现在由动态注册表提供，无需数据库存储
+	// err := initDataSourceTypeMeta(db)
+	// if err != nil {
+	// 	log.Printf("初始化数据源类型元数据失败: %v", err)
+	// 	return err
+	// }
 
 	// 权限和角色管理已移除，改为使用PostgREST RBAC
 
@@ -103,8 +124,18 @@ func InitializeData(db *gorm.DB) error {
 		"pseudonymize", // 假名化
 	}
 
+	// 初始化默认事件类型
+	eventTypes := []string{
+		"data_change",         // 数据变更
+		"system_notification", // 系统通知
+		"user_message",        // 用户消息
+		"alert",               // 告警
+		"status_update",       // 状态更新
+	}
+
 	log.Printf("支持的数据质量规则类型: %v", qualityRuleTypes)
 	log.Printf("支持的数据脱敏类型: %v", maskingTypes)
+	log.Printf("支持的事件类型: %v", eventTypes)
 
 	log.Println("基础数据初始化完成")
 	return nil
