@@ -38,13 +38,16 @@
 - 核心表的基础 CRUD 操作
 - 自动清理测试数据
 
-### 3. `test_login.sh` - 登录功能测试脚本
+### 3. `test_login.sh` - 双 Token 登录功能测试脚本
 
 **功能**：
 
-- 专门测试 RBAC 登录功能
-- 详细显示登录响应信息
-- 验证 token 有效性
+- 专门测试双 Token RBAC 登录功能
+- 详细显示登录响应信息（access_token 和 refresh_token）
+- 验证 access token 有效性
+- 测试 refresh token 功能
+- 测试 token 撤销功能
+- 完整的双 Token 机制验证流程
 - 支持有无 jq 工具的环境
 
 ### 4. `cleanup_test_data.sh` - 清理脚本
@@ -115,12 +118,20 @@ postgrest config.conf
 
 ## 使用方法
 
-### 登录功能测试
+### 双 Token 登录功能测试
 
 ```bash
-# 专门测试登录功能，查看详细信息
+# 专门测试双Token登录功能，包含完整的token管理流程
 ./scripts/test_login.sh
 ```
+
+**测试内容包括**：
+
+- 双 Token 登录获取 access_token 和 refresh_token
+- Access Token 有效性验证
+- Refresh Token 刷新机制测试
+- Token 撤销功能验证
+- 撤销后 Token 无效性验证
 
 ### 快速测试
 
@@ -166,15 +177,39 @@ export PASSWORD="your_password"
 - 验证 PostgREST 服务是否可访问
 - 检查必要的依赖工具
 
-### 2. RBAC 登录
+### 2. 双 Token RBAC 登录
 
 ```bash
-# 登录请求示例
+# 双Token登录请求示例 - 返回access_token和refresh_token
 curl -X POST "http://localhost:3000/rpc/get_token" \
   -H "Content-Type: application/json" \
   -H "Accept-Profile: postgrest" \
   -H "Content-Profile: postgrest" \
   -d '{"username": "admin", "password": "things2024"}'
+
+# 响应示例:
+# {
+#   "success": true,
+#   "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+#   "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+#   "username": "admin",
+#   "roles": ["admin"],
+#   "permissions": [...]
+# }
+
+# 刷新access token
+curl -X POST "http://localhost:3000/rpc/refresh_token" \
+  -H "Content-Type: application/json" \
+  -H "Accept-Profile: postgrest" \
+  -H "Content-Profile: postgrest" \
+  -d '{"refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc..."}'
+
+# 撤销refresh token
+curl -X POST "http://localhost:3000/rpc/revoke_refresh_token" \
+  -H "Content-Type: application/json" \
+  -H "Accept-Profile: postgrest" \
+  -H "Content-Profile: postgrest" \
+  -d '{"refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc..."}'
 ```
 
 ### 3. 数据操作测试

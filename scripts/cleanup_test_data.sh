@@ -35,9 +35,11 @@ login_response=$(curl -s -X POST "${POSTGREST_URL}/rpc/get_token" \
     -d "{\"username\": \"${USERNAME}\", \"password\": \"${PASSWORD}\"}")
 
 if command -v jq >/dev/null 2>&1; then
-    TOKEN=$(echo "$login_response" | jq -r '.token // ""')
+    ACCESS_TOKEN=$(echo "$login_response" | jq -r '.access_token // ""')
+    TOKEN="$ACCESS_TOKEN"  # 使用access token进行后续API调用
 else
-    TOKEN=$(echo "$login_response" | sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    ACCESS_TOKEN=$(echo "$login_response" | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    TOKEN="$ACCESS_TOKEN"  # 使用access token进行后续API调用
 fi
 
 if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then

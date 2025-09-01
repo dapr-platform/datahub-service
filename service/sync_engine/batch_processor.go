@@ -333,13 +333,139 @@ func (p *BatchProcessor) processFileData(ctx context.Context, dataSource *models
 	}
 }
 
-// processBatch 处理数据批次
+// processBatch 处理数据批次，根据库类型选择不同的写入策略
 func (p *BatchProcessor) processBatch(ctx context.Context, rows []map[string]interface{}, dataInterface *models.DataInterface, task *models.SyncTask) error {
-	// 这里应该实现具体的数据处理逻辑
-	// 例如：数据转换、验证、写入目标表等
+	// 根据库类型选择处理策略
+	switch task.LibraryType {
+	case meta.LibraryTypeBasic:
+		return p.processBasicLibraryBatch(ctx, rows, dataInterface, task)
+	case meta.LibraryTypeThematic:
+		return p.processThematicLibraryBatch(ctx, rows, dataInterface, task)
+	default:
+		// 向后兼容，对于未指定库类型的任务，使用基础库处理
+		return p.processBasicLibraryBatch(ctx, rows, dataInterface, task)
+	}
+}
 
-	// 模拟处理延迟
-	time.Sleep(100 * time.Millisecond)
+// processBasicLibraryBatch 处理基础库数据批次
+func (p *BatchProcessor) processBasicLibraryBatch(ctx context.Context, rows []map[string]interface{}, dataInterface *models.DataInterface, task *models.SyncTask) error {
+	// 基础库的数据写入逻辑
+	// 通常写入到基础库相关的表中
+
+	// 构造基础库数据记录
+	var basicLibraries []models.BasicLibrary
+	for _, row := range rows {
+		basicLibrary := models.BasicLibrary{
+			// 从row中映射其他字段
+		}
+
+		// 从原始数据映射字段
+		if nameZh, exists := row["name_zh"]; exists {
+			if nameStr, ok := nameZh.(string); ok {
+				basicLibrary.NameZh = nameStr
+			}
+		}
+
+		if nameEn, exists := row["name_en"]; exists {
+			if nameStr, ok := nameEn.(string); ok {
+				basicLibrary.NameEn = nameStr
+			}
+		}
+
+		if description, exists := row["description"]; exists {
+			if descStr, ok := description.(string); ok {
+				basicLibrary.Description = descStr
+			}
+		}
+
+		// 设置默认值
+		if basicLibrary.NameZh == "" {
+			basicLibrary.NameZh = "默认基础库名称"
+		}
+		if basicLibrary.NameEn == "" {
+			basicLibrary.NameEn = fmt.Sprintf("basic_library_%d", time.Now().Unix())
+		}
+
+		basicLibraries = append(basicLibraries, basicLibrary)
+	}
+
+	// 批量插入基础库数据
+	if len(basicLibraries) > 0 {
+		if err := p.db.CreateInBatches(basicLibraries, p.batchSize).Error; err != nil {
+			return fmt.Errorf("批量写入基础库数据失败: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// processThematicLibraryBatch 处理专题库数据批次
+func (p *BatchProcessor) processThematicLibraryBatch(ctx context.Context, rows []map[string]interface{}, dataInterface *models.DataInterface, task *models.SyncTask) error {
+	// 专题库的数据写入逻辑
+	// 通常写入到专题库相关的表中
+
+	// 构造专题库数据记录
+	var thematicLibraries []models.ThematicLibrary
+	for _, row := range rows {
+		thematicLibrary := models.ThematicLibrary{
+			// 从row中映射其他字段
+		}
+
+		// 从原始数据映射字段
+		if nameZh, exists := row["name_zh"]; exists {
+			if nameStr, ok := nameZh.(string); ok {
+				thematicLibrary.NameZh = nameStr
+			}
+		}
+
+		if nameEn, exists := row["name_en"]; exists {
+			if nameStr, ok := nameEn.(string); ok {
+				thematicLibrary.NameEn = nameStr
+			}
+		}
+
+		if description, exists := row["description"]; exists {
+			if descStr, ok := description.(string); ok {
+				thematicLibrary.Description = descStr
+			}
+		}
+
+		// 专题库特有字段
+		if category, exists := row["category"]; exists {
+			if catStr, ok := category.(string); ok {
+				thematicLibrary.Category = catStr
+			}
+		}
+
+		if domain, exists := row["domain"]; exists {
+			if domainStr, ok := domain.(string); ok {
+				thematicLibrary.Domain = domainStr
+			}
+		}
+
+		// 设置默认值
+		if thematicLibrary.NameZh == "" {
+			thematicLibrary.NameZh = "默认专题库名称"
+		}
+		if thematicLibrary.NameEn == "" {
+			thematicLibrary.NameEn = fmt.Sprintf("thematic_library_%d", time.Now().Unix())
+		}
+		if thematicLibrary.Category == "" {
+			thematicLibrary.Category = "business"
+		}
+		if thematicLibrary.Domain == "" {
+			thematicLibrary.Domain = "general"
+		}
+
+		thematicLibraries = append(thematicLibraries, thematicLibrary)
+	}
+
+	// 批量插入专题库数据
+	if len(thematicLibraries) > 0 {
+		if err := p.db.CreateInBatches(thematicLibraries, p.batchSize).Error; err != nil {
+			return fmt.Errorf("批量写入专题库数据失败: %w", err)
+		}
+	}
 
 	return nil
 }

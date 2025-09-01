@@ -33,15 +33,13 @@ func NewTableController() *TableController {
 func (c *TableController) ManageTableSchema(w http.ResponseWriter, r *http.Request) {
 	var req models.TableSchemaRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse( "请求参数格式错误", err))
 		return
 	}
 
 	err := c.service.ManageTableSchema(req.InterfaceID, req.Operation, req.SchemaName, req.TableName, req.Fields)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "表结构操作失败: "+err.Error(), err))
+		render.JSON(w, r, InternalErrorResponse( "表结构操作失败: "+err.Error(), err))
 		return
 	}
 

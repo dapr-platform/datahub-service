@@ -1,4 +1,4 @@
-# PostgREST 手动测试命令集合
+# PostgREST 双 Token 机制手动测试命令集合
 
 ## 配置变量
 
@@ -9,18 +9,143 @@ export USERNAME="admin"
 export PASSWORD="things2024"
 ```
 
-## 1. 登录获取 Token
+## 1. 双 Token 登录机制
+
+### 1.1 登录获取双 Token
 
 ```bash
-# 登录获取token
-TOKEN=$(curl -s -X POST "${POSTGREST_URL}/rpc/get_token" \
+# 登录获取access_token和refresh_token
+TOKENS_RESPONSE=$(curl -s -X POST "${POSTGREST_URL}/rpc/get_token" \
   -H "Content-Type: application/json" \
   -H "Accept-Profile: postgrest" \
   -H "Content-Profile: postgrest" \
-  -d "{\"username\": \"${USERNAME}\", \"password\": \"${PASSWORD}\"}" | \
-  jq -r '.token')
+  -d "{\"username\": \"${USERNAME}\", \"password\": \"${PASSWORD}\"}")
 
-echo "Token: $TOKEN"
+echo "完整响应: $TOKENS_RESPONSE"
+
+# 解析access_token和refresh_token
+ACCESS_TOKEN=$(echo "$TOKENS_RESPONSE" | jq -r '.access_token')
+REFRESH_TOKEN=$(echo "$TOKENS_RESPONSE" | jq -r '.refresh_token')
+
+echo "Access Token: $ACCESS_TOKEN"
+echo "Refresh Token: $REFRESH_TOKEN"
+```
+
+### 1.2 使用 Access Token 访问 API
+
+```bash
+# 使用access token进行API调用
+curl -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Accept-Profile: public" \
+  "${POSTGREST_URL}/basic_libraries?select=*&limit=5" | jq '.'
+```
+
+### 1.3 刷新 Access Token
+
+```bash
+# 使用refresh token获取新的access token
+REFRESH_RESPONSE=$(curl -s -X POST "${POSTGREST_URL}/rpc/refresh_token" \
+  -H "Content-Type: application/json" \
+  -H "Accept-Profile: postgrest" \
+  -H "Content-Profile: postgrest" \
+  -d "{\"refresh_token\": \"${REFRESH_TOKEN}\"}")
+
+echo "刷新响应: $REFRESH_RESPONSE"
+
+# 解析新的tokens
+NEW_ACCESS_TOKEN=$(echo "$REFRESH_RESPONSE" | jq -r '.access_token')
+NEW_REFRESH_TOKEN=$(echo "$REFRESH_RESPONSE" | jq -r '.refresh_token // empty')
+
+echo "新Access Token: $NEW_ACCESS_TOKEN"
+if [ -n "$NEW_REFRESH_TOKEN" ]; then
+  echo "新Refresh Token: $NEW_REFRESH_TOKEN"
+  # 更新refresh token用于后续操作
+  REFRESH_TOKEN="$NEW_REFRESH_TOKEN"
+fi
+
+# 更新access token用于后续API调用
+ACCESS_TOKEN="$NEW_ACCESS_TOKEN"
+```
+
+### 1.4 撤销 Refresh Token
+
+```bash
+# 撤销refresh token（登出或安全考虑）
+curl -s -X POST "${POSTGREST_URL}/rpc/revoke_refresh_token" \
+  -H "Content-Type: application/json" \
+  -H "Accept-Profile: postgrest" \
+  -H "Content-Profile: postgrest" \
+  -d "{\"refresh_token\": \"${REFRESH_TOKEN}\"}" | jq '.'
+```
+
+### 1.5 验证撤销后的 Token
+
+```bash
+# 验证撤销后的refresh token无法使用
+curl -s -X POST "${POSTGREST_URL}/rpc/refresh_token" \
+  -H "Content-Type: application/json" \
+  -H "Accept-Profile: postgrest" \
+  -H "Content-Profile: postgrest" \
+  -d "{\"refresh_token\": \"${REFRESH_TOKEN}\"}" | jq '.'
+```
+
+### 1.6 完整的 Token 轮换流程
+
+```bash
+#!/bin/bash
+# 完整的token管理流程示例
+
+# 1. 初始登录
+echo "步骤1: 初始登录获取双token"
+TOKENS_RESPONSE=$(curl -s -X POST "${POSTGREST_URL}/rpc/get_token" \
+  -H "Content-Type: application/json" \
+  -H "Accept-Profile: postgrest" \
+  -H "Content-Profile: postgrest" \
+  -d "{\"username\": \"${USERNAME}\", \"password\": \"${PASSWORD}\"}")
+
+ACCESS_TOKEN=$(echo "$TOKENS_RESPONSE" | jq -r '.access_token')
+REFRESH_TOKEN=$(echo "$TOKENS_RESPONSE" | jq -r '.refresh_token')
+
+echo "初始Access Token: ${ACCESS_TOKEN:0:50}..."
+echo "初始Refresh Token: ${REFRESH_TOKEN:0:50}..."
+
+# 2. 使用access token进行API调用
+echo -e "\n步骤2: 使用access token访问API"
+curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Accept-Profile: public" \
+  "${POSTGREST_URL}/basic_libraries?limit=1" | jq '.'
+
+# 3. 刷新token
+echo -e "\n步骤3: 刷新token"
+REFRESH_RESPONSE=$(curl -s -X POST "${POSTGREST_URL}/rpc/refresh_token" \
+  -H "Content-Type: application/json" \
+  -H "Accept-Profile: postgrest" \
+  -H "Content-Profile: postgrest" \
+  -d "{\"refresh_token\": \"${REFRESH_TOKEN}\", \"rotate_refresh_token\": true}")
+
+NEW_ACCESS_TOKEN=$(echo "$REFRESH_RESPONSE" | jq -r '.access_token')
+NEW_REFRESH_TOKEN=$(echo "$REFRESH_RESPONSE" | jq -r '.refresh_token // empty')
+
+echo "新Access Token: ${NEW_ACCESS_TOKEN:0:50}..."
+if [ -n "$NEW_REFRESH_TOKEN" ]; then
+  echo "新Refresh Token: ${NEW_REFRESH_TOKEN:0:50}..."
+fi
+
+# 4. 使用新access token
+echo -e "\n步骤4: 使用新access token访问API"
+curl -s -H "Authorization: Bearer $NEW_ACCESS_TOKEN" \
+  -H "Accept-Profile: public" \
+  "${POSTGREST_URL}/basic_libraries?limit=1" | jq '.'
+
+# 5. 撤销refresh token
+echo -e "\n步骤5: 撤销refresh token"
+if [ -n "$NEW_REFRESH_TOKEN" ]; then
+  curl -s -X POST "${POSTGREST_URL}/rpc/revoke_refresh_token" \
+    -H "Content-Type: application/json" \
+    -H "Accept-Profile: postgrest" \
+    -H "Content-Profile: postgrest" \
+    -d "{\"refresh_token\": \"${NEW_REFRESH_TOKEN}\"}" | jq '.'
+fi
 ```
 
 ## 2. 数据基础库

@@ -11,6 +11,7 @@ func AutoMigrateView(db *gorm.DB) error {
 	allViews := make(map[string]map[string]string)
 	allViews["basic_library"] = views.BasicLibraryViews
 	allViews["thematic_library"] = views.ThematicLibraryViews
+	allViews["sync_tasks"] = views.SyncTasksViews
 	for _, viewSQLs := range allViews {
 		for name, viewSQL := range viewSQLs {
 			if err := db.Exec(viewSQL).Error; err != nil {

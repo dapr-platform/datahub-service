@@ -67,9 +67,9 @@ check_postgrest() {
     fi
 }
 
-# RBAC登录获取token
+# 双Token RBAC登录获取token
 login() {
-    log_info "使用admin用户登录..."
+    log_info "使用admin用户进行双Token登录..."
     
     response=$(curl -s -X POST "${POSTGREST_URL}/rpc/get_token" \
         -H "Content-Type: application/json" \
@@ -81,15 +81,18 @@ login() {
     if command -v jq >/dev/null 2>&1; then
         success=$(echo "$response" | jq -r '.success // false' 2>/dev/null)
         if [ "$success" = "true" ]; then
-            TOKEN=$(echo "$response" | jq -r '.token // ""')
-            if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ]; then
-                log_success "登录成功，获取到token"
+            ACCESS_TOKEN=$(echo "$response" | jq -r '.access_token // ""')
+            REFRESH_TOKEN=$(echo "$response" | jq -r '.refresh_token // ""')
+            if [ -n "$ACCESS_TOKEN" ] && [ "$ACCESS_TOKEN" != "null" ]; then
+                TOKEN="$ACCESS_TOKEN"  # 使用access token进行API调用
+                log_success "双Token登录成功，获取到access_token和refresh_token"
                 echo "用户名: $(echo "$response" | jq -r '.username // "unknown"')"
                 echo "角色: $(echo "$response" | jq -r '.roles // [] | join(", ")')"
                 echo "权限数量: $(echo "$response" | jq -r '.permissions // [] | length')"
-                echo "Token: ${TOKEN:0:50}..."
+                echo "Access Token: ${ACCESS_TOKEN:0:50}..."
+                echo "Refresh Token: ${REFRESH_TOKEN:0:50}..."
             else
-                log_error "登录失败: 未获取到有效token"
+                log_error "登录失败: 未获取到有效access_token"
                 exit 1
             fi
         else
@@ -99,12 +102,15 @@ login() {
     else
         # 如果没有jq，使用简单的字符串匹配
         if echo "$response" | grep -q '"success".*true'; then
-            TOKEN=$(echo "$response" | sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-            if [ -n "$TOKEN" ]; then
-                log_success "登录成功，获取到token"
-                echo "Token: ${TOKEN:0:50}..."
+            ACCESS_TOKEN=$(echo "$response" | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+            REFRESH_TOKEN=$(echo "$response" | sed -n 's/.*"refresh_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+            if [ -n "$ACCESS_TOKEN" ]; then
+                TOKEN="$ACCESS_TOKEN"  # 使用access token进行API调用
+                log_success "双Token登录成功，获取到access_token和refresh_token"
+                echo "Access Token: ${ACCESS_TOKEN:0:50}..."
+                echo "Refresh Token: ${REFRESH_TOKEN:0:50}..."
             else
-                log_error "登录失败: 未获取到token"
+                log_error "登录失败: 未获取到access_token"
                 exit 1
             fi
         else

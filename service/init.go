@@ -31,6 +31,7 @@ var (
 	GlobalThematicLibraryService *thematic_library.Service
 	GlobalSyncEngine             *sync_engine.SyncEngine
 	GlobalSchemaService          *database.SchemaService
+	GlobalSyncTaskService        *SyncTaskService
 )
 
 func init() {
@@ -100,5 +101,6 @@ func initServices() {
 	GlobalThematicLibraryService = thematic_library.NewService(DB)
 	GlobalSyncEngine = sync_engine.NewSyncEngine(DB, 10)
 	GlobalSchemaService = database.NewSchemaService(DB)
+	GlobalSyncTaskService = NewSyncTaskService(DB, GlobalBasicLibraryService, GlobalThematicLibraryService)
 	log.Println("服务初始化完成")
 }

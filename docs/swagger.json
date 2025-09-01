@@ -2541,760 +2541,6 @@
                 }
             }
         },
-        "/basic-libraries/sync/tasks": {
-            "get": {
-                "description": "分页获取同步任务列表，支持筛选\n\n**任务状态说明:**\n- pending: 待执行\n- running: 执行中\n- success: 执行成功\n- failed: 执行失败\n- cancelled: 已取消",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步任务"
-                ],
-                "summary": "获取同步任务列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页大小",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "数据源ID",
-                        "name": "data_source_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "任务状态(pending/running/success/failed/cancelled)",
-                        "name": "status",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/controllers.GetSyncTasksResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "创建新的数据同步任务并提交到执行引擎\n\n**任务状态流转规则:**\n- 创建任务 → pending (待执行)\n- 开始执行 → running (执行中)\n- 执行完成 → success (成功) 或 failed (失败)\n- 任务取消 → cancelled (已取消)\n- 失败重试 → failed → pending (重新待执行)\n\n**状态约束:**\n- 只有 pending 状态的任务可以直接取消\n- 只有 running 状态的任务可以停止\n- 只有 failed 状态的任务可以重试\n- 只有 pending 状态的任务可以更新配置",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步任务"
-                ],
-                "summary": "创建数据同步任务",
-                "parameters": [
-                    {
-                        "description": "同步任务信息",
-                        "name": "task",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/controllers.CreateSyncTaskRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.SyncTask"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/basic-libraries/sync/tasks/batch-delete": {
-            "post": {
-                "description": "批量删除指定的数据同步任务，只允许删除已结束的任务\n\n**状态约束:**\n- 只能删除 success、failed、cancelled 状态的任务\n- 如果任何一个任务状态不允许删除，整个批量操作失败\n- 删除操作不可逆，请谨慎操作",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步任务"
-                ],
-                "summary": "批量删除数据同步任务",
-                "parameters": [
-                    {
-                        "description": "批量删除请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/controllers.BatchDeleteSyncTasksRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/basic-libraries/sync/tasks/cleanup": {
-            "post": {
-                "description": "清理指定日期之前的已完成任务，用于维护数据库性能\n\n**清理规则:**\n- 默认清理 success、failed、cancelled 状态的任务\n- 可指定要清理的状态类型\n- 只清理指定日期之前的任务\n- 清理操作不可逆，请谨慎操作",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步任务"
-                ],
-                "summary": "清理已完成的历史任务",
-                "parameters": [
-                    {
-                        "description": "清理请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/controllers.CleanupCompletedTasksRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/basic-libraries/sync/tasks/statistics": {
-            "get": {
-                "description": "获取指定时间范围内的同步任务统计信息，包括成功率、执行时间等\n\n**统计信息包括:**\n- 总任务数、成功任务数、失败任务数等\n- 成功率百分比\n- 平均执行时间\n- 各状态任务分布\n- 实时引擎统计信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步任务"
-                ],
-                "summary": "获取同步任务统计信息",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "数据源ID",
-                        "name": "data_source_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "开始时间",
-                        "name": "start_time",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "结束时间",
-                        "name": "end_time",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/basic-libraries/sync/tasks/{id}": {
-            "get": {
-                "description": "获取指定任务的详细信息，包括实时进度信息（如果任务正在运行）\n\n**实时信息说明:**\n- 对于 running 状态的任务，会显示实时进度、处理行数、错误计数等\n- 对于其他状态的任务，显示最终结果信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步任务"
-                ],
-                "summary": "获取同步任务详情",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.SyncTask"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "更新指定的数据同步任务配置信息\n\n**状态约束:**\n- 只有 pending 状态的任务可以更新配置\n- running、success、failed、cancelled 状态的任务不允许更新",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步任务"
-                ],
-                "summary": "更新数据同步任务",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "任务更新信息",
-                        "name": "task",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/controllers.UpdateSyncTaskRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.SyncTask"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "删除指定的数据同步任务，只允许删除已结束的任务\n\n**状态约束:**\n- 只能删除 success、failed、cancelled 状态的任务\n- pending 和 running 状态的任务不允许删除\n- 删除操作不可逆，请谨慎操作",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步任务"
-                ],
-                "summary": "删除数据同步任务",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/basic-libraries/sync/tasks/{id}/cancel": {
-            "post": {
-                "description": "取消指定的数据同步任务\n\n**状态约束:**\n- 只有 pending 和 running 状态的任务可以取消\n- success、failed、cancelled 状态的任务不允许取消\n- 取消后任务状态变为 cancelled",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步任务"
-                ],
-                "summary": "取消数据同步任务",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/basic-libraries/sync/tasks/{id}/retry": {
-            "post": {
-                "description": "重试指定的失败同步任务，会创建一个新的任务副本\n\n**状态约束:**\n- 只有 failed 状态的任务可以重试\n- 重试会创建新任务，状态为 pending\n- 原任务状态保持 failed 不变",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步任务"
-                ],
-                "summary": "重试失败的同步任务",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.SyncTask"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/basic-libraries/sync/tasks/{id}/start": {
-            "post": {
-                "description": "启动指定的数据同步任务，将任务提交到执行引擎\n\n**状态约束:**\n- 只能启动 pending 状态的任务\n- 启动后任务状态变为 running\n- 其他状态的任务不允许启动",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步控制"
-                ],
-                "summary": "启动数据同步任务",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/basic-libraries/sync/tasks/{id}/status": {
-            "get": {
-                "description": "获取指定任务的当前同步状态和进度信息\n\n**返回信息包括:**\n- 任务基本信息和当前状态\n- 实时进度信息（进度百分比、处理行数等）\n- 执行时间和处理速度\n- 错误信息和统计数据",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步控制"
-                ],
-                "summary": "获取数据同步状态",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/controllers.SyncTaskStatusResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/basic-libraries/sync/tasks/{id}/stop": {
-            "post": {
-                "description": "停止指定的正在运行的数据同步任务\n\n**状态约束:**\n- 只能停止 running 状态的任务\n- 停止后任务状态变为 cancelled\n- 其他状态的任务不允许停止",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据同步控制"
-                ],
-                "summary": "停止数据同步任务",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/basic-libraries/test-datasource": {
             "post": {
                 "description": "测试数据源连接和数据获取能力",
@@ -3394,6 +2640,52 @@
                                     }
                                 }
                             ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-libraries/update-basic-library": {
+            "post": {
+                "description": "修改数据基础库信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "修改数据基础库",
+                "parameters": [
+                    {
+                        "description": "修改数据基础库请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateBasicLibraryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
                         }
                     },
                     "400": {
@@ -6437,6 +5729,763 @@
                 }
             }
         },
+        "/sync/tasks": {
+            "get": {
+                "description": "分页获取同步任务列表，支持多种过滤条件\n\n**查询参数说明:**\n- page: 页码，默认1\n- size: 每页大小，默认10，最大100\n- library_type: 库类型过滤\n- library_id: 库ID过滤\n- data_source_id: 数据源ID过滤\n- status: 任务状态过滤\n- task_type: 任务类型过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "获取同步任务列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "库类型",
+                        "name": "library_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "库ID",
+                        "name": "library_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "数据源ID",
+                        "name": "data_source_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "任务状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "任务类型",
+                        "name": "task_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SyncTaskListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的数据同步任务，支持基础库和主题库\n\n**支持的库类型:**\n- basic_library: 基础库\n- thematic_library: 主题库\n\n**支持的任务类型:**\n- full_sync: 全量同步\n- incremental_sync: 增量同步\n- realtime_sync: 实时同步\n\n**任务状态流转:**\npending → running → success/failed/cancelled",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "创建同步任务",
+                "parameters": [
+                    {
+                        "description": "同步任务创建信息",
+                        "name": "task",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.SyncTaskCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.SyncTask"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/batch-delete": {
+            "post": {
+                "description": "批量删除多个同步任务，只能删除已完成、失败或已取消的任务",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "批量删除同步任务",
+                "parameters": [
+                    {
+                        "description": "批量删除请求",
+                        "name": "tasks",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.BatchDeleteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.BatchDeleteResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/statistics": {
+            "get": {
+                "description": "获取同步任务的统计数据，包括各状态任务数量、成功率等",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "获取同步任务统计信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "库类型过滤",
+                        "name": "library_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "库ID过滤",
+                        "name": "library_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "数据源ID过滤",
+                        "name": "data_source_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SyncTaskStatistics"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/{id}": {
+            "get": {
+                "description": "根据任务ID获取同步任务的详细信息，包括关联的库信息、数据源信息等",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "获取同步任务详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.SyncTask"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新同步任务的配置信息，只能更新处于 pending 状态的任务",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "更新同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新信息",
+                        "name": "task",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.SyncTaskUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.SyncTask"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "任务状态不允许更新",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除指定的同步任务，只能删除已完成、失败或已取消的任务",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "删除同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "任务状态不允许删除",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/{id}/cancel": {
+            "post": {
+                "description": "取消指定的同步任务，可以取消待执行或正在执行的任务",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "取消同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "取消成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "任务状态不允许取消",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/{id}/retry": {
+            "post": {
+                "description": "重试失败的同步任务，会创建一个新的任务实例",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "重试同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "重试成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.SyncTask"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "任务状态不允许重试",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/{id}/start": {
+            "post": {
+                "description": "启动指定的同步任务，将任务提交给同步引擎执行",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "启动同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "启动成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "任务状态不允许启动",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/{id}/status": {
+            "get": {
+                "description": "获取同步任务的实时执行状态和进度信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "获取同步任务状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SyncTaskStatusResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/{id}/stop": {
+            "post": {
+                "description": "停止正在执行的同步任务",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "停止同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "停止成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "任务状态不允许停止",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/tables/manage-schema": {
             "post": {
                 "description": "通过PgMetaApi动态创建、修改、删除数据库表结构",
@@ -6983,7 +7032,7 @@
                 }
             }
         },
-        "controllers.BatchDeleteSyncTasksRequest": {
+        "controllers.BatchDeleteRequest": {
             "type": "object",
             "required": [
                 "task_ids"
@@ -7010,25 +7059,6 @@
                 }
             }
         },
-        "controllers.CleanupCompletedTasksRequest": {
-            "type": "object",
-            "required": [
-                "before_date"
-            ],
-            "properties": {
-                "before_date": {
-                    "description": "RFC3339格式的日期",
-                    "type": "string"
-                },
-                "statuses": {
-                    "description": "要清理的状态，默认[\"success\", \"failed\", \"cancelled\"]",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
         "controllers.CreateApiApplicationRequest": {
             "type": "object",
             "required": [
@@ -7051,29 +7081,6 @@
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "controllers.CreateSyncTaskRequest": {
-            "type": "object",
-            "required": [
-                "data_source_id",
-                "task_type"
-            ],
-            "properties": {
-                "data_source_id": {
-                    "type": "string"
-                },
-                "interface_id": {
-                    "type": "string"
-                },
-                "parameters": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "task_type": {
-                    "description": "full_sync, incremental_sync, realtime_sync",
                     "type": "string"
                 }
             }
@@ -7144,20 +7151,6 @@
                 "test_type": {
                     "type": "string",
                     "example": "connection"
-                }
-            }
-        },
-        "controllers.GetSyncTasksResponse": {
-            "type": "object",
-            "properties": {
-                "pagination": {
-                    "$ref": "#/definitions/controllers.PaginationResponse"
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.SyncTask"
-                    }
                 }
             }
         },
@@ -7303,23 +7296,6 @@
                 }
             }
         },
-        "controllers.PaginationResponse": {
-            "type": "object",
-            "properties": {
-                "page": {
-                    "type": "integer"
-                },
-                "size": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                },
-                "total_pages": {
-                    "type": "integer"
-                }
-            }
-        },
         "controllers.SendEventRequest": {
             "type": "object",
             "properties": {
@@ -7337,38 +7313,83 @@
                 }
             }
         },
-        "controllers.SyncTaskStatusResponse": {
+        "controllers.SyncTaskCreateRequest": {
             "type": "object",
+            "required": [
+                "data_source_id",
+                "library_id",
+                "library_type",
+                "task_type"
+            ],
             "properties": {
-                "error": {
-                    "type": "string"
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
                 },
-                "processor": {
-                    "type": "string"
+                "created_by": {
+                    "type": "string",
+                    "example": "admin"
                 },
-                "progress": {
-                    "$ref": "#/definitions/models.SyncProgress"
+                "data_source_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
-                "result": {
-                    "$ref": "#/definitions/models.SyncResult"
+                "interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
-                "start_time": {
-                    "type": "string"
+                "library_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
-                "status": {
-                    "type": "string"
+                "library_type": {
+                    "type": "string",
+                    "example": "basic_library"
                 },
-                "task": {
-                    "$ref": "#/definitions/models.SyncTask"
+                "task_type": {
+                    "type": "string",
+                    "example": "full_sync"
                 }
             }
         },
-        "controllers.UpdateSyncTaskRequest": {
+        "controllers.SyncTaskUpdateRequest": {
             "type": "object",
             "properties": {
                 "config": {
                     "type": "object",
                     "additionalProperties": true
+                },
+                "updated_by": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "controllers.UpdateBasicLibraryRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "存储用户相关数据的基础库"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "name_en": {
+                    "type": "string",
+                    "example": "user_database"
+                },
+                "name_zh": {
+                    "type": "string",
+                    "example": "用户数据库"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "active"
                 }
             }
         },
@@ -9560,6 +9581,14 @@
         "models.SyncTask": {
             "type": "object",
             "properties": {
+                "basic_library": {
+                    "description": "动态关联 - 这些字段不存储在数据库中，在运行时根据LibraryType动态加载",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.BasicLibrary"
+                        }
+                    ]
+                },
                 "config": {
                     "description": "同步配置",
                     "type": "object",
@@ -9569,45 +9598,55 @@
                     "type": "string"
                 },
                 "created_by": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "system"
                 },
                 "data_interface": {
                     "$ref": "#/definitions/models.DataInterface"
                 },
                 "data_source": {
-                    "description": "关联关系",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.DataSource"
-                        }
-                    ]
+                    "$ref": "#/definitions/models.DataSource"
                 },
                 "data_source_id": {
-                    "description": "数据源ID（必需）",
-                    "type": "string"
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
                 "end_time": {
                     "type": "string"
                 },
                 "error_count": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 0
                 },
                 "error_message": {
                     "type": "string"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
                 "interface_id": {
-                    "description": "接口ID（可选，某些同步任务可能只针对数据源）",
-                    "type": "string"
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "library_id": {
+                    "description": "基础库ID或主题库ID",
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "library_type": {
+                    "description": "basic_library, thematic_library",
+                    "type": "string",
+                    "example": "basic_library"
                 },
                 "processed_rows": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 0
                 },
                 "progress": {
                     "description": "进度百分比 0-100",
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 0
                 },
                 "result": {
                     "description": "同步结果",
@@ -9619,14 +9658,20 @@
                 },
                 "status": {
                     "description": "pending, running, success, failed, cancelled",
-                    "type": "string"
+                    "type": "string",
+                    "example": "pending"
                 },
                 "task_type": {
                     "description": "full_sync, incremental_sync, realtime_sync",
-                    "type": "string"
+                    "type": "string",
+                    "example": "full_sync"
+                },
+                "thematic_library": {
+                    "$ref": "#/definitions/models.ThematicLibrary"
                 },
                 "total_rows": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 0
                 },
                 "updated_at": {
                     "type": "string"
@@ -9972,6 +10017,109 @@
                 },
                 "version": {
                     "type": "string"
+                }
+            }
+        },
+        "service.BatchDeleteResponse": {
+            "type": "object",
+            "properties": {
+                "deleted_count": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "failed_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "service.PaginationInfo": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.SyncTaskListResponse": {
+            "type": "object",
+            "properties": {
+                "pagination": {
+                    "$ref": "#/definitions/service.PaginationInfo"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SyncTask"
+                    }
+                }
+            }
+        },
+        "service.SyncTaskStatistics": {
+            "type": "object",
+            "properties": {
+                "cancelled_tasks": {
+                    "type": "integer"
+                },
+                "failed_tasks": {
+                    "type": "integer"
+                },
+                "pending_tasks": {
+                    "type": "integer"
+                },
+                "running_tasks": {
+                    "type": "integer"
+                },
+                "success_rate": {
+                    "type": "number"
+                },
+                "success_tasks": {
+                    "type": "integer"
+                },
+                "total_tasks": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.SyncTaskStatusResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "processor": {
+                    "type": "string"
+                },
+                "progress": {
+                    "$ref": "#/definitions/models.SyncProgress"
+                },
+                "result": {
+                    "$ref": "#/definitions/models.SyncResult"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "task": {
+                    "$ref": "#/definitions/models.SyncTask"
                 }
             }
         }

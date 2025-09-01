@@ -162,6 +162,16 @@ func (s *Service) UpdateBasicLibrary(id string, updates map[string]interface{}) 
 		if err := s.db.Where("name_en = ? AND id != ?", nameEn, id).First(&existing).Error; err == nil {
 			return errors.New("基础库英文名称已存在")
 		}
+
+		// 如果更新英文名称，需要检查并创建对应的schema
+		if nameEnStr, ok := nameEn.(string); ok && nameEnStr != "" {
+			if !database.CheckSchemaExists(s.db, nameEnStr) {
+				err := database.CreateSchema(s.db, nameEnStr)
+				if err != nil {
+					return fmt.Errorf("创建schema失败: %v", err)
+				}
+			}
+		}
 	}
 
 	return s.db.Model(&library).Updates(updates).Error

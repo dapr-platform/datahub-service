@@ -59,7 +59,6 @@ type CreateApiApplicationRequest struct {
 func (c *SharingController) CreateApiApplication(w http.ResponseWriter, r *http.Request) {
 	var req CreateApiApplicationRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusBadRequest,
 			Msg: "请求参数格式错误",
@@ -75,7 +74,6 @@ func (c *SharingController) CreateApiApplication(w http.ResponseWriter, r *http.
 	}
 
 	if err := c.sharingService.CreateApiApplication(app, req.AppSecret); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "创建API应用失败",
@@ -83,7 +81,6 @@ func (c *SharingController) CreateApiApplication(w http.ResponseWriter, r *http.
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, APIResponse{
 		Status:    http.StatusCreated,
 		Msg: "创建API应用成功",
@@ -117,7 +114,6 @@ func (c *SharingController) GetApiApplications(w http.ResponseWriter, r *http.Re
 
 	apps, total, err := c.sharingService.GetApiApplications(page, size, status)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "获取API应用列表失败",
@@ -151,7 +147,6 @@ func (c *SharingController) GetApiApplicationByID(w http.ResponseWriter, r *http
 
 	app, err := c.sharingService.GetApiApplicationByID(id)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusNotFound,
 			Msg: "API应用不存在",
@@ -184,7 +179,6 @@ func (c *SharingController) UpdateApiApplication(w http.ResponseWriter, r *http.
 
 	var updates map[string]interface{}
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
-		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusBadRequest,
 			Msg: "请求参数格式错误",
@@ -193,7 +187,6 @@ func (c *SharingController) UpdateApiApplication(w http.ResponseWriter, r *http.
 	}
 
 	if err := c.sharingService.UpdateApiApplication(id, updates); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "更新API应用失败",
@@ -222,7 +215,6 @@ func (c *SharingController) DeleteApiApplication(w http.ResponseWriter, r *http.
 	id := chi.URLParam(r, "id")
 
 	if err := c.sharingService.DeleteApiApplication(id); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "删除API应用失败",
@@ -252,7 +244,6 @@ func (c *SharingController) DeleteApiApplication(w http.ResponseWriter, r *http.
 func (c *SharingController) CreateApiRateLimit(w http.ResponseWriter, r *http.Request) {
 	var limit models.ApiRateLimit
 	if err := render.DecodeJSON(r.Body, &limit); err != nil {
-		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusBadRequest,
 			Msg: "请求参数格式错误",
@@ -261,7 +252,6 @@ func (c *SharingController) CreateApiRateLimit(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := c.sharingService.CreateApiRateLimit(&limit); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "创建API限流规则失败",
@@ -269,7 +259,6 @@ func (c *SharingController) CreateApiRateLimit(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, APIResponse{
 		Status:    http.StatusCreated,
 		Msg: "创建API限流规则成功",
@@ -303,7 +292,6 @@ func (c *SharingController) GetApiRateLimits(w http.ResponseWriter, r *http.Requ
 
 	limits, total, err := c.sharingService.GetApiRateLimits(page, size, applicationID)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "获取API限流规则列表失败",
@@ -339,7 +327,6 @@ func (c *SharingController) UpdateApiRateLimit(w http.ResponseWriter, r *http.Re
 
 	var updates map[string]interface{}
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
-		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusBadRequest,
 			Msg: "请求参数格式错误",
@@ -348,7 +335,6 @@ func (c *SharingController) UpdateApiRateLimit(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := c.sharingService.UpdateApiRateLimit(id, updates); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "更新API限流规则失败",
@@ -377,7 +363,6 @@ func (c *SharingController) DeleteApiRateLimit(w http.ResponseWriter, r *http.Re
 	id := chi.URLParam(r, "id")
 
 	if err := c.sharingService.DeleteApiRateLimit(id); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "删除API限流规则失败",
@@ -407,7 +392,6 @@ func (c *SharingController) DeleteApiRateLimit(w http.ResponseWriter, r *http.Re
 func (c *SharingController) CreateDataSubscription(w http.ResponseWriter, r *http.Request) {
 	var subscription models.DataSubscription
 	if err := render.DecodeJSON(r.Body, &subscription); err != nil {
-		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusBadRequest,
 			Msg: "请求参数格式错误",
@@ -416,7 +400,6 @@ func (c *SharingController) CreateDataSubscription(w http.ResponseWriter, r *htt
 	}
 
 	if err := c.sharingService.CreateDataSubscription(&subscription); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "创建数据订阅失败",
@@ -424,7 +407,6 @@ func (c *SharingController) CreateDataSubscription(w http.ResponseWriter, r *htt
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, APIResponse{
 		Status:    http.StatusCreated,
 		Msg: "创建数据订阅成功",
@@ -462,7 +444,6 @@ func (c *SharingController) GetDataSubscriptions(w http.ResponseWriter, r *http.
 
 	subscriptions, total, err := c.sharingService.GetDataSubscriptions(page, size, subscriberID, resourceType, status)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "获取数据订阅列表失败",
@@ -496,7 +477,6 @@ func (c *SharingController) GetDataSubscriptionByID(w http.ResponseWriter, r *ht
 
 	subscription, err := c.sharingService.GetDataSubscriptionByID(id)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusNotFound,
 			Msg: "数据订阅不存在",
@@ -529,7 +509,6 @@ func (c *SharingController) UpdateDataSubscription(w http.ResponseWriter, r *htt
 
 	var updates map[string]interface{}
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
-		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusBadRequest,
 			Msg: "请求参数格式错误",
@@ -538,7 +517,6 @@ func (c *SharingController) UpdateDataSubscription(w http.ResponseWriter, r *htt
 	}
 
 	if err := c.sharingService.UpdateDataSubscription(id, updates); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "更新数据订阅失败",
@@ -567,7 +545,6 @@ func (c *SharingController) DeleteDataSubscription(w http.ResponseWriter, r *htt
 	id := chi.URLParam(r, "id")
 
 	if err := c.sharingService.DeleteDataSubscription(id); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "删除数据订阅失败",
@@ -597,7 +574,6 @@ func (c *SharingController) DeleteDataSubscription(w http.ResponseWriter, r *htt
 func (c *SharingController) CreateDataAccessRequest(w http.ResponseWriter, r *http.Request) {
 	var request models.DataAccessRequest
 	if err := render.DecodeJSON(r.Body, &request); err != nil {
-		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusBadRequest,
 			Msg: "请求参数格式错误",
@@ -606,7 +582,6 @@ func (c *SharingController) CreateDataAccessRequest(w http.ResponseWriter, r *ht
 	}
 
 	if err := c.sharingService.CreateDataAccessRequest(&request); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "创建数据使用申请失败",
@@ -614,7 +589,6 @@ func (c *SharingController) CreateDataAccessRequest(w http.ResponseWriter, r *ht
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, APIResponse{
 		Status:    http.StatusCreated,
 		Msg: "创建数据使用申请成功",
@@ -652,7 +626,6 @@ func (c *SharingController) GetDataAccessRequests(w http.ResponseWriter, r *http
 
 	requests, total, err := c.sharingService.GetDataAccessRequests(page, size, requesterID, resourceType, status)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "获取数据使用申请列表失败",
@@ -686,7 +659,6 @@ func (c *SharingController) GetDataAccessRequestByID(w http.ResponseWriter, r *h
 
 	request, err := c.sharingService.GetDataAccessRequestByID(id)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusNotFound,
 			Msg: "数据使用申请不存在",
@@ -725,7 +697,6 @@ func (c *SharingController) ApproveDataAccessRequest(w http.ResponseWriter, r *h
 
 	var req ApproveDataAccessRequestRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusBadRequest,
 			Msg: "请求参数格式错误",
@@ -737,7 +708,6 @@ func (c *SharingController) ApproveDataAccessRequest(w http.ResponseWriter, r *h
 	approverID := "system" // 临时使用系统ID
 
 	if err := c.sharingService.ApproveDataAccessRequest(id, approverID, req.Approved, req.Comment); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "审批数据使用申请失败",
@@ -767,7 +737,6 @@ func (c *SharingController) ApproveDataAccessRequest(w http.ResponseWriter, r *h
 func (c *SharingController) CreateDataSyncTask(w http.ResponseWriter, r *http.Request) {
 	var task models.DataSyncTask
 	if err := render.DecodeJSON(r.Body, &task); err != nil {
-		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusBadRequest,
 			Msg: "请求参数格式错误",
@@ -776,7 +745,6 @@ func (c *SharingController) CreateDataSyncTask(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := c.sharingService.CreateDataSyncTask(&task); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "创建数据同步任务失败",
@@ -784,7 +752,6 @@ func (c *SharingController) CreateDataSyncTask(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, APIResponse{
 		Status:    http.StatusCreated,
 		Msg: "创建数据同步任务成功",
@@ -820,7 +787,6 @@ func (c *SharingController) GetDataSyncTasks(w http.ResponseWriter, r *http.Requ
 
 	tasks, total, err := c.sharingService.GetDataSyncTasks(page, size, status, createdBy)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "获取数据同步任务列表失败",
@@ -854,7 +820,6 @@ func (c *SharingController) GetDataSyncTaskByID(w http.ResponseWriter, r *http.R
 
 	task, err := c.sharingService.GetDataSyncTaskByID(id)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusNotFound,
 			Msg: "数据同步任务不存在",
@@ -887,7 +852,6 @@ func (c *SharingController) UpdateDataSyncTask(w http.ResponseWriter, r *http.Re
 
 	var updates map[string]interface{}
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
-		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusBadRequest,
 			Msg: "请求参数格式错误",
@@ -896,7 +860,6 @@ func (c *SharingController) UpdateDataSyncTask(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := c.sharingService.UpdateDataSyncTask(id, updates); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "更新数据同步任务失败",
@@ -925,7 +888,6 @@ func (c *SharingController) DeleteDataSyncTask(w http.ResponseWriter, r *http.Re
 	id := chi.URLParam(r, "id")
 
 	if err := c.sharingService.DeleteDataSyncTask(id); err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "删除数据同步任务失败",
@@ -969,7 +931,6 @@ func (c *SharingController) GetDataSyncLogs(w http.ResponseWriter, r *http.Reque
 
 	logs, total, err := c.sharingService.GetDataSyncLogs(page, size, taskID, status)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "获取数据同步日志列表失败",
@@ -1031,7 +992,6 @@ func (c *SharingController) GetApiUsageLogs(w http.ResponseWriter, r *http.Reque
 
 	logs, total, err := c.sharingService.GetApiUsageLogs(page, size, applicationID, userID, startTime, endTime)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, APIResponse{
 			Status:    http.StatusInternalServerError,
 			Msg: "获取API使用日志列表失败",

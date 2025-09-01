@@ -97,6 +97,8 @@ type SyncEvent struct {
 
 // SyncTaskRequest 同步任务请求
 type SyncTaskRequest struct {
+	LibraryType  string                 `json:"library_type"` // 新增：库类型
+	LibraryID    string                 `json:"library_id"`   // 新增：库ID
 	DataSourceID string                 `json:"data_source_id"`
 	InterfaceID  string                 `json:"interface_id,omitempty"`
 	SyncType     SyncType               `json:"sync_type"`

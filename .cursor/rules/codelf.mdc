@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+在回应或修改代码之前，应首先通过`get-project-info`获取全面信息，然后再做决定。
+每次完成代码编辑后，调用`update-project-info`并按照响应中的指示进行操作

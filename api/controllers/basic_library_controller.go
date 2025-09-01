@@ -85,6 +85,15 @@ type ScheduleConfigRequest struct {
 	IsEnabled      bool                   `json:"is_enabled" example:"true"`                        // 是否启用
 }
 
+// UpdateBasicLibraryRequest 修改数据基础库请求结构
+type UpdateBasicLibraryRequest struct {
+	ID          string `json:"id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	NameZh      string `json:"name_zh,omitempty" example:"用户数据库"`
+	NameEn      string `json:"name_en,omitempty" example:"user_database"`
+	Description string `json:"description,omitempty" example:"存储用户相关数据的基础库"`
+	Status      string `json:"status,omitempty" example:"active"`
+}
+
 // @Summary 添加数据基础库
 // @Description 添加数据基础库
 // @Tags 数据基础库
@@ -98,15 +107,13 @@ type ScheduleConfigRequest struct {
 func (c *BasicLibraryController) AddBasicLibrary(w http.ResponseWriter, r *http.Request) {
 	var req models.BasicLibrary
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	err := c.service.CreateBasicLibrary(&req)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "添加数据基础库失败", err))
+		render.JSON(w, r, InternalErrorResponse("添加数据基础库失败", err))
 		return
 	}
 
@@ -126,19 +133,68 @@ func (c *BasicLibraryController) AddBasicLibrary(w http.ResponseWriter, r *http.
 func (c *BasicLibraryController) DeleteBasicLibrary(w http.ResponseWriter, r *http.Request) {
 	var req models.BasicLibrary
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	err := c.service.DeleteBasicLibrary(&req)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "删除数据基础库失败", err))
+		render.JSON(w, r, InternalErrorResponse("删除数据基础库失败", err))
 		return
 	}
 
 	render.JSON(w, r, SuccessResponse("删除数据基础库成功", nil))
+}
+
+// @Summary 修改数据基础库
+// @Description 修改数据基础库信息
+// @Tags 数据基础库
+// @Accept json
+// @Produce json
+// @Param request body UpdateBasicLibraryRequest true "修改数据基础库请求"
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /basic-libraries/update-basic-library [post]
+func (c *BasicLibraryController) UpdateBasicLibrary(w http.ResponseWriter, r *http.Request) {
+	var req UpdateBasicLibraryRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.ID == "" {
+		render.JSON(w, r, BadRequestResponse("基础库ID不能为空", nil))
+		return
+	}
+
+	// 构建更新字段map
+	updates := make(map[string]interface{})
+	if req.NameZh != "" {
+		updates["name_zh"] = req.NameZh
+	}
+	if req.NameEn != "" {
+		updates["name_en"] = req.NameEn
+	}
+	if req.Description != "" {
+		updates["description"] = req.Description
+	}
+	if req.Status != "" {
+		updates["status"] = req.Status
+	}
+
+	if len(updates) == 0 {
+		render.JSON(w, r, BadRequestResponse("没有要更新的字段", nil))
+		return
+	}
+
+	err := c.service.UpdateBasicLibrary(req.ID, updates)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("修改数据基础库失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("修改数据基础库成功", nil))
 }
 
 // @Summary 添加数据源
@@ -154,15 +210,13 @@ func (c *BasicLibraryController) DeleteBasicLibrary(w http.ResponseWriter, r *ht
 func (c *BasicLibraryController) AddDataSource(w http.ResponseWriter, r *http.Request) {
 	var req models.DataSource
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	err := c.service.CreateDataSource(&req)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "添加数据源失败", err))
+		render.JSON(w, r, InternalErrorResponse("添加数据源失败", err))
 		return
 	}
 
@@ -182,15 +236,13 @@ func (c *BasicLibraryController) AddDataSource(w http.ResponseWriter, r *http.Re
 func (c *BasicLibraryController) DeleteDataSource(w http.ResponseWriter, r *http.Request) {
 	var req models.DataSource
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	err := c.service.DeleteDataSource(&req)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "删除数据源失败", err))
+		render.JSON(w, r, InternalErrorResponse("删除数据源失败", err))
 		return
 	}
 
@@ -210,15 +262,13 @@ func (c *BasicLibraryController) DeleteDataSource(w http.ResponseWriter, r *http
 func (c *BasicLibraryController) AddInterface(w http.ResponseWriter, r *http.Request) {
 	var req models.DataInterface
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	err := c.service.CreateDataInterface(&req)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "添加数据接口失败", err))
+		render.JSON(w, r, InternalErrorResponse("添加数据接口失败", err))
 		return
 	}
 
@@ -238,15 +288,13 @@ func (c *BasicLibraryController) AddInterface(w http.ResponseWriter, r *http.Req
 func (c *BasicLibraryController) DeleteInterface(w http.ResponseWriter, r *http.Request) {
 	var req models.DataInterface
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	err := c.service.DeleteDataInterface(&req)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "删除数据接口失败", err))
+		render.JSON(w, r, InternalErrorResponse("删除数据接口失败", err))
 		return
 	}
 
@@ -267,15 +315,13 @@ func (c *BasicLibraryController) DeleteInterface(w http.ResponseWriter, r *http.
 func (c *BasicLibraryController) TestDataSource(w http.ResponseWriter, r *http.Request) {
 	var req DataSourceTestRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	result, err := c.service.TestDataSource(req.DataSourceID, req.TestType, req.Config)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "数据源测试失败", err))
+		render.JSON(w, r, InternalErrorResponse("数据源测试失败", err))
 		return
 	}
 
@@ -296,15 +342,13 @@ func (c *BasicLibraryController) TestDataSource(w http.ResponseWriter, r *http.R
 func (c *BasicLibraryController) TestInterface(w http.ResponseWriter, r *http.Request) {
 	var req InterfaceTestRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	result, err := c.service.TestInterface(req.InterfaceID, req.TestType, req.Parameters, req.Options)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "接口测试失败", err))
+		render.JSON(w, r, InternalErrorResponse("接口测试失败", err))
 		return
 	}
 
@@ -325,15 +369,13 @@ func (c *BasicLibraryController) TestInterface(w http.ResponseWriter, r *http.Re
 func (c *BasicLibraryController) ConfigureSchedule(w http.ResponseWriter, r *http.Request) {
 	var req models.ScheduleConfig
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	err := c.service.ConfigureSchedule(&req)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "调度配置失败: "+err.Error(), err))
+		render.JSON(w, r, InternalErrorResponse("调度配置失败: "+err.Error(), err))
 		return
 	}
 
@@ -353,15 +395,13 @@ func (c *BasicLibraryController) ConfigureSchedule(w http.ResponseWriter, r *htt
 func (c *BasicLibraryController) GetDataSourceStatus(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "数据源ID参数不能为空", nil))
+		render.JSON(w, r, BadRequestResponse("数据源ID参数不能为空", nil))
 		return
 	}
 
 	status, err := c.service.GetDataSourceStatus(id)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "获取数据源状态失败: "+err.Error(), err))
+		render.JSON(w, r, InternalErrorResponse("获取数据源状态失败: "+err.Error(), err))
 		return
 	}
 
@@ -382,8 +422,7 @@ func (c *BasicLibraryController) GetDataSourceStatus(w http.ResponseWriter, r *h
 func (c *BasicLibraryController) PreviewInterfaceData(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "接口ID参数不能为空", nil))
+		render.JSON(w, r, BadRequestResponse("接口ID参数不能为空", nil))
 		return
 	}
 
@@ -396,8 +435,7 @@ func (c *BasicLibraryController) PreviewInterfaceData(w http.ResponseWriter, r *
 
 	data, err := c.service.PreviewInterfaceData(id, limit)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "数据预览失败: "+err.Error(), err))
+		render.JSON(w, r, InternalErrorResponse("数据预览失败: "+err.Error(), err))
 		return
 	}
 

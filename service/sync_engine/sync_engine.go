@@ -95,9 +95,11 @@ func NewSyncEngine(db *gorm.DB, maxConcurrentTasks int) *SyncEngine {
 
 // SubmitSyncTask 提交同步任务
 func (e *SyncEngine) SubmitSyncTask(request *SyncTaskRequest) (*models.SyncTask, error) {
-	// 创建同步任务记录
+	// 创建同步任务记录，支持新的库类型字段
 	task := &models.SyncTask{
 		ID:           uuid.New().String(),
+		LibraryType:  request.LibraryType, // 新增库类型支持
+		LibraryID:    request.LibraryID,   // 新增库ID支持
 		DataSourceID: request.DataSourceID,
 		InterfaceID:  &request.InterfaceID,
 		TaskType:     string(request.SyncType),
@@ -143,15 +145,23 @@ func (e *SyncEngine) processTaskQueue() {
 
 // executeTask 执行同步任务
 func (e *SyncEngine) executeTask(request *SyncTaskRequest) {
-	// 获取任务信息
+	// 获取任务信息，使用新的查询条件支持库类型
 	var task models.SyncTask
-	if err := e.db.Where("data_source_id = ? AND task_type = ?",
-		request.DataSourceID, request.SyncType).
-		Order("created_at DESC").First(&task).Error; err != nil {
+	query := e.db.Where("library_type = ? AND library_id = ? AND data_source_id = ? AND task_type = ?",
+		request.LibraryType, request.LibraryID, request.DataSourceID, request.SyncType).
+		Order("created_at DESC")
+
+	if err := query.First(&task).Error; err != nil {
 		e.notifyEvent(&SyncEvent{
 			EventType: "error",
 			Timestamp: time.Now(),
-			Data:      map[string]interface{}{"error": "任务不存在"},
+			Data: map[string]interface{}{
+				"error":          "任务不存在",
+				"library_type":   request.LibraryType,
+				"library_id":     request.LibraryID,
+				"data_source_id": request.DataSourceID,
+				"task_type":      request.SyncType,
+			},
 		})
 		return
 	}
@@ -200,6 +210,8 @@ func (e *SyncEngine) executeTask(request *SyncTaskRequest) {
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
 			"task_type":      task.TaskType,
+			"library_type":   task.LibraryType,
+			"library_id":     task.LibraryID,
 			"data_source_id": task.DataSourceID,
 		},
 	})

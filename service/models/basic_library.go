@@ -240,31 +240,6 @@ type InterfaceStatus struct {
 	DataInterface DataInterface `json:"data_interface,omitempty" gorm:"foreignKey:InterfaceID"`
 }
 
-// SyncTask 数据同步任务模型
-type SyncTask struct {
-	ID            string                 `json:"id" gorm:"primaryKey;type:varchar(36)"`
-	DataSourceID  string                 `json:"data_source_id" gorm:"not null;type:varchar(36);index"` // 数据源ID（必需）
-	InterfaceID   *string                `json:"interface_id,omitempty" gorm:"type:varchar(36);index"`  // 接口ID（可选，某些同步任务可能只针对数据源）
-	TaskType      string                 `json:"task_type" gorm:"not null;size:20"`                     // full_sync, incremental_sync, realtime_sync
-	Status        string                 `json:"status" gorm:"not null;size:20;default:'pending'"`      // pending, running, success, failed, cancelled
-	StartTime     *time.Time             `json:"start_time,omitempty"`
-	EndTime       *time.Time             `json:"end_time,omitempty"`
-	Progress      int                    `json:"progress" gorm:"default:0"` // 进度百分比 0-100
-	ProcessedRows int64                  `json:"processed_rows" gorm:"default:0"`
-	TotalRows     int64                  `json:"total_rows" gorm:"default:0"`
-	ErrorCount    int                    `json:"error_count" gorm:"default:0"`
-	ErrorMessage  string                 `json:"error_message,omitempty" gorm:"type:text"`
-	Config        map[string]interface{} `json:"config,omitempty" gorm:"type:jsonb"` // 同步配置
-	Result        map[string]interface{} `json:"result,omitempty" gorm:"type:jsonb"` // 同步结果
-	CreatedAt     time.Time              `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
-	CreatedBy     string                 `json:"created_by" gorm:"not null;default:'system';size:100"`
-	UpdatedAt     time.Time              `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
-
-	// 关联关系
-	DataSource    DataSource     `json:"data_source,omitempty" gorm:"foreignKey:DataSourceID"`
-	DataInterface *DataInterface `json:"data_interface,omitempty" gorm:"foreignKey:InterfaceID"`
-}
-
 // 新增模型的GORM钩子
 func (sc *ScheduleConfig) BeforeCreate(tx *gorm.DB) error {
 	if sc.ID == "" {
@@ -337,16 +312,6 @@ func (dss *DataSourceStatus) BeforeCreate(tx *gorm.DB) error {
 func (is *InterfaceStatus) BeforeCreate(tx *gorm.DB) error {
 	if is.ID == "" {
 		is.ID = uuid.New().String()
-	}
-	return nil
-}
-
-func (st *SyncTask) BeforeCreate(tx *gorm.DB) error {
-	if st.ID == "" {
-		st.ID = uuid.New().String()
-	}
-	if st.CreatedBy == "" {
-		st.CreatedBy = "system"
 	}
 	return nil
 }
