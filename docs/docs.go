@@ -2275,52 +2275,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/basic-libraries/configure-schedule": {
-            "post": {
-                "description": "为批量数据源配置调度任务",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据基础库"
-                ],
-                "summary": "配置数据源调度",
-                "parameters": [
-                    {
-                        "description": "调度配置请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.ScheduleConfig"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/basic-libraries/datasource-status/{id}": {
             "get": {
                 "description": "获取数据源的连接状态、最近同步时间等信息",
@@ -8607,6 +8561,14 @@ const docTemplate = `{
                 "params_config": {
                     "$ref": "#/definitions/models.JSONB"
                 },
+                "script": {
+                    "description": "动态执行脚本，用于特殊认证处理",
+                    "type": "string"
+                },
+                "script_enabled": {
+                    "description": "是否启用脚本执行",
+                    "type": "boolean"
+                },
                 "type": {
                     "type": "string"
                 },
@@ -9441,69 +9403,6 @@ const docTemplate = `{
                 },
                 "type": {
                     "description": "completeness/standardization/consistency/accuracy/uniqueness/timeliness",
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.ScheduleConfig": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "data_interface": {
-                    "$ref": "#/definitions/models.DataInterface"
-                },
-                "data_source": {
-                    "description": "关联关系",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.DataSource"
-                        }
-                    ]
-                },
-                "data_source_id": {
-                    "description": "可选：数据源级别的调度",
-                    "type": "string"
-                },
-                "error_message": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "interface_id": {
-                    "description": "可选：接口级别的调度",
-                    "type": "string"
-                },
-                "is_enabled": {
-                    "type": "boolean"
-                },
-                "last_run_status": {
-                    "description": "pending, running, success, failed",
-                    "type": "string"
-                },
-                "last_run_time": {
-                    "type": "string"
-                },
-                "next_run_time": {
-                    "type": "string"
-                },
-                "schedule_config": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "schedule_type": {
-                    "description": "cron, interval, manual",
                     "type": "string"
                 },
                 "updated_at": {

@@ -281,24 +281,35 @@ const (
 )
 
 const (
-	DataSourceTypePostgreSQL = "postgresql"
-	DataSourceTypeMySQL      = "mysql"
-	DataSourceTypeKafka      = "kafka"
-	DataSourceTypeHTTP       = "http"
-	DataSourceTypeMQTT       = "mqtt"
-	DataSourceTypeRedis      = "redis"
-	DataSourceTypeDatabase   = "database"
-	DataSourceTypeAPI        = "api"
-	DataSourceTypeFile       = "file"
-	DataSourceTypeCSV        = "csv"
-	DataSourceTypeJSON       = "json"
-	DataSourceTypeExcel      = "excel"
+	DataSourceTypePostgreSQL   = "postgresql"
+	DataSourceTypeMySQL        = "mysql"
+	DataSourceTypeKafka        = "kafka"
+	DataSourceTypeHTTP         = "http"
+	DataSourceTypeHTTPWithAuth = "http_with_auth"
+	DataSourceTypeMQTT         = "mqtt"
+	DataSourceTypeRedis        = "redis"
+	DataSourceTypeDatabase     = "database"
+	DataSourceTypeAPI          = "api"
+	DataSourceTypeFile         = "file"
+	DataSourceTypeCSV          = "csv"
+	DataSourceTypeJSON         = "json"
+	DataSourceTypeExcel        = "excel"
 )
 const DataSourceFieldHost = "host"
 const DataSourceFieldPort = "port"
 const DataSourceFieldDatabase = "database"
 const DataSourceFieldUsername = "username"
 const DataSourceFieldPassword = "password"
+const DataSourceFieldAuthType = "auth_type"
+const DataSourceFieldApiKey = "api_key"
+const DataSourceFieldApiSecret = "api_secret"
+const DataSourceFieldApiKeyHeader = "api_key_header"
+const DataSourceFieldScript = "script"
+const DataSourceFieldScriptEnabled = "script_enabled"
+const DataSourceFieldClientId = "client_id"
+const DataSourceFieldClientSecret = "client_secret"
+const DataSourceFieldGrantType = "grant_type"
+const DataSourceFieldScope = "scope"
 const DataSourceFieldSchema = "schema"
 const DataSourceFieldSSLMode = "ssl_mode"
 const DataSourceFieldMaxConnections = "max_connections"
@@ -310,6 +321,13 @@ const DataSourceFieldGroupId = "group_id"
 const DataSourceFieldAutoOffsetReset = "auto_offset_reset"
 const DataSourceFieldMaxPollRecords = "max_poll_records"
 const DataSourceFieldBootstrapServers = "bootstrap_servers"
+
+const (
+	DataSourceAuthTypeBasic  = "basic"
+	DataSourceAuthTypeBearer = "bearer"
+	DataSourceAuthTypeAPIKey = "api_key"
+	DataSourceAuthTypeCustom = "custom"
+)
 
 var DataSourceTypes = make(map[string]*DataSourceTypeDefinition)
 
@@ -621,10 +639,115 @@ func initializeDefaultTypes() {
 		Documentation:     "HTTP数据源支持从REST API获取数据",
 		IsActive:          true,
 	}
+	// HTTP 数据源 带认证
+	httpWithAuth := &DataSourceTypeDefinition{
+		ID:          DataSourceTypeHTTPWithAuth,
+		Category:    DataSourceCategoryAPI,
+		Type:        DataSourceTypeHTTPWithAuth,
+		Name:        "HTTP(带认证)",
+		Description: "HTTP REST API数据源",
+	}
+	httpWithAuth.MetaConfig = []DataSourceConfigField{
+		{
+			Name:         DataSourceFieldBaseUrl,
+			DisplayName:  "基础URL",
+			Type:         "string",
+			Required:     true,
+			DefaultValue: "http://localhost:8080",
+			Description:  "API基础地址",
+			Pattern:      `^https?://.*`,
+		},
+		{
+			Name:        DataSourceFieldUsername,
+			DisplayName: "用户名",
+			Type:        "string",
+			Required:    true,
+			Description: "用户名",
+		},
+		{
+			Name:        DataSourceFieldPassword,
+			DisplayName: "密码",
+			Type:        "string",
+			Required:    true,
+			Description: "密码",
+		},
+		{
+			Name:        DataSourceFieldAuthType,
+			DisplayName: "认证类型",
+			Type:        "string",
+			Required:    true,
+			Description: "认证类型",
+			Options:     []string{DataSourceAuthTypeBasic, DataSourceAuthTypeBearer, DataSourceAuthTypeAPIKey, DataSourceAuthTypeCustom},
+		},
+		{
+			Name:        DataSourceFieldApiKey,
+			DisplayName: "API Key",
+			Type:        "string",
+			Required:    false,
+			Description: "API Key",
+		},
+		{
+			Name:        DataSourceFieldApiSecret,
+			DisplayName: "API Secret",
+			Type:        "string",
+			Required:    false,
+			Description: "API Secret",
+		},
+		{
+			Name:        DataSourceFieldApiKeyHeader,
+			DisplayName: "API Key头名称",
+			Type:        "string",
+			Required:    false,
+			Description: "API Key在HTTP头中的名称",
+		},
+		{
+			Name:        DataSourceFieldScript,
+			DisplayName: "脚本",
+			Type:        "string",
+			Required:    false,
+			Description: "脚本",
+		},
+		{
+			Name:        DataSourceFieldScriptEnabled,
+			DisplayName: "脚本启用",
+			Type:        "boolean",
+			Required:    false,
+			Description: "脚本启用",
+		},
+		{
+			Name:        DataSourceFieldClientId,
+			DisplayName: "客户端ID",
+			Type:        "string",
+			Required:    false,
+			Description: "客户端ID",
+		},
+		{
+			Name:        DataSourceFieldClientSecret,
+			DisplayName: "客户端密钥",
+			Type:        "string",
+			Required:    false,
+			Description: "客户端密钥",
+		},
+		{
+			Name:        DataSourceFieldGrantType,
+			DisplayName: "授权类型",
+			Type:        "string",
+			Required:    false,
+			Description: "授权类型",
+		},
+		{
+			Name:        DataSourceFieldScope,
+			DisplayName: "作用域",
+			Type:        "string",
+			Required:    false,
+			Description: "作用域",
+		},
+	}
 
 	// 注册所有类型
 	DataSourceTypes[postgresql.ID] = postgresql
 	DataSourceTypes[mysql.ID] = mysql
 	DataSourceTypes[kafka.ID] = kafka
 	DataSourceTypes[httpNoAuth.ID] = httpNoAuth
+	DataSourceTypes[httpWithAuth.ID] = httpWithAuth
 }

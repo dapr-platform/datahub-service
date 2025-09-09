@@ -12,6 +12,7 @@
 package monitoring
 
 import (
+	"datahub-service/service/meta"
 	"datahub-service/service/models"
 	"fmt"
 	"net"
@@ -301,13 +302,13 @@ func (h *HealthChecker) checkAllDataSources(status *HealthStatus) error {
 func (h *HealthChecker) checkDataSourceConnection(dataSource *models.DataSource, health *DataSourceHealth) error {
 	// 根据数据源类型执行不同的连接检查
 	switch dataSource.Type {
-	case string(models.DataSourceTypePostgreSQL), string(models.DataSourceTypeMySQL):
+	case string(meta.DataSourceTypePostgreSQL), string(meta.DataSourceTypeMySQL):
 		return h.checkDatabaseConnection(dataSource, health)
-	case string(models.DataSourceTypeHTTP):
+	case string(meta.DataSourceTypeHTTP):
 		return h.checkHTTPConnection(dataSource, health)
-	case string(models.DataSourceTypeKafka):
+	case string(meta.DataSourceTypeKafka):
 		return h.checkKafkaConnection(dataSource, health)
-	case string(models.DataSourceTypeRedis):
+	case string(meta.DataSourceTypeRedis):
 		return h.checkRedisConnection(dataSource, health)
 	default:
 		return h.checkGenericConnection(dataSource, health)

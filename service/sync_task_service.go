@@ -16,6 +16,7 @@ import (
 	"datahub-service/service/basic_library"
 	"datahub-service/service/meta"
 	"datahub-service/service/models"
+	"datahub-service/service/sync_engine"
 	"datahub-service/service/thematic_library"
 	"fmt"
 	"time"
@@ -218,15 +219,17 @@ func (h *ThematicLibraryHandler) GetLibraryInterfaces(libraryID string) ([]model
 
 // SyncTaskService 通用同步任务服务
 type SyncTaskService struct {
-	db       *gorm.DB
-	handlers map[string]LibraryHandler
+	db         *gorm.DB
+	handlers   map[string]LibraryHandler
+	syncEngine *sync_engine.SyncEngine
 }
 
 // NewSyncTaskService 创建同步任务服务
-func NewSyncTaskService(db *gorm.DB, basicLibService *basic_library.Service, thematicLibService *thematic_library.Service) *SyncTaskService {
+func NewSyncTaskService(db *gorm.DB, basicLibService *basic_library.Service, thematicLibService *thematic_library.Service, syncEngine *sync_engine.SyncEngine) *SyncTaskService {
 	service := &SyncTaskService{
-		db:       db,
-		handlers: make(map[string]LibraryHandler),
+		db:         db,
+		handlers:   make(map[string]LibraryHandler),
+		syncEngine: syncEngine,
 	}
 
 	// 注册库类型处理器
@@ -544,19 +547,42 @@ func (s *SyncTaskService) StartSyncTask(ctx context.Context, taskID string) erro
 	}
 
 	// 创建同步引擎请求
-	syncRequest := &models.SyncTaskRequest{
+	syncRequest := &sync_engine.SyncTaskRequest{
 		LibraryType:  task.LibraryType,
 		LibraryID:    task.LibraryID,
 		DataSourceID: task.DataSourceID,
-		InterfaceID:  *task.InterfaceID,
-		SyncType:     models.SyncType(task.TaskType),
+		SyncType:     sync_engine.SyncType(task.TaskType),
 		Config:       task.Config,
+		Priority:     1, // 默认优先级
 		ScheduledBy:  "manual",
 	}
 
-	// 注意：这里需要引用全局的同步引擎实例，或者通过依赖注入
-	// 暂时返回成功，实际实现需要调用同步引擎
-	fmt.Printf("启动同步任务: %s, 类型: %s\n", taskID, syncRequest.SyncType)
+	// 如果有接口ID，设置它
+	if task.InterfaceID != nil {
+		syncRequest.InterfaceID = *task.InterfaceID
+	}
+
+	// 提交任务到同步引擎
+	syncTask, err := s.syncEngine.SubmitSyncTask(syncRequest)
+	if err != nil {
+		return fmt.Errorf("提交同步任务到引擎失败: %w", err)
+	}
+
+	// 更新原任务的ID为引擎返回的任务ID
+	if syncTask != nil {
+		task.ID = syncTask.ID
+	}
+
+	// 更新任务状态为运行中
+	updates := map[string]interface{}{
+		"status":     meta.SyncTaskStatusRunning,
+		"start_time": time.Now(),
+		"updated_at": time.Now(),
+	}
+
+	if err := s.db.Model(&task).Updates(updates).Error; err != nil {
+		return fmt.Errorf("更新任务状态失败: %w", err)
+	}
 
 	return nil
 }

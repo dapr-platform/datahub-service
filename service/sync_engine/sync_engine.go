@@ -13,6 +13,7 @@ package sync_engine
 
 import (
 	"context"
+	"datahub-service/service/datasource"
 	"datahub-service/service/models"
 	"errors"
 	"fmt"
@@ -30,6 +31,7 @@ type SyncEngine struct {
 	realtimeProcessor  *RealtimeProcessor
 	dataTransformer    *DataTransformer
 	incrementalSync    *IncrementalSync
+	datasourceManager  datasource.DataSourceManager
 	runningTasks       map[string]*SyncTaskContext
 	taskMutex          sync.RWMutex
 	ctx                context.Context
@@ -71,8 +73,13 @@ const (
 func NewSyncEngine(db *gorm.DB, maxConcurrentTasks int) *SyncEngine {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// 创建数据源管理器
+	factory := datasource.NewDefaultDataSourceFactory()
+	datasourceManager := datasource.NewDefaultDataSourceManager(factory)
+
 	engine := &SyncEngine{
 		db:                 db,
+		datasourceManager:  datasourceManager,
 		runningTasks:       make(map[string]*SyncTaskContext),
 		ctx:                ctx,
 		cancel:             cancel,
@@ -81,11 +88,11 @@ func NewSyncEngine(db *gorm.DB, maxConcurrentTasks int) *SyncEngine {
 		workerPool:         make(chan struct{}, maxConcurrentTasks),
 	}
 
-	// 初始化各个处理器
-	engine.batchProcessor = NewBatchProcessor(db)
-	engine.realtimeProcessor = NewRealtimeProcessor(db)
+	// 初始化各个处理器，传入数据源管理器
+	engine.batchProcessor = NewBatchProcessor(db, datasourceManager)
+	engine.realtimeProcessor = NewRealtimeProcessor(db, datasourceManager)
 	engine.dataTransformer = NewDataTransformer(db)
-	engine.incrementalSync = NewIncrementalSync(db)
+	engine.incrementalSync = NewIncrementalSync(db, datasourceManager)
 
 	// 启动任务处理器
 	go engine.processTaskQueue()

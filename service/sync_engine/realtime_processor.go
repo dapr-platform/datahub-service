@@ -13,6 +13,7 @@ package sync_engine
 
 import (
 	"context"
+	"datahub-service/service/datasource"
 	"datahub-service/service/meta"
 	"datahub-service/service/models"
 	"fmt"
@@ -23,27 +24,115 @@ import (
 
 // RealtimeProcessor 实时数据处理器
 type RealtimeProcessor struct {
-	db *gorm.DB
+	db                *gorm.DB
+	datasourceManager datasource.DataSourceManager
 }
 
 // NewRealtimeProcessor 创建实时数据处理器实例
-func NewRealtimeProcessor(db *gorm.DB) *RealtimeProcessor {
+func NewRealtimeProcessor(db *gorm.DB, datasourceManager datasource.DataSourceManager) *RealtimeProcessor {
 	return &RealtimeProcessor{
-		db: db,
+		db:                db,
+		datasourceManager: datasourceManager,
 	}
 }
 
 // Process 执行实时数据处理
 func (p *RealtimeProcessor) Process(ctx context.Context, task *models.SyncTask, progress *SyncProgress) (*SyncResult, error) {
-	// TODO: 实现实时数据处理逻辑
-	return &SyncResult{
+	// 获取数据源信息
+	var dataSource models.DataSource
+	if err := p.db.First(&dataSource, "id = ?", task.DataSourceID).Error; err != nil {
+		return nil, fmt.Errorf("获取数据源信息失败: %w", err)
+	}
+
+	// 获取接口信息（如果有）
+	var dataInterface *models.DataInterface
+	if task.InterfaceID != nil && *task.InterfaceID != "" {
+		dataInterface = &models.DataInterface{}
+		if err := p.db.First(dataInterface, "id = ?", *task.InterfaceID).Error; err != nil {
+			return nil, fmt.Errorf("获取接口信息失败: %w", err)
+		}
+	}
+
+	// 使用datasource框架处理实时数据
+	return p.processWithDataSource(ctx, &dataSource, dataInterface, task, progress)
+}
+
+// processWithDataSource 使用datasource框架处理实时数据
+func (p *RealtimeProcessor) processWithDataSource(ctx context.Context, dataSource *models.DataSource, dataInterface *models.DataInterface, task *models.SyncTask, progress *SyncProgress) (*SyncResult, error) {
+	progress.CurrentPhase = "初始化数据源"
+	progress.UpdatedAt = time.Now()
+
+	// 注册数据源到管理器
+	err := p.datasourceManager.Register(ctx, dataSource)
+	if err != nil {
+		return nil, fmt.Errorf("注册数据源失败: %w", err)
+	}
+
+	// 获取数据源实例
+	dsInstance, err := p.datasourceManager.Get(dataSource.ID)
+	if err != nil {
+		return nil, fmt.Errorf("获取数据源实例失败: %w", err)
+	}
+
+	// 启动数据源（如果需要）
+	if dsInstance.IsResident() && !dsInstance.IsStarted() {
+		progress.CurrentPhase = "启动数据源"
+		progress.UpdatedAt = time.Now()
+
+		if err := dsInstance.Start(ctx); err != nil {
+			return nil, fmt.Errorf("启动数据源失败: %w", err)
+		}
+	}
+
+	progress.CurrentPhase = "开始实时数据流处理"
+	progress.UpdatedAt = time.Now()
+
+	var processedRows int64
+	var errorCount int
+	startTime := time.Now()
+
+	// 实时数据流处理逻辑
+	processedRows, errorCount, err = p.processRealtimeStream(ctx, dsInstance, dataInterface, task, progress)
+	if err != nil {
+		return nil, fmt.Errorf("实时数据流处理失败: %w", err)
+	}
+
+	// 构建结果
+	result := &SyncResult{
 		TaskID:        task.ID,
 		Status:        TaskStatusSuccess,
-		ProcessedRows: 0,
-		StartTime:     time.Now(),
+		ProcessedRows: processedRows,
+		SuccessRows:   processedRows - int64(errorCount),
+		ErrorRows:     int64(errorCount),
+		StartTime:     startTime,
 		EndTime:       time.Now(),
-		Duration:      0,
-	}, nil
+		Duration:      time.Since(startTime),
+		Statistics: map[string]interface{}{
+			"data_source_type": dataSource.Type,
+			"data_source_id":   dataSource.ID,
+			"sync_type":        "realtime",
+			"processing_speed": p.calculateSpeed(processedRows, time.Since(startTime)),
+		},
+	}
+
+	return result, nil
+}
+
+// processRealtimeStream 处理实时数据流
+func (p *RealtimeProcessor) processRealtimeStream(ctx context.Context, dsInstance datasource.DataSourceInterface, dataInterface *models.DataInterface, task *models.SyncTask, progress *SyncProgress) (int64, int, error) {
+	// TODO: 根据数据源类型实现不同的实时数据流处理逻辑
+	// 例如：Kafka消费者、MQTT订阅、WebSocket连接等
+
+	// 目前返回模拟数据
+	return 0, 0, nil
+}
+
+// calculateSpeed 计算处理速度
+func (p *RealtimeProcessor) calculateSpeed(rows int64, duration time.Duration) float64 {
+	if duration.Seconds() == 0 {
+		return 0
+	}
+	return float64(rows) / duration.Seconds()
 }
 
 // GetProcessorType 获取处理器类型

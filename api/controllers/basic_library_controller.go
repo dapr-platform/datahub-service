@@ -77,14 +77,6 @@ type InterfaceTestResponse struct {
 	Warnings    []string               `json:"warnings,omitempty" example:"数据量较大，建议分页查询"` // 警告信息
 }
 
-// ScheduleConfigRequest 调度配置请求
-type ScheduleConfigRequest struct {
-	DataSourceID   string                 `json:"data_source_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
-	ScheduleType   string                 `json:"schedule_type" validate:"required" example:"cron"` // cron, interval, manual
-	ScheduleConfig map[string]interface{} `json:"schedule_config" validate:"required"`              // 调度配置
-	IsEnabled      bool                   `json:"is_enabled" example:"true"`                        // 是否启用
-}
-
 // UpdateBasicLibraryRequest 修改数据基础库请求结构
 type UpdateBasicLibraryRequest struct {
 	ID          string `json:"id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
@@ -353,33 +345,6 @@ func (c *BasicLibraryController) TestInterface(w http.ResponseWriter, r *http.Re
 	}
 
 	render.JSON(w, r, SuccessResponse("测试完成", result))
-}
-
-// ConfigureSchedule 配置数据源调度
-// @Summary 配置数据源调度
-// @Description 为批量数据源配置调度任务
-// @Tags 数据基础库
-// @Accept json
-// @Produce json
-// @Param request body models.ScheduleConfig true "调度配置请求"
-// @Success 200 {object} APIResponse
-// @Failure 400 {object} APIResponse
-// @Failure 500 {object} APIResponse
-// @Router /basic-libraries/configure-schedule [post]
-func (c *BasicLibraryController) ConfigureSchedule(w http.ResponseWriter, r *http.Request) {
-	var req models.ScheduleConfig
-	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
-		return
-	}
-
-	err := c.service.ConfigureSchedule(&req)
-	if err != nil {
-		render.JSON(w, r, InternalErrorResponse("调度配置失败: "+err.Error(), err))
-		return
-	}
-
-	render.JSON(w, r, SuccessResponse("调度配置成功", nil))
 }
 
 // GetDataSourceStatus 获取数据源状态

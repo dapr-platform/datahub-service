@@ -28,7 +28,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.DataInterface{},
 		&models.DataSource{},
 		&models.CleansingRule{},
-		&models.ScheduleConfig{},
 		&models.DataSourceStatus{},
 		&models.InterfaceStatus{},
 		&models.SyncTask{},

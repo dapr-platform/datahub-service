@@ -14,6 +14,7 @@ package sync_engine
 import (
 	"context"
 	"datahub-service/client"
+	"datahub-service/service/datasource"
 	"datahub-service/service/meta"
 	"datahub-service/service/models"
 	"encoding/json"
@@ -27,17 +28,19 @@ import (
 
 // BatchProcessor 批量数据处理器
 type BatchProcessor struct {
-	db        *gorm.DB
-	pgClient  *client.PgMetaClient
-	batchSize int
+	db                *gorm.DB
+	pgClient          *client.PgMetaClient
+	datasourceManager datasource.DataSourceManager
+	batchSize         int
 }
 
 // NewBatchProcessor 创建批量数据处理器实例
-func NewBatchProcessor(db *gorm.DB) *BatchProcessor {
+func NewBatchProcessor(db *gorm.DB, datasourceManager datasource.DataSourceManager) *BatchProcessor {
 	return &BatchProcessor{
-		db:        db,
-		pgClient:  client.NewPgMetaClient("", ""),
-		batchSize: 1000, // 默认批量大小
+		db:                db,
+		pgClient:          client.NewPgMetaClient("", ""),
+		datasourceManager: datasourceManager,
+		batchSize:         1000, // 默认批量大小
 	}
 }
 
@@ -59,17 +62,286 @@ func (p *BatchProcessor) Process(ctx context.Context, task *models.SyncTask, pro
 		}
 	}
 
-	// 根据数据源类型选择处理策略
-	switch dataSource.Type {
-	case "database", "postgresql", "mysql":
-		return p.processDatabaseData(ctx, &dataSource, dataInterface, task, progress)
-	case "http", "api":
-		return p.processHTTPData(ctx, &dataSource, dataInterface, task, progress)
-	case "file", "csv", "json", "excel":
-		return p.processFileData(ctx, &dataSource, dataInterface, task, progress)
-	default:
-		return nil, fmt.Errorf("不支持的数据源类型: %s", dataSource.Type)
+	// 使用datasource框架处理数据
+	return p.processWithDataSource(ctx, &dataSource, dataInterface, task, progress)
+}
+
+// processWithDataSource 使用datasource框架处理数据
+func (p *BatchProcessor) processWithDataSource(ctx context.Context, dataSource *models.DataSource, dataInterface *models.DataInterface, task *models.SyncTask, progress *SyncProgress) (*SyncResult, error) {
+	progress.CurrentPhase = "初始化数据源"
+	progress.UpdatedAt = time.Now()
+
+	// 注册数据源到管理器
+	err := p.datasourceManager.Register(ctx, dataSource)
+	if err != nil {
+		return nil, fmt.Errorf("注册数据源失败: %w", err)
 	}
+
+	// 获取数据源实例
+	dsInstance, err := p.datasourceManager.Get(dataSource.ID)
+	if err != nil {
+		return nil, fmt.Errorf("获取数据源实例失败: %w", err)
+	}
+
+	// 启动数据源（如果需要）
+	if dsInstance.IsResident() && !dsInstance.IsStarted() {
+		progress.CurrentPhase = "启动数据源"
+		progress.UpdatedAt = time.Now()
+
+		if err := dsInstance.Start(ctx); err != nil {
+			return nil, fmt.Errorf("启动数据源失败: %w", err)
+		}
+	}
+
+	progress.CurrentPhase = "开始数据同步"
+	progress.UpdatedAt = time.Now()
+
+	var processedRows int64
+	var errorCount int
+	startTime := time.Now()
+
+	// 根据同步类型执行不同的操作
+	switch task.TaskType {
+	case string(SyncTypeFull):
+		processedRows, errorCount, err = p.executeFullSync(ctx, dsInstance, dataInterface, task, progress)
+	case string(SyncTypeIncremental):
+		processedRows, errorCount, err = p.executeIncrementalSync(ctx, dsInstance, dataInterface, task, progress)
+	default:
+		return nil, fmt.Errorf("不支持的同步类型: %s", task.TaskType)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("数据同步失败: %w", err)
+	}
+
+	// 构建结果
+	result := &SyncResult{
+		TaskID:        task.ID,
+		Status:        TaskStatusSuccess,
+		ProcessedRows: processedRows,
+		SuccessRows:   processedRows - int64(errorCount),
+		ErrorRows:     int64(errorCount),
+		StartTime:     startTime,
+		EndTime:       time.Now(),
+		Duration:      time.Since(startTime),
+		Statistics: map[string]interface{}{
+			"data_source_type": dataSource.Type,
+			"data_source_id":   dataSource.ID,
+			"sync_type":        task.TaskType,
+			"processing_speed": p.calculateSpeed(processedRows, time.Since(startTime)),
+		},
+	}
+
+	return result, nil
+}
+
+// executeFullSync 执行全量同步
+func (p *BatchProcessor) executeFullSync(ctx context.Context, dsInstance datasource.DataSourceInterface, dataInterface *models.DataInterface, task *models.SyncTask, progress *SyncProgress) (int64, int, error) {
+	var processedRows int64
+	var errorCount int
+
+	// 构建查询请求
+	request := &datasource.ExecuteRequest{
+		Operation: "query",
+		Params: map[string]interface{}{
+			"sync_type":  "full",
+			"batch_size": p.batchSize,
+		},
+	}
+
+	// 如果有接口配置，使用接口的查询参数
+	if dataInterface != nil {
+		// 从接口配置中获取查询参数
+		if dataInterface.InterfaceConfig != nil {
+			if queryParams, ok := dataInterface.InterfaceConfig["query_params"].(map[string]interface{}); ok {
+				for key, value := range queryParams {
+					request.Params[key] = value
+				}
+			}
+			if query, ok := dataInterface.InterfaceConfig["query"].(string); ok && query != "" {
+				request.Query = query
+			}
+		}
+	}
+
+	// 分批次执行查询
+	offset := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return processedRows, errorCount, fmt.Errorf("任务被取消")
+		default:
+		}
+
+		// 设置分页参数
+		request.Params["offset"] = offset
+		request.Params["limit"] = p.batchSize
+
+		// 执行查询
+		response, err := dsInstance.Execute(ctx, request)
+		if err != nil {
+			errorCount++
+			if errorCount > 10 {
+				return processedRows, errorCount, fmt.Errorf("连续错误次数过多: %w", err)
+			}
+			continue
+		}
+
+		if !response.Success {
+			errorCount++
+			continue
+		}
+
+		// 处理返回的数据
+		if response.Data == nil {
+			break // 没有更多数据
+		}
+
+		// 根据数据类型处理
+		var batchData []map[string]interface{}
+		switch data := response.Data.(type) {
+		case []map[string]interface{}:
+			batchData = data
+		case []interface{}:
+			batchData = make([]map[string]interface{}, len(data))
+			for i, item := range data {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					batchData[i] = itemMap
+				}
+			}
+		case map[string]interface{}:
+			// 如果返回的是单个对象，包装成数组
+			batchData = []map[string]interface{}{data}
+		default:
+			// 其他类型的数据，尝试转换
+			batchData = []map[string]interface{}{
+				{"data": data},
+			}
+		}
+
+		if len(batchData) == 0 {
+			break
+		}
+
+		// 处理数据批次
+		if err := p.processBatch(ctx, batchData, dataInterface, task); err != nil {
+			errorCount++
+			continue
+		}
+
+		processedRows += int64(len(batchData))
+		offset += len(batchData)
+
+		// 更新进度
+		progress.ProcessedRows = processedRows
+		progress.ErrorCount = errorCount
+		progress.Speed = p.calculateSpeed(processedRows, time.Since(time.Now().Add(-time.Minute)))
+		progress.UpdatedAt = time.Now()
+
+		// 如果返回的数据少于批次大小，说明已经到最后一批
+		if len(batchData) < p.batchSize {
+			break
+		}
+	}
+
+	return processedRows, errorCount, nil
+}
+
+// executeIncrementalSync 执行增量同步
+func (p *BatchProcessor) executeIncrementalSync(ctx context.Context, dsInstance datasource.DataSourceInterface, dataInterface *models.DataInterface, task *models.SyncTask, progress *SyncProgress) (int64, int, error) {
+	var processedRows int64
+	var errorCount int
+
+	// 获取上次同步时间
+	lastSyncTime := p.getLastSyncTime(task)
+
+	// 构建增量查询请求
+	request := &datasource.ExecuteRequest{
+		Operation: "query",
+		Params: map[string]interface{}{
+			"sync_type":      "incremental",
+			"last_sync_time": lastSyncTime,
+			"batch_size":     p.batchSize,
+		},
+	}
+
+	// 如果有接口配置，使用接口的查询参数
+	if dataInterface != nil {
+		// 从接口配置中获取查询参数
+		if dataInterface.InterfaceConfig != nil {
+			if queryParams, ok := dataInterface.InterfaceConfig["query_params"].(map[string]interface{}); ok {
+				for key, value := range queryParams {
+					request.Params[key] = value
+				}
+			}
+			if query, ok := dataInterface.InterfaceConfig["query"].(string); ok && query != "" {
+				request.Query = query
+			}
+		}
+	}
+
+	// 执行增量查询
+	response, err := dsInstance.Execute(ctx, request)
+	if err != nil {
+		return 0, 1, fmt.Errorf("增量查询失败: %w", err)
+	}
+
+	if !response.Success {
+		return 0, 1, fmt.Errorf("增量查询失败: %s", response.Error)
+	}
+
+	// 处理返回的数据
+	if response.Data != nil {
+		var batchData []map[string]interface{}
+		switch data := response.Data.(type) {
+		case []map[string]interface{}:
+			batchData = data
+		case []interface{}:
+			batchData = make([]map[string]interface{}, len(data))
+			for i, item := range data {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					batchData[i] = itemMap
+				}
+			}
+		}
+
+		if len(batchData) > 0 {
+			// 处理数据批次
+			if err := p.processBatch(ctx, batchData, dataInterface, task); err != nil {
+				errorCount++
+			} else {
+				processedRows = int64(len(batchData))
+			}
+		}
+	}
+
+	// 更新最后同步时间
+	p.updateLastSyncTime(task, time.Now())
+
+	return processedRows, errorCount, nil
+}
+
+// getLastSyncTime 获取上次同步时间
+func (p *BatchProcessor) getLastSyncTime(task *models.SyncTask) time.Time {
+	if lastSync, exists := task.Config["last_sync_time"]; exists {
+		if lastSyncStr, ok := lastSync.(string); ok {
+			if t, err := time.Parse(time.RFC3339, lastSyncStr); err == nil {
+				return t
+			}
+		}
+	}
+	return time.Time{} // 返回零时间，表示首次同步
+}
+
+// updateLastSyncTime 更新最后同步时间
+func (p *BatchProcessor) updateLastSyncTime(task *models.SyncTask, syncTime time.Time) {
+	if task.Config == nil {
+		task.Config = make(map[string]interface{})
+	}
+	task.Config["last_sync_time"] = syncTime.Format(time.RFC3339)
+
+	// 更新数据库中的配置
+	p.db.Model(task).Update("config", task.Config)
 }
 
 // processDatabaseData 处理数据库数据

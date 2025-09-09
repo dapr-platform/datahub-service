@@ -26,7 +26,6 @@ type Service struct {
 	db                *gorm.DB
 	datasourceService *DatasourceService
 	interfaceService  *InterfaceService
-	scheduleService   *ScheduleService
 	statusService     *StatusService
 }
 
@@ -39,7 +38,6 @@ func NewService(db *gorm.DB, eventListener models.EventListener) *Service {
 	// 初始化子服务
 	serviceInstance.datasourceService = NewDatasourceService(db)
 	serviceInstance.interfaceService = NewInterfaceService(db)
-	serviceInstance.scheduleService = NewScheduleService(db)
 	serviceInstance.statusService = NewStatusService(db)
 
 	// 如果提供了事件处理器，则注册DB事件处理器,不使用事件通知方式。代码保留备查
@@ -230,12 +228,6 @@ func (s *Service) TestInterface(interfaceID, testType string, parameters, option
 	return s.interfaceService.TestInterface(interfaceID, testType, parameters, options)
 }
 
-// ConfigureSchedule 配置调度
-func (s *Service) ConfigureSchedule(scheduleConfig *models.ScheduleConfig) error {
-	_, err := s.scheduleService.ConfigureSchedule(scheduleConfig)
-	return err
-}
-
 // GetDataSourceStatus 获取数据源状态
 func (s *Service) GetDataSourceStatus(id string) (*models.DataSourceStatus, error) {
 	return s.statusService.GetDataSourceStatus(id)
@@ -279,11 +271,6 @@ func (s *Service) GetDatasourceService() *DatasourceService {
 // GetInterfaceService 获取接口服务
 func (s *Service) GetInterfaceService() *InterfaceService {
 	return s.interfaceService
-}
-
-// GetScheduleService 获取调度服务
-func (s *Service) GetScheduleService() *ScheduleService {
-	return s.scheduleService
 }
 
 // GetStatusService 获取状态服务

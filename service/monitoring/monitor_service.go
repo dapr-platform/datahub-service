@@ -445,7 +445,7 @@ func (m *MonitorService) validateConfig(config *MonitoringConfig) error {
 
 // 保存监控配置
 func (m *MonitorService) saveMonitoringConfig(config *MonitoringConfig) error {
-	configJSON, err := json.Marshal(config)
+	_, err := json.Marshal(config)
 	if err != nil {
 		return err
 	}

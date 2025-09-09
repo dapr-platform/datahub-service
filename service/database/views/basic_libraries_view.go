@@ -312,6 +312,8 @@ var BasicLibraryViews = map[string]string{
 			ds.created_by,
 			ds.updated_at,
 			ds.updated_by,
+			ds.script,
+			ds.script_enabled,
 			-- 基础库信息对象，来源：basic_libraries表
 			-- 包含字段：id, name_zh, name_en, description, status, created_at, created_by, updated_at, updated_by
 			jsonb_build_object(
@@ -372,6 +374,8 @@ var BasicLibraryViews = map[string]string{
 				"created_by": {"type": "string", "source": "data_sources.created_by", "description": "数据源创建者"},
 				"updated_at": {"type": "Date", "source": "data_sources.updated_at", "description": "数据源更新时间"},
 				"updated_by": {"type": "string", "source": "data_sources.updated_by", "description": "数据源更新者"},
+				"script": {"type": "string", "source": "data_sources.script", "description": "动态执行脚本"},
+				"script_enabled": {"type": "boolean", "source": "data_sources.script_enabled", "description": "是否启用脚本执行"},
 				"library": {
 					"type": "Object",
 					"source": "basic_libraries",
@@ -414,5 +418,4 @@ var BasicLibraryViews = map[string]string{
 			}
 		}';
 	`,
-
 }

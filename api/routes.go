@@ -82,9 +82,6 @@ func InitRoute(r *chi.Mux) {
 		// 接口调用测试
 		r.Post("/test-interface", basicLibraryController.TestInterface)
 
-		// 调度配置
-		r.Post("/configure-schedule", basicLibraryController.ConfigureSchedule)
-
 		// 数据源状态查询
 		r.Get("/datasource-status/{id}", basicLibraryController.GetDataSourceStatus)
 

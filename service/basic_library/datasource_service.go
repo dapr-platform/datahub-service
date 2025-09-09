@@ -12,7 +12,8 @@
 package basic_library
 
 import (
-	"datahub-service/service/meta"
+	"context"
+	"datahub-service/service/datasource"
 	"datahub-service/service/models"
 	"errors"
 	"fmt"
@@ -25,13 +26,19 @@ import (
 type DatasourceService struct {
 	db                *gorm.DB
 	validationService *ValidationService
+	datasourceManager datasource.DataSourceManager
 }
 
 // NewDatasourceService 创建数据源服务实例
 func NewDatasourceService(db *gorm.DB) *DatasourceService {
+	// 使用全局数据源注册中心，确保内置类型已注册
+	registry := datasource.GetGlobalRegistry()
+	datasourceManager := registry.GetManager()
+
 	return &DatasourceService{
 		db:                db,
 		validationService: NewValidationService(db),
+		datasourceManager: datasourceManager,
 	}
 }
 
@@ -111,8 +118,7 @@ func (s *DatasourceService) DeleteDataSource(dataSource *models.DataSource) erro
 		return errors.New("无法删除：存在关联的数据接口")
 	}
 
-	// 删除相关的调度配置和状态记录
-	s.db.Where("data_source_id = ?", dataSource.ID).Delete(&models.ScheduleConfig{})
+	// 删除相关的状态记录
 	s.db.Where("data_source_id = ?", dataSource.ID).Delete(&models.DataSourceStatus{})
 
 	return s.db.Delete(&models.DataSource{}, "id = ?", dataSource.ID).Error
@@ -157,42 +163,68 @@ func (s *DatasourceService) testConnection(dataSource *models.DataSource, startT
 		TestType: "connection",
 	}
 
-	// 从注册表获取类型定义
-	definition, exists := meta.DataSourceTypes[dataSource.Type]
-	if !exists {
+	// 使用datasource框架测试连接
+	ctx := context.Background()
+
+	// 注册数据源到管理器
+	err := s.datasourceManager.Register(ctx, dataSource)
+	if err != nil {
 		result.Success = false
-		result.Message = "不支持的数据源类型"
+		result.Message = "注册数据源失败"
 		result.Duration = time.Since(startTime).Milliseconds()
-		result.Error = fmt.Sprintf("unsupported datasource type: %s", dataSource.Type)
-		return result, fmt.Errorf("不支持的数据源类型: %s", dataSource.Type)
+		result.Error = err.Error()
+		return result, err
 	}
 
-	// 根据类别分发测试逻辑
-	switch definition.Category {
-	case string(meta.DataSourceCategoryDatabase):
-		return s.testDatabaseConnection(dataSource, definition, startTime)
-	case string(meta.DataSourceCategoryMessaging):
-		switch dataSource.Type {
-		case string(meta.DataSourceTypeKafka):
-			return s.testKafkaConnection(dataSource, startTime)
-		case string(meta.DataSourceTypeMQTT):
-			return s.testMQTTConnection(dataSource, startTime)
-		case string(meta.DataSourceTypeRedis):
-			return s.testRedisConnection(dataSource, startTime)
-		default:
-			return s.testGenericConnection(dataSource, startTime, "消息队列")
-		}
-	case string(meta.DataSourceCategoryAPI):
-		return s.testHTTPConnection(dataSource, startTime)
-	case string(meta.DataSourceCategoryFile):
-		return s.testFileConnection(dataSource, startTime)
-	default:
+	// 获取数据源实例
+	dsInstance, err := s.datasourceManager.Get(dataSource.ID)
+	if err != nil {
 		result.Success = false
-		result.Message = "不支持的数据源类别"
+		result.Message = "获取数据源实例失败"
 		result.Duration = time.Since(startTime).Milliseconds()
-		result.Error = fmt.Sprintf("unsupported datasource category: %s", definition.Category)
-		return result, fmt.Errorf("不支持的数据源类别: %s", definition.Category)
+		result.Error = err.Error()
+		return result, err
 	}
+
+	// 执行健康检查
+	healthStatus, err := dsInstance.HealthCheck(ctx)
+	if err != nil {
+		result.Success = false
+		result.Message = "数据源连接测试失败"
+		result.Duration = time.Since(startTime).Milliseconds()
+		result.Error = err.Error()
+		return result, err
+	}
+
+	// 构建成功结果
+	isHealthy := healthStatus.Status == "online"
+	result.Success = isHealthy
+	result.Message = healthStatus.Message
+	result.Duration = time.Since(startTime).Milliseconds()
+	result.Metadata = map[string]interface{}{
+		"data_source_type": dataSource.Type,
+		"health_status":    healthStatus.Status,
+		"last_check_time":  healthStatus.LastCheck,
+	}
+
+	if isHealthy {
+		result.Suggestions = []string{
+			"数据源连接正常",
+			"建议定期检查数据源状态",
+		}
+		// 更新数据源状态
+		s.updateDataSourceStatus(dataSource.ID, "online", nil, nil)
+	} else {
+		result.Suggestions = []string{
+			"检查数据源配置",
+			"验证网络连接",
+			"确认认证信息正确",
+		}
+		now := time.Now()
+		s.updateDataSourceStatus(dataSource.ID, "error", nil, &now)
+	}
+
+	return result, nil
 }
 
 // testDataPreview 测试数据预览
@@ -201,373 +233,81 @@ func (s *DatasourceService) testDataPreview(dataSource *models.DataSource, confi
 		TestType: "data_preview",
 	}
 
-	// 首先测试连接
-	connResult, err := s.testConnection(dataSource, startTime)
-	if err != nil || !connResult.Success {
-		return connResult, err
-	}
+	// 使用datasource框架获取预览数据
+	ctx := context.Background()
 
-	// 从注册表获取类型定义
-	definition, exists := meta.DataSourceTypes[dataSource.Type]
-	if !exists {
+	// 确保数据源已注册
+	err := s.datasourceManager.Register(ctx, dataSource)
+	if err != nil {
 		result.Success = false
-		result.Message = "不支持的数据源类型预览"
+		result.Message = "注册数据源失败"
 		result.Duration = time.Since(startTime).Milliseconds()
-		result.Error = fmt.Sprintf("unsupported datasource type for preview: %s", dataSource.Type)
-		return result, fmt.Errorf("不支持的数据源类型预览: %s", dataSource.Type)
+		result.Error = err.Error()
+		return result, err
 	}
 
-	// 根据类别获取预览数据
-	switch definition.Category {
-	case meta.DataSourceCategoryDatabase:
-		return s.previewDatabaseData(dataSource, config, startTime)
-	case meta.DataSourceCategoryMessaging:
-		switch dataSource.Type {
-		case meta.DataSourceTypeKafka:
-			return s.previewKafkaData(dataSource, config, startTime)
-		case meta.DataSourceTypeMQTT:
-			return s.previewMQTTData(dataSource, config, startTime)
-		default:
-			return s.previewGenericData(dataSource, config, startTime, "消息队列")
+	// 获取数据源实例
+	dsInstance, err := s.datasourceManager.Get(dataSource.ID)
+	if err != nil {
+		result.Success = false
+		result.Message = "获取数据源实例失败"
+		result.Duration = time.Since(startTime).Milliseconds()
+		result.Error = err.Error()
+		return result, err
+	}
+
+	// 构建预览请求
+	executeRequest := &datasource.ExecuteRequest{
+		Operation: "query",
+		Query:     "SELECT * FROM sample_table LIMIT 10", // 示例查询，实际应从config获取
+		Params: map[string]interface{}{
+			"limit": 10,
+		},
+	}
+
+	// 如果config中有特定参数，使用它们
+	if config != nil {
+		if query, exists := config["query"]; exists {
+			executeRequest.Query = query.(string)
 		}
-	case meta.DataSourceCategoryAPI:
-		return s.previewHTTPData(dataSource, config, startTime)
-	case meta.DataSourceCategoryFile:
-		return s.previewFileData(dataSource, config, startTime)
-	default:
+		if limit, exists := config["limit"]; exists {
+			executeRequest.Params["limit"] = limit
+		}
+		if tableName, exists := config["table_name"]; exists {
+			executeRequest.Params["table_name"] = tableName
+		}
+	}
+
+	// 执行数据预览
+	executeResponse, err := dsInstance.Execute(ctx, executeRequest)
+	if err != nil {
 		result.Success = false
-		result.Message = "不支持的数据源类别预览"
+		result.Message = "数据预览失败"
 		result.Duration = time.Since(startTime).Milliseconds()
-		result.Error = fmt.Sprintf("unsupported datasource category for preview: %s", definition.Category)
-		return result, fmt.Errorf("不支持的数据源类别预览: %s", definition.Category)
-	}
-}
-
-// 数据库连接测试
-func (s *DatasourceService) testDatabaseConnection(dataSource *models.DataSource, dataSourceTypeDefinition *meta.DataSourceTypeDefinition, startTime time.Time) (*DataSourceTestResult, error) {
-	// TODO: 实现数据库连接测试逻辑
-	// 这里应该根据 connection_config 中的配置信息进行实际的数据库连接测试
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  "数据库连接测试成功",
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "connection",
-		Metadata: map[string]interface{}{
-			"database_type": dataSource.Type,
-			"host":          dataSource.ConnectionConfig["host"],
-			"port":          dataSource.ConnectionConfig["port"],
-			"database":      dataSource.ConnectionConfig["database"],
-		},
-		Suggestions: []string{
-			"建议定期检查数据库连接状态",
-			"确保数据库用户权限配置正确",
-		},
+		result.Error = err.Error()
+		return result, err
 	}
 
-	// 更新数据源状态
-	s.updateDataSourceStatus(dataSource.ID, "online", nil, nil)
-
-	return result, nil
-}
-
-// Kafka连接测试
-func (s *DatasourceService) testKafkaConnection(dataSource *models.DataSource, startTime time.Time) (*DataSourceTestResult, error) {
-	// TODO: 实现Kafka连接测试逻辑
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  "Kafka连接测试成功",
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "connection",
-		Metadata: map[string]interface{}{
-			"brokers": dataSource.ConnectionConfig["brokers"],
-			"topics":  dataSource.ConnectionConfig["topics"],
-		},
-		Suggestions: []string{
-			"建议监控Kafka集群健康状态",
-			"确保topic权限配置正确",
-		},
+	// 构建成功结果
+	result.Success = executeResponse.Success
+	result.Message = "数据预览获取成功"
+	result.Duration = time.Since(startTime).Milliseconds()
+	result.Data = executeResponse.Data
+	result.Metadata = map[string]interface{}{
+		"row_count":        executeResponse.RowCount,
+		"data_source_type": dataSource.Type,
+		"execution_time":   executeResponse.Duration,
 	}
 
-	s.updateDataSourceStatus(dataSource.ID, "online", nil, nil)
-	return result, nil
-}
-
-// MQTT连接测试
-func (s *DatasourceService) testMQTTConnection(dataSource *models.DataSource, startTime time.Time) (*DataSourceTestResult, error) {
-	// TODO: 实现MQTT连接测试逻辑
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  "MQTT连接测试成功",
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "connection",
-		Metadata: map[string]interface{}{
-			"broker": dataSource.ConnectionConfig["broker"],
-			"topics": dataSource.ConnectionConfig["topics"],
-		},
-		Suggestions: []string{
-			"建议监控MQTT broker状态",
-			"确保订阅topic权限正确",
-		},
+	// 如果有元数据，包含更多信息
+	if executeResponse.Metadata != nil {
+		for k, v := range executeResponse.Metadata {
+			result.Metadata[k] = v
+		}
 	}
 
-	s.updateDataSourceStatus(dataSource.ID, "online", nil, nil)
-	return result, nil
-}
-
-// Redis连接测试
-func (s *DatasourceService) testRedisConnection(dataSource *models.DataSource, startTime time.Time) (*DataSourceTestResult, error) {
-	// TODO: 实现Redis连接测试逻辑
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  "Redis连接测试成功",
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "connection",
-		Metadata: map[string]interface{}{
-			"host": dataSource.ConnectionConfig["host"],
-			"port": dataSource.ConnectionConfig["port"],
-			"db":   dataSource.ConnectionConfig["db"],
-		},
-		Suggestions: []string{
-			"建议监控Redis内存使用情况",
-			"确保Redis持久化配置正确",
-		},
-	}
-
-	s.updateDataSourceStatus(dataSource.ID, "online", nil, nil)
-	return result, nil
-}
-
-// HTTP连接测试
-func (s *DatasourceService) testHTTPConnection(dataSource *models.DataSource, startTime time.Time) (*DataSourceTestResult, error) {
-	// TODO: 实现HTTP连接测试逻辑
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  "HTTP接口连接测试成功",
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "connection",
-		Metadata: map[string]interface{}{
-			"url":    dataSource.ConnectionConfig["url"],
-			"method": dataSource.ConnectionConfig["method"],
-		},
-		Suggestions: []string{
-			"建议配置适当的超时时间",
-			"确保API授权信息正确",
-		},
-	}
-
-	s.updateDataSourceStatus(dataSource.ID, "online", nil, nil)
-	return result, nil
-}
-
-// 文件连接测试
-func (s *DatasourceService) testFileConnection(dataSource *models.DataSource, startTime time.Time) (*DataSourceTestResult, error) {
-	// TODO: 实现文件连接测试逻辑
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  "文件路径访问测试成功",
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "connection",
-		Metadata: map[string]interface{}{
-			"path":   dataSource.ConnectionConfig["path"],
-			"format": dataSource.ConnectionConfig["format"],
-		},
-		Suggestions: []string{
-			"建议检查文件权限配置",
-			"确保文件格式解析正确",
-		},
-	}
-
-	s.updateDataSourceStatus(dataSource.ID, "online", nil, nil)
-	return result, nil
-}
-
-// testGenericConnection 通用连接测试（用于未实现具体测试逻辑的数据源类型）
-func (s *DatasourceService) testGenericConnection(dataSource *models.DataSource, startTime time.Time, category string) (*DataSourceTestResult, error) {
-	// TODO: 实现通用连接测试逻辑
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  fmt.Sprintf("%s连接测试成功", category),
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "connection",
-		Metadata: map[string]interface{}{
-			"datasource_type": dataSource.Type,
-			"category":        category,
-		},
-		Suggestions: []string{
-			"建议实现具体的连接测试逻辑",
-			"确保配置参数正确",
-		},
-	}
-
-	s.updateDataSourceStatus(dataSource.ID, "online", nil, nil)
-	return result, nil
-}
-
-// 数据库数据预览
-func (s *DatasourceService) previewDatabaseData(dataSource *models.DataSource, config map[string]interface{}, startTime time.Time) (*DataSourceTestResult, error) {
-	// TODO: 实现数据库数据预览逻辑
-
-	// 模拟预览数据
-	sampleData := []map[string]interface{}{
-		{"id": 1, "name": "张三", "age": 25, "city": "北京"},
-		{"id": 2, "name": "李四", "age": 30, "city": "上海"},
-		{"id": 3, "name": "王五", "age": 28, "city": "广州"},
-	}
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  "数据预览获取成功",
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "data_preview",
-		Data:     sampleData,
-		Metadata: map[string]interface{}{
-			"row_count":    len(sampleData),
-			"column_count": 4,
-			"table_name":   config["table_name"],
-			"sample_size":  len(sampleData),
-		},
-	}
-
-	return result, nil
-}
-
-// Kafka数据预览
-func (s *DatasourceService) previewKafkaData(dataSource *models.DataSource, config map[string]interface{}, startTime time.Time) (*DataSourceTestResult, error) {
-	// TODO: 实现Kafka数据预览逻辑
-
-	// 模拟Kafka消息数据
-	sampleData := []map[string]interface{}{
-		{"offset": 100, "partition": 0, "timestamp": "2024-01-01T10:00:00Z", "value": "{\"user_id\": 1001, \"action\": \"login\"}"},
-		{"offset": 101, "partition": 0, "timestamp": "2024-01-01T10:01:00Z", "value": "{\"user_id\": 1002, \"action\": \"view_page\"}"},
-	}
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  "Kafka消息预览获取成功",
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "data_preview",
-		Data:     sampleData,
-		Metadata: map[string]interface{}{
-			"message_count": len(sampleData),
-			"topic":         config["topic"],
-			"partition":     config["partition"],
-		},
-	}
-
-	return result, nil
-}
-
-// MQTT数据预览
-func (s *DatasourceService) previewMQTTData(dataSource *models.DataSource, config map[string]interface{}, startTime time.Time) (*DataSourceTestResult, error) {
-	// TODO: 实现MQTT数据预览逻辑
-
-	// 模拟MQTT消息数据
-	sampleData := []map[string]interface{}{
-		{"topic": "sensor/temperature", "timestamp": "2024-01-01T10:00:00Z", "payload": "{\"value\": 25.6, \"unit\": \"celsius\"}"},
-		{"topic": "sensor/humidity", "timestamp": "2024-01-01T10:01:00Z", "payload": "{\"value\": 68.2, \"unit\": \"percent\"}"},
-	}
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  "MQTT消息预览获取成功",
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "data_preview",
-		Data:     sampleData,
-		Metadata: map[string]interface{}{
-			"message_count": len(sampleData),
-			"topics":        config["topics"],
-		},
-	}
-
-	return result, nil
-}
-
-// HTTP数据预览
-func (s *DatasourceService) previewHTTPData(dataSource *models.DataSource, config map[string]interface{}, startTime time.Time) (*DataSourceTestResult, error) {
-	// TODO: 实现HTTP数据预览逻辑
-
-	// 模拟HTTP响应数据
-	sampleData := map[string]interface{}{
-		"status": "success",
-		"data": []map[string]interface{}{
-			{"id": 1, "name": "产品A", "price": 99.99},
-			{"id": 2, "name": "产品B", "price": 149.99},
-		},
-		"total": 2,
-	}
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  "HTTP接口数据预览获取成功",
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "data_preview",
-		Data:     sampleData,
-		Metadata: map[string]interface{}{
-			"status_code":   200,
-			"response_size": 1024,
-			"content_type":  "application/json",
-		},
-	}
-
-	return result, nil
-}
-
-// 文件数据预览
-func (s *DatasourceService) previewFileData(dataSource *models.DataSource, config map[string]interface{}, startTime time.Time) (*DataSourceTestResult, error) {
-	// TODO: 实现文件数据预览逻辑
-
-	// 模拟文件数据
-	sampleData := []map[string]interface{}{
-		{"列1": "值1", "列2": "值2", "列3": "值3"},
-		{"列1": "值4", "列2": "值5", "列3": "值6"},
-		{"列1": "值7", "列2": "值8", "列3": "值9"},
-	}
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  "文件数据预览获取成功",
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "data_preview",
-		Data:     sampleData,
-		Metadata: map[string]interface{}{
-			"file_size":    "1.2MB",
-			"row_count":    len(sampleData),
-			"column_count": 3,
-			"file_format":  config["format"],
-		},
-	}
-
-	return result, nil
-}
-
-// previewGenericData 通用数据预览（用于未实现具体预览逻辑的数据源类型）
-func (s *DatasourceService) previewGenericData(dataSource *models.DataSource, config map[string]interface{}, startTime time.Time, category string) (*DataSourceTestResult, error) {
-	// TODO: 实现通用数据预览逻辑
-
-	// 模拟通用数据
-	sampleData := []map[string]interface{}{
-		{"字段1": "样例数据1", "字段2": "样例数据2", "时间戳": "2024-01-01T10:00:00Z"},
-		{"字段1": "样例数据3", "字段2": "样例数据4", "时间戳": "2024-01-01T10:01:00Z"},
-	}
-
-	result := &DataSourceTestResult{
-		Success:  true,
-		Message:  fmt.Sprintf("%s数据预览获取成功", category),
-		Duration: time.Since(startTime).Milliseconds(),
-		TestType: "data_preview",
-		Data:     sampleData,
-		Metadata: map[string]interface{}{
-			"data_count":      len(sampleData),
-			"datasource_type": dataSource.Type,
-			"category":        category,
-		},
+	if executeResponse.Message != "" {
+		result.Message = executeResponse.Message
 	}
 
 	return result, nil

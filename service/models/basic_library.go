@@ -12,7 +12,6 @@
 package models
 
 import (
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -68,6 +67,8 @@ type DataSource struct {
 	Type             string    `json:"type" gorm:"not null;size:50;default:''"`
 	ConnectionConfig JSONB     `json:"connection_config" gorm:"type:jsonb;not null"`
 	ParamsConfig     JSONB     `json:"params_config" gorm:"type:jsonb"`
+	Script           string    `json:"script" gorm:"type:text"`                      // 动态执行脚本，用于特殊认证处理
+	ScriptEnabled    bool      `json:"script_enabled" gorm:"not null;default:false"` // 是否启用脚本执行
 	CreatedAt        time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
 	CreatedBy        string    `json:"created_by" gorm:"not null;default:'system';size:100"`
 	UpdatedAt        time.Time `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
@@ -180,28 +181,6 @@ func (cr *CleansingRule) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// ScheduleConfig 调度配置模型
-type ScheduleConfig struct {
-	ID             string                 `json:"id" gorm:"primaryKey;type:varchar(36)"`
-	DataSourceID   *string                `json:"data_source_id,omitempty" gorm:"type:varchar(36);index"` // 可选：数据源级别的调度
-	InterfaceID    *string                `json:"interface_id,omitempty" gorm:"type:varchar(36);index"`   // 可选：接口级别的调度
-	ScheduleType   string                 `json:"schedule_type" gorm:"not null;size:20"`                  // cron, interval, manual
-	ScheduleConfig map[string]interface{} `json:"schedule_config" gorm:"type:jsonb;not null"`
-	IsEnabled      bool                   `json:"is_enabled" gorm:"not null;default:true"`
-	NextRunTime    *time.Time             `json:"next_run_time,omitempty"`
-	LastRunTime    *time.Time             `json:"last_run_time,omitempty"`
-	LastRunStatus  string                 `json:"last_run_status" gorm:"size:20;default:'pending'"` // pending, running, success, failed
-	ErrorMessage   string                 `json:"error_message,omitempty" gorm:"type:text"`
-	CreatedAt      time.Time              `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
-	CreatedBy      string                 `json:"created_by" gorm:"not null;default:'system';size:100"`
-	UpdatedAt      time.Time              `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
-	UpdatedBy      string                 `json:"updated_by" gorm:"not null;default:'system';size:100"`
-
-	// 关联关系
-	DataSource    *DataSource    `json:"data_source,omitempty" gorm:"foreignKey:DataSourceID"`
-	DataInterface *DataInterface `json:"data_interface,omitempty" gorm:"foreignKey:InterfaceID"`
-}
-
 // DataSourceStatus 数据源状态模型
 type DataSourceStatus struct {
 	ID              string                 `json:"id" gorm:"primaryKey;type:varchar(36)"`
@@ -238,68 +217,6 @@ type InterfaceStatus struct {
 
 	// 关联关系
 	DataInterface DataInterface `json:"data_interface,omitempty" gorm:"foreignKey:InterfaceID"`
-}
-
-// 新增模型的GORM钩子
-func (sc *ScheduleConfig) BeforeCreate(tx *gorm.DB) error {
-	if sc.ID == "" {
-		sc.ID = uuid.New().String()
-	}
-	if sc.CreatedBy == "" {
-		sc.CreatedBy = "system"
-	}
-	if sc.UpdatedBy == "" {
-		sc.UpdatedBy = "system"
-	}
-
-	// 验证至少有一个关联ID不为空
-	if err := sc.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (sc *ScheduleConfig) BeforeUpdate(tx *gorm.DB) error {
-	if sc.UpdatedBy == "" {
-		sc.UpdatedBy = "system"
-	}
-
-	// 验证至少有一个关联ID不为空
-	if err := sc.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Validate 验证调度配置的有效性
-func (sc *ScheduleConfig) Validate() error {
-	// 至少需要一个关联ID不为空
-	if (sc.DataSourceID == nil || *sc.DataSourceID == "") && (sc.InterfaceID == nil || *sc.InterfaceID == "") {
-		return errors.New("调度配置必须关联到数据源或数据接口")
-	}
-	return nil
-}
-
-// IsDataSourceSchedule 判断是否为数据源级别的调度配置
-func (sc *ScheduleConfig) IsDataSourceSchedule() bool {
-	return sc.DataSourceID != nil && *sc.DataSourceID != ""
-}
-
-// IsInterfaceSchedule 判断是否为接口级别的调度配置
-func (sc *ScheduleConfig) IsInterfaceSchedule() bool {
-	return sc.InterfaceID != nil && *sc.InterfaceID != ""
-}
-
-// GetOwnerType 获取调度配置的所有者类型
-func (sc *ScheduleConfig) GetOwnerType() string {
-	if sc.IsDataSourceSchedule() && sc.IsInterfaceSchedule() {
-		return "both" // 同时关联数据源和接口
-	} else if sc.IsDataSourceSchedule() {
-		return "datasource"
-	} else if sc.IsInterfaceSchedule() {
-		return "interface"
-	}
-	return "unknown"
 }
 
 func (dss *DataSourceStatus) BeforeCreate(tx *gorm.DB) error {
