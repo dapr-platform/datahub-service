@@ -4200,9 +4200,13 @@ paths:
         in: query
         name: library_id
         type: string
-      - description: 数据源类型过滤
+      - description: 数据源分类过滤（如：stream, http, db, file等）
         in: query
-        name: source_type
+        name: category
+        type: string
+      - description: 数据源类型过滤（如：mysql, postgresql, http等）
+        in: query
+        name: type
         type: string
       - description: 状态过滤
         enum:
@@ -4401,7 +4405,7 @@ paths:
         in: query
         name: data_source_id
         type: string
-      - description: 接口类型过滤
+      - description: 接口类型过滤（如：realtime, batch）
         in: query
         name: interface_type
         type: string

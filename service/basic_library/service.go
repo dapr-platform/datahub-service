@@ -187,7 +187,7 @@ func (s *Service) GetBasicLibraryList(page, pageSize int, name, status, createdB
 }
 
 // GetDataSourceList 获取数据源列表
-func (s *Service) GetDataSourceList(page, pageSize int, libraryID, sourceType, status, name string) ([]models.DataSource, int64, error) {
+func (s *Service) GetDataSourceList(page, pageSize int, libraryID, category, source_type, status, name string) ([]models.DataSource, int64, error) {
 	var dataSources []models.DataSource
 	var total int64
 
@@ -197,14 +197,17 @@ func (s *Service) GetDataSourceList(page, pageSize int, libraryID, sourceType, s
 	if libraryID != "" {
 		query = query.Where("library_id = ?", libraryID)
 	}
-	if sourceType != "" {
-		query = query.Where("source_type = ?", sourceType)
+	if category != "" {
+		query = query.Where("category = ?", category)
+	}
+	if source_type != "" {
+		query = query.Where("type = ?", source_type)
 	}
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
 	if name != "" {
-		query = query.Where("name_zh ILIKE ? OR name_en ILIKE ?", "%"+name+"%", "%"+name+"%")
+		query = query.Where("name ILIKE ?", "%"+name+"%")
 	}
 
 	// 获取总数
@@ -236,7 +239,7 @@ func (s *Service) GetDataInterfaceList(page, pageSize int, libraryID, dataSource
 		query = query.Where("data_source_id = ?", dataSourceID)
 	}
 	if interfaceType != "" {
-		query = query.Where("interface_type = ?", interfaceType)
+		query = query.Where("type = ?", interfaceType)
 	}
 	if status != "" {
 		query = query.Where("status = ?", status)

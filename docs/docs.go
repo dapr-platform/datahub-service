@@ -2463,8 +2463,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "数据源类型过滤",
-                        "name": "source_type",
+                        "description": "数据源分类过滤（如：stream, http, db, file等）",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "数据源类型过滤（如：mysql, postgresql, http等）",
+                        "name": "type",
                         "in": "query"
                     },
                     {
@@ -2772,7 +2778,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "接口类型过滤",
+                        "description": "接口类型过滤（如：realtime, batch）",
                         "name": "interface_type",
                         "in": "query"
                     },

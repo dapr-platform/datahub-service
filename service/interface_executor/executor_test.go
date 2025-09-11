@@ -66,8 +66,8 @@ func (m *MockDataSourceManager) GetStats() map[string]interface{} {
 	return args.Get(0).(map[string]interface{})
 }
 
-func (m *MockDataSourceManager) Shutdown(ctx context.Context) error {
-	args := m.Called(ctx)
+func (m *MockDataSourceManager) Shutdown() error {
+	args := m.Called()
 	return args.Error(0)
 }
 
@@ -94,6 +94,31 @@ func (m *MockDataSourceManager) HealthCheckAll(ctx context.Context) map[string]*
 func (m *MockDataSourceManager) List() map[string]datasource.DataSourceInterface {
 	args := m.Called()
 	return args.Get(0).(map[string]datasource.DataSourceInterface)
+}
+
+func (m *MockDataSourceManager) CreateTestInstance(dsType string) (datasource.DataSourceInterface, error) {
+	args := m.Called(dsType)
+	return args.Get(0).(datasource.DataSourceInterface), args.Error(1)
+}
+
+func (m *MockDataSourceManager) GetAllDataSourceStatus() map[string]*datasource.DataSourceStatus {
+	args := m.Called()
+	return args.Get(0).(map[string]*datasource.DataSourceStatus)
+}
+
+func (m *MockDataSourceManager) GetDataSourceStatus(dsID string) (*datasource.DataSourceStatus, error) {
+	args := m.Called(dsID)
+	return args.Get(0).(*datasource.DataSourceStatus), args.Error(1)
+}
+
+func (m *MockDataSourceManager) GetResidentDataSources() map[string]*datasource.DataSourceStatus {
+	args := m.Called()
+	return args.Get(0).(map[string]*datasource.DataSourceStatus)
+}
+
+func (m *MockDataSourceManager) RestartResidentDataSource(ctx context.Context, dsID string) error {
+	args := m.Called(ctx, dsID)
+	return args.Error(0)
 }
 
 // MockDataSource 模拟数据源

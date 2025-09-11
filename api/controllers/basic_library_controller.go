@@ -612,7 +612,8 @@ func (c *BasicLibraryController) GetBasicLibraryList(w http.ResponseWriter, r *h
 // @Param page query int false "页码" default(1)
 // @Param size query int false "每页大小" default(10)
 // @Param library_id query string false "基础库ID过滤"
-// @Param source_type query string false "数据源类型过滤"
+// @Param category query string false "数据源分类过滤（如：stream, http, db, file等）"
+// @Param type query string false "数据源类型过滤（如：mysql, postgresql, http等）"
 // @Param status query string false "状态过滤" Enums(active,inactive)
 // @Param name query string false "名称搜索"
 // @Success 200 {object} APIResponse{data=DataSourceListResponse} "获取成功"
@@ -624,7 +625,8 @@ func (c *BasicLibraryController) GetDataSourceList(w http.ResponseWriter, r *htt
 	page := 1
 	size := 10
 	libraryID := r.URL.Query().Get("library_id")
-	sourceType := r.URL.Query().Get("source_type")
+	category := r.URL.Query().Get("category")
+	source_type := r.URL.Query().Get("type")
 	status := r.URL.Query().Get("status")
 	name := r.URL.Query().Get("name")
 
@@ -636,7 +638,7 @@ func (c *BasicLibraryController) GetDataSourceList(w http.ResponseWriter, r *htt
 	}
 
 	// 调用服务层方法
-	dataSources, total, err := c.service.GetDataSourceList(page, size, libraryID, sourceType, status, name)
+	dataSources, total, err := c.service.GetDataSourceList(page, size, libraryID, category, source_type, status, name)
 	if err != nil {
 		render.JSON(w, r, InternalErrorResponse("获取数据源列表失败", err))
 		return
@@ -663,7 +665,7 @@ func (c *BasicLibraryController) GetDataSourceList(w http.ResponseWriter, r *htt
 // @Param size query int false "每页大小" default(10)
 // @Param library_id query string false "基础库ID过滤"
 // @Param data_source_id query string false "数据源ID过滤"
-// @Param interface_type query string false "接口类型过滤"
+// @Param interface_type query string false "接口类型过滤（如：realtime, batch）"
 // @Param status query string false "状态过滤" Enums(active,inactive)
 // @Param name query string false "名称搜索"
 // @Success 200 {object} APIResponse{data=DataInterfaceListResponse} "获取成功"
