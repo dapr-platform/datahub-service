@@ -60,8 +60,8 @@ func (c *SharingController) CreateApiApplication(w http.ResponseWriter, r *http.
 	var req CreateApiApplicationRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusBadRequest,
-			Msg: "请求参数格式错误",
+			Status: http.StatusBadRequest,
+			Msg:    "请求参数格式错误",
 		})
 		return
 	}
@@ -75,16 +75,16 @@ func (c *SharingController) CreateApiApplication(w http.ResponseWriter, r *http.
 
 	if err := c.sharingService.CreateApiApplication(app, req.AppSecret); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "创建API应用失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "创建API应用失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusCreated,
-		Msg: "创建API应用成功",
-		Data:    app,
+		Status: http.StatusCreated,
+		Msg:    "创建API应用成功",
+		Data:   app,
 	})
 }
 
@@ -115,19 +115,19 @@ func (c *SharingController) GetApiApplications(w http.ResponseWriter, r *http.Re
 	apps, total, err := c.sharingService.GetApiApplications(page, size, status)
 	if err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "获取API应用列表失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "获取API应用列表失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, PaginatedResponse{
-		Status:    http.StatusOK,
-		Msg: "获取API应用列表成功",
-		Data:    apps,
-		Total:   total,
-		Page:    page,
-		Size:    size,
+		Status: http.StatusOK,
+		Msg:    "获取API应用列表成功",
+		Data:   apps,
+		Total:  total,
+		Page:   page,
+		Size:   size,
 	})
 }
 
@@ -148,16 +148,16 @@ func (c *SharingController) GetApiApplicationByID(w http.ResponseWriter, r *http
 	app, err := c.sharingService.GetApiApplicationByID(id)
 	if err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusNotFound,
-			Msg: "API应用不存在",
+			Status: http.StatusNotFound,
+			Msg:    "API应用不存在",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "获取API应用成功",
-		Data:    app,
+		Status: http.StatusOK,
+		Msg:    "获取API应用成功",
+		Data:   app,
 	})
 }
 
@@ -180,23 +180,23 @@ func (c *SharingController) UpdateApiApplication(w http.ResponseWriter, r *http.
 	var updates map[string]interface{}
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusBadRequest,
-			Msg: "请求参数格式错误",
+			Status: http.StatusBadRequest,
+			Msg:    "请求参数格式错误",
 		})
 		return
 	}
 
 	if err := c.sharingService.UpdateApiApplication(id, updates); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "更新API应用失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "更新API应用失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "更新API应用成功",
+		Status: http.StatusOK,
+		Msg:    "更新API应用成功",
 	})
 }
 
@@ -216,15 +216,15 @@ func (c *SharingController) DeleteApiApplication(w http.ResponseWriter, r *http.
 
 	if err := c.sharingService.DeleteApiApplication(id); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "删除API应用失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "删除API应用失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "删除API应用成功",
+		Status: http.StatusOK,
+		Msg:    "删除API应用成功",
 	})
 }
 
@@ -245,24 +245,24 @@ func (c *SharingController) CreateApiRateLimit(w http.ResponseWriter, r *http.Re
 	var limit models.ApiRateLimit
 	if err := render.DecodeJSON(r.Body, &limit); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusBadRequest,
-			Msg: "请求参数格式错误",
+			Status: http.StatusBadRequest,
+			Msg:    "请求参数格式错误",
 		})
 		return
 	}
 
 	if err := c.sharingService.CreateApiRateLimit(&limit); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "创建API限流规则失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "创建API限流规则失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusCreated,
-		Msg: "创建API限流规则成功",
-		Data:    limit,
+		Status: http.StatusCreated,
+		Msg:    "创建API限流规则成功",
+		Data:   limit,
 	})
 }
 
@@ -293,19 +293,19 @@ func (c *SharingController) GetApiRateLimits(w http.ResponseWriter, r *http.Requ
 	limits, total, err := c.sharingService.GetApiRateLimits(page, size, applicationID)
 	if err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "获取API限流规则列表失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "获取API限流规则列表失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, PaginatedResponse{
-		Status:    http.StatusOK,
-		Msg: "获取API限流规则列表成功",
-		Data:    limits,
-		Total:   total,
-		Page:    page,
-		Size:    size,
+		Status: http.StatusOK,
+		Msg:    "获取API限流规则列表成功",
+		Data:   limits,
+		Total:  total,
+		Page:   page,
+		Size:   size,
 	})
 }
 
@@ -328,23 +328,23 @@ func (c *SharingController) UpdateApiRateLimit(w http.ResponseWriter, r *http.Re
 	var updates map[string]interface{}
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusBadRequest,
-			Msg: "请求参数格式错误",
+			Status: http.StatusBadRequest,
+			Msg:    "请求参数格式错误",
 		})
 		return
 	}
 
 	if err := c.sharingService.UpdateApiRateLimit(id, updates); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "更新API限流规则失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "更新API限流规则失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "更新API限流规则成功",
+		Status: http.StatusOK,
+		Msg:    "更新API限流规则成功",
 	})
 }
 
@@ -364,15 +364,15 @@ func (c *SharingController) DeleteApiRateLimit(w http.ResponseWriter, r *http.Re
 
 	if err := c.sharingService.DeleteApiRateLimit(id); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "删除API限流规则失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "删除API限流规则失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "删除API限流规则成功",
+		Status: http.StatusOK,
+		Msg:    "删除API限流规则成功",
 	})
 }
 
@@ -393,24 +393,24 @@ func (c *SharingController) CreateDataSubscription(w http.ResponseWriter, r *htt
 	var subscription models.DataSubscription
 	if err := render.DecodeJSON(r.Body, &subscription); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusBadRequest,
-			Msg: "请求参数格式错误",
+			Status: http.StatusBadRequest,
+			Msg:    "请求参数格式错误",
 		})
 		return
 	}
 
 	if err := c.sharingService.CreateDataSubscription(&subscription); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "创建数据订阅失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "创建数据订阅失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusCreated,
-		Msg: "创建数据订阅成功",
-		Data:    subscription,
+		Status: http.StatusCreated,
+		Msg:    "创建数据订阅成功",
+		Data:   subscription,
 	})
 }
 
@@ -445,19 +445,19 @@ func (c *SharingController) GetDataSubscriptions(w http.ResponseWriter, r *http.
 	subscriptions, total, err := c.sharingService.GetDataSubscriptions(page, size, subscriberID, resourceType, status)
 	if err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "获取数据订阅列表失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "获取数据订阅列表失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, PaginatedResponse{
-		Status:    http.StatusOK,
-		Msg: "获取数据订阅列表成功",
-		Data:    subscriptions,
-		Total:   total,
-		Page:    page,
-		Size:    size,
+		Status: http.StatusOK,
+		Msg:    "获取数据订阅列表成功",
+		Data:   subscriptions,
+		Total:  total,
+		Page:   page,
+		Size:   size,
 	})
 }
 
@@ -478,16 +478,16 @@ func (c *SharingController) GetDataSubscriptionByID(w http.ResponseWriter, r *ht
 	subscription, err := c.sharingService.GetDataSubscriptionByID(id)
 	if err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusNotFound,
-			Msg: "数据订阅不存在",
+			Status: http.StatusNotFound,
+			Msg:    "数据订阅不存在",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "获取数据订阅成功",
-		Data:    subscription,
+		Status: http.StatusOK,
+		Msg:    "获取数据订阅成功",
+		Data:   subscription,
 	})
 }
 
@@ -510,23 +510,23 @@ func (c *SharingController) UpdateDataSubscription(w http.ResponseWriter, r *htt
 	var updates map[string]interface{}
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusBadRequest,
-			Msg: "请求参数格式错误",
+			Status: http.StatusBadRequest,
+			Msg:    "请求参数格式错误",
 		})
 		return
 	}
 
 	if err := c.sharingService.UpdateDataSubscription(id, updates); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "更新数据订阅失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "更新数据订阅失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "更新数据订阅成功",
+		Status: http.StatusOK,
+		Msg:    "更新数据订阅成功",
 	})
 }
 
@@ -546,15 +546,15 @@ func (c *SharingController) DeleteDataSubscription(w http.ResponseWriter, r *htt
 
 	if err := c.sharingService.DeleteDataSubscription(id); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "删除数据订阅失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "删除数据订阅失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "删除数据订阅成功",
+		Status: http.StatusOK,
+		Msg:    "删除数据订阅成功",
 	})
 }
 
@@ -575,24 +575,24 @@ func (c *SharingController) CreateDataAccessRequest(w http.ResponseWriter, r *ht
 	var request models.DataAccessRequest
 	if err := render.DecodeJSON(r.Body, &request); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusBadRequest,
-			Msg: "请求参数格式错误",
+			Status: http.StatusBadRequest,
+			Msg:    "请求参数格式错误",
 		})
 		return
 	}
 
 	if err := c.sharingService.CreateDataAccessRequest(&request); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "创建数据使用申请失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "创建数据使用申请失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusCreated,
-		Msg: "创建数据使用申请成功",
-		Data:    request,
+		Status: http.StatusCreated,
+		Msg:    "创建数据使用申请成功",
+		Data:   request,
 	})
 }
 
@@ -627,19 +627,19 @@ func (c *SharingController) GetDataAccessRequests(w http.ResponseWriter, r *http
 	requests, total, err := c.sharingService.GetDataAccessRequests(page, size, requesterID, resourceType, status)
 	if err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "获取数据使用申请列表失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "获取数据使用申请列表失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, PaginatedResponse{
-		Status:    http.StatusOK,
-		Msg: "获取数据使用申请列表成功",
-		Data:    requests,
-		Total:   total,
-		Page:    page,
-		Size:    size,
+		Status: http.StatusOK,
+		Msg:    "获取数据使用申请列表成功",
+		Data:   requests,
+		Total:  total,
+		Page:   page,
+		Size:   size,
 	})
 }
 
@@ -660,16 +660,16 @@ func (c *SharingController) GetDataAccessRequestByID(w http.ResponseWriter, r *h
 	request, err := c.sharingService.GetDataAccessRequestByID(id)
 	if err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusNotFound,
-			Msg: "数据使用申请不存在",
+			Status: http.StatusNotFound,
+			Msg:    "数据使用申请不存在",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "获取数据使用申请成功",
-		Data:    request,
+		Status: http.StatusOK,
+		Msg:    "获取数据使用申请成功",
+		Data:   request,
 	})
 }
 
@@ -698,8 +698,8 @@ func (c *SharingController) ApproveDataAccessRequest(w http.ResponseWriter, r *h
 	var req ApproveDataAccessRequestRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusBadRequest,
-			Msg: "请求参数格式错误",
+			Status: http.StatusBadRequest,
+			Msg:    "请求参数格式错误",
 		})
 		return
 	}
@@ -709,242 +709,15 @@ func (c *SharingController) ApproveDataAccessRequest(w http.ResponseWriter, r *h
 
 	if err := c.sharingService.ApproveDataAccessRequest(id, approverID, req.Approved, req.Comment); err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "审批数据使用申请失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "审批数据使用申请失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "审批数据使用申请成功",
-	})
-}
-
-// === 数据同步任务管理 ===
-
-// CreateDataSyncTask 创建数据同步任务
-// @Summary 创建数据同步任务
-// @Description 创建新的数据同步任务
-// @Tags 数据共享服务
-// @Accept json
-// @Produce json
-// @Param task body models.DataSyncTask true "数据同步任务信息"
-// @Success 201 {object} APIResponse{data=models.DataSyncTask} "创建成功"
-// @Failure 400 {object} APIResponse "请求参数错误"
-// @Failure 500 {object} APIResponse "服务器内部错误"
-// @Router /sharing/data-sync-tasks [post]
-func (c *SharingController) CreateDataSyncTask(w http.ResponseWriter, r *http.Request) {
-	var task models.DataSyncTask
-	if err := render.DecodeJSON(r.Body, &task); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status:    http.StatusBadRequest,
-			Msg: "请求参数格式错误",
-		})
-		return
-	}
-
-	if err := c.sharingService.CreateDataSyncTask(&task); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "创建数据同步任务失败",
-		})
-		return
-	}
-
-	render.JSON(w, r, APIResponse{
-		Status:    http.StatusCreated,
-		Msg: "创建数据同步任务成功",
-		Data:    task,
-	})
-}
-
-// GetDataSyncTasks 获取数据同步任务列表
-// @Summary 获取数据同步任务列表
-// @Description 分页获取数据同步任务列表
-// @Tags 数据共享服务
-// @Accept json
-// @Produce json
-// @Param page query int false "页码" default(1)
-// @Param size query int false "每页数量" default(10)
-// @Param status query string false "任务状态"
-// @Param created_by query string false "创建人ID"
-// @Success 200 {object} PaginatedResponse{data=[]models.DataSyncTask} "获取成功"
-// @Failure 500 {object} APIResponse "服务器内部错误"
-// @Router /sharing/data-sync-tasks [get]
-func (c *SharingController) GetDataSyncTasks(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page <= 0 {
-		page = 1
-	}
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	if size <= 0 {
-		size = 10
-	}
-
-	status := r.URL.Query().Get("status")
-	createdBy := r.URL.Query().Get("created_by")
-
-	tasks, total, err := c.sharingService.GetDataSyncTasks(page, size, status, createdBy)
-	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "获取数据同步任务列表失败",
-		})
-		return
-	}
-
-	render.JSON(w, r, PaginatedResponse{
-		Status:    http.StatusOK,
-		Msg: "获取数据同步任务列表成功",
-		Data:    tasks,
-		Total:   total,
-		Page:    page,
-		Size:    size,
-	})
-}
-
-// GetDataSyncTaskByID 根据ID获取数据同步任务
-// @Summary 根据ID获取数据同步任务
-// @Description 根据ID获取数据同步任务详情
-// @Tags 数据共享服务
-// @Accept json
-// @Produce json
-// @Param id path string true "任务ID"
-// @Success 200 {object} APIResponse{data=models.DataSyncTask} "获取成功"
-// @Failure 404 {object} APIResponse "任务不存在"
-// @Failure 500 {object} APIResponse "服务器内部错误"
-// @Router /sharing/data-sync-tasks/{id} [get]
-func (c *SharingController) GetDataSyncTaskByID(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	task, err := c.sharingService.GetDataSyncTaskByID(id)
-	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status:    http.StatusNotFound,
-			Msg: "数据同步任务不存在",
-		})
-		return
-	}
-
-	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "获取数据同步任务成功",
-		Data:    task,
-	})
-}
-
-// UpdateDataSyncTask 更新数据同步任务
-// @Summary 更新数据同步任务
-// @Description 更新数据同步任务信息
-// @Tags 数据共享服务
-// @Accept json
-// @Produce json
-// @Param id path string true "任务ID"
-// @Param updates body map[string]interface{} true "更新信息"
-// @Success 200 {object} APIResponse "更新成功"
-// @Failure 400 {object} APIResponse "请求参数错误"
-// @Failure 404 {object} APIResponse "任务不存在"
-// @Failure 500 {object} APIResponse "服务器内部错误"
-// @Router /sharing/data-sync-tasks/{id} [put]
-func (c *SharingController) UpdateDataSyncTask(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	var updates map[string]interface{}
-	if err := render.DecodeJSON(r.Body, &updates); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status:    http.StatusBadRequest,
-			Msg: "请求参数格式错误",
-		})
-		return
-	}
-
-	if err := c.sharingService.UpdateDataSyncTask(id, updates); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "更新数据同步任务失败",
-		})
-		return
-	}
-
-	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "更新数据同步任务成功",
-	})
-}
-
-// DeleteDataSyncTask 删除数据同步任务
-// @Summary 删除数据同步任务
-// @Description 删除指定的数据同步任务
-// @Tags 数据共享服务
-// @Accept json
-// @Produce json
-// @Param id path string true "任务ID"
-// @Success 200 {object} APIResponse "删除成功"
-// @Failure 404 {object} APIResponse "任务不存在"
-// @Failure 500 {object} APIResponse "服务器内部错误"
-// @Router /sharing/data-sync-tasks/{id} [delete]
-func (c *SharingController) DeleteDataSyncTask(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	if err := c.sharingService.DeleteDataSyncTask(id); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "删除数据同步任务失败",
-		})
-		return
-	}
-
-	render.JSON(w, r, APIResponse{
-		Status:    http.StatusOK,
-		Msg: "删除数据同步任务成功",
-	})
-}
-
-// === 数据同步日志管理 ===
-
-// GetDataSyncLogs 获取数据同步日志列表
-// @Summary 获取数据同步日志列表
-// @Description 分页获取数据同步日志列表
-// @Tags 数据共享服务
-// @Accept json
-// @Produce json
-// @Param page query int false "页码" default(1)
-// @Param size query int false "每页数量" default(10)
-// @Param task_id query string false "任务ID"
-// @Param status query string false "日志状态"
-// @Success 200 {object} PaginatedResponse{data=[]models.DataSyncLog} "获取成功"
-// @Failure 500 {object} APIResponse "服务器内部错误"
-// @Router /sharing/data-sync-logs [get]
-func (c *SharingController) GetDataSyncLogs(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page <= 0 {
-		page = 1
-	}
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	if size <= 0 {
-		size = 10
-	}
-
-	taskID := r.URL.Query().Get("task_id")
-	status := r.URL.Query().Get("status")
-
-	logs, total, err := c.sharingService.GetDataSyncLogs(page, size, taskID, status)
-	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "获取数据同步日志列表失败",
-		})
-		return
-	}
-
-	render.JSON(w, r, PaginatedResponse{
-		Status:    http.StatusOK,
-		Msg: "获取数据同步日志列表成功",
-		Data:    logs,
-		Total:   total,
-		Page:    page,
-		Size:    size,
+		Status: http.StatusOK,
+		Msg:    "审批数据使用申请成功",
 	})
 }
 
@@ -993,18 +766,18 @@ func (c *SharingController) GetApiUsageLogs(w http.ResponseWriter, r *http.Reque
 	logs, total, err := c.sharingService.GetApiUsageLogs(page, size, applicationID, userID, startTime, endTime)
 	if err != nil {
 		render.JSON(w, r, APIResponse{
-			Status:    http.StatusInternalServerError,
-			Msg: "获取API使用日志列表失败",
+			Status: http.StatusInternalServerError,
+			Msg:    "获取API使用日志列表失败",
 		})
 		return
 	}
 
 	render.JSON(w, r, PaginatedResponse{
-		Status:    http.StatusOK,
-		Msg: "获取API使用日志列表成功",
-		Data:    logs,
-		Total:   total,
-		Page:    page,
-		Size:    size,
+		Status: http.StatusOK,
+		Msg:    "获取API使用日志列表成功",
+		Data:   logs,
+		Total:  total,
+		Page:   page,
+		Size:   size,
 	})
 }

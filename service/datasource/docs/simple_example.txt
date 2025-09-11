@@ -1,0 +1,235 @@
+// 简单API数据源脚本示例
+// 演示基本的HTTP API调用和会话管理
+
+// 辅助函数：安全获取字符串值
+getStringFromMap := func(m map[string]interface{}, key, defaultValue string) string {
+    if value, exists := m[key]; exists {
+        if strValue, ok := value.(string); ok {
+            return strValue
+        }
+    }
+    return defaultValue
+}
+
+// 获取操作类型
+operationStr, ok := operation.(string)
+if !ok {
+    return nil, fmt.Errorf("operation参数类型错误")
+}
+
+switch operationStr {
+case "init":
+    // 初始化：验证配置参数
+    fmt.Println("初始化API数据源")
+    
+    credentialsMap, ok := credentials.(map[string]interface{})
+    if !ok {
+        return nil, fmt.Errorf("credentials参数类型错误")
+    }
+    
+    // 检查必需的API密钥
+    apiKey := getStringFromMap(credentialsMap, "api_key", "")
+    if apiKey == "" {
+        return nil, fmt.Errorf("缺少API密钥")
+    }
+    
+    return map[string]interface{}{
+        "success": true,
+        "message": "初始化成功",
+        "config": map[string]interface{}{
+            "initialized": true,
+            "init_time":   time.Now().Format(time.RFC3339),
+        },
+    }, nil
+
+case "start":
+    // 启动：建立API连接
+    fmt.Println("启动API数据源")
+    
+    credentialsMap, ok := credentials.(map[string]interface{})
+    if !ok {
+        return nil, fmt.Errorf("credentials参数类型错误")
+    }
+    
+    baseURLStr, ok := baseURL.(string)
+    if !ok {
+        return nil, fmt.Errorf("baseURL参数类型错误")
+    }
+    
+    // 测试API连接
+    httpGetFunc, ok := httpGet.(func(string) (map[string]interface{}, error))
+    if !ok {
+        return nil, fmt.Errorf("httpGet函数类型错误")
+    }
+    
+    // 构建测试URL
+    apiKey := getStringFromMap(credentialsMap, "api_key", "")
+    testURL := baseURLStr + "/health?api_key=" + apiKey
+    
+    response, err := httpGetFunc(testURL)
+    if err != nil {
+        return nil, fmt.Errorf("API连接测试失败: %v", err)
+    }
+    
+    // 检查响应状态
+    statusCode := 0
+    if sc, exists := response["status_code"]; exists {
+        if code, ok := sc.(int); ok {
+            statusCode = code
+        }
+    }
+    
+    if statusCode != 200 {
+        return nil, fmt.Errorf("API连接失败，状态码: %d", statusCode)
+    }
+    
+    // 生成会话标识
+    sessionId := fmt.Sprintf("session_%d", time.Now().Unix())
+    
+    // 保存会话信息
+    if updateSessionDataFunc, ok := updateSessionData.(func(string, interface{})); ok {
+        updateSessionDataFunc("sessionId", sessionId)
+        updateSessionDataFunc("startTime", time.Now().Format(time.RFC3339))
+        updateSessionDataFunc("apiKey", apiKey)
+    }
+    
+    fmt.Printf("API连接成功，会话ID: %s\n", sessionId)
+    
+    return map[string]interface{}{
+        "success":   true,
+        "message":   "启动成功",
+        "sessionId": sessionId,
+        "startTime": time.Now().Format(time.RFC3339),
+    }, nil
+
+case "execute":
+    // 执行：执行API查询
+    fmt.Println("执行API查询")
+    
+    // 检查会话
+    getSessionDataFunc, ok := getSessionData.(func(string) interface{})
+    if !ok {
+        return map[string]interface{}{
+            "success": false,
+            "message": "getSessionData函数类型错误",
+        }, nil
+    }
+    
+    sessionId := getSessionDataFunc("sessionId")
+    if sessionId == nil {
+        return map[string]interface{}{
+            "success": false,
+            "message": "会话不存在，请先启动数据源",
+        }, nil
+    }
+    
+    apiKey := getSessionDataFunc("apiKey")
+    if apiKey == nil {
+        return map[string]interface{}{
+            "success": false,
+            "message": "API密钥不存在",
+        }, nil
+    }
+    
+    // 获取查询参数
+    requestObj, ok := request.(map[string]interface{})
+    if !ok {
+        requestObj = make(map[string]interface{})
+    }
+    
+    paramsObj, _ := requestObj["params"].(map[string]interface{})
+    endpoint := getStringFromMap(paramsObj, "endpoint", "data")
+    
+    // 构建查询URL
+    baseURLStr, ok := baseURL.(string)
+    if !ok {
+        return map[string]interface{}{
+            "success": false,
+            "message": "baseURL参数类型错误",
+        }, nil
+    }
+    
+    queryURL := fmt.Sprintf("%s/%s?api_key=%s", baseURLStr, endpoint, apiKey)
+    
+    // 添加额外查询参数
+    if paramsObj != nil {
+        for key, value := range paramsObj {
+            if key != "endpoint" {
+                queryURL += fmt.Sprintf("&%s=%v", key, value)
+            }
+        }
+    }
+    
+    // 执行查询
+    httpGetFunc, ok := httpGet.(func(string) (map[string]interface{}, error))
+    if !ok {
+        return map[string]interface{}{
+            "success": false,
+            "message": "httpGet函数类型错误",
+        }, nil
+    }
+    
+    response, err := httpGetFunc(queryURL)
+    if err != nil {
+        return map[string]interface{}{
+            "success": false,
+            "message": fmt.Sprintf("API查询失败: %v", err),
+        }, nil
+    }
+    
+    // 检查响应状态
+    statusCode := 0
+    if sc, exists := response["status_code"]; exists {
+        if code, ok := sc.(int); ok {
+            statusCode = code
+        }
+    }
+    
+    if statusCode == 200 {
+        // 查询成功
+        data := response["body"]
+        if data == nil {
+            data = response
+        }
+        
+        return map[string]interface{}{
+            "success": true,
+            "data":    data,
+            "message": "查询成功",
+            "metadata": map[string]interface{}{
+                "endpoint":   endpoint,
+                "queryTime":  time.Now().Format(time.RFC3339),
+                "sessionId":  sessionId,
+                "statusCode": statusCode,
+            },
+        }, nil
+    } else {
+        return map[string]interface{}{
+            "success": false,
+            "message": fmt.Sprintf("API查询失败，状态码: %d", statusCode),
+            "metadata": map[string]interface{}{
+                "statusCode": statusCode,
+            },
+        }, nil
+    }
+
+case "stop":
+    // 停止：清理资源
+    fmt.Println("停止API数据源")
+    
+    getSessionDataFunc, ok := getSessionData.(func(string) interface{})
+    if ok {
+        sessionId := getSessionDataFunc("sessionId")
+        if sessionId != nil {
+            fmt.Printf("清理会话: %s\n", sessionId)
+        }
+    }
+    
+    return map[string]interface{}{
+        "success": true,
+        "message": "停止成功",
+    }, nil
+
+default:
+    return nil, fmt.Errorf("不支持的操作类型: %s", operationStr)
+}

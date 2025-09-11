@@ -1,0 +1,45 @@
+{
+  "test_info": {
+    "framework": "Python unittest",
+    "test_environment": {
+      "base_url": "http://localhost:8080",
+      "timeout": 30
+    },
+    "generated_at": "2025-09-09T12:39:57.696487"
+  },
+  "test_results": {
+    "start_time": "2025-09-09T12:39:57.425146",
+    "end_time": "2025-09-09T12:39:57.696319",
+    "duration": 0.271173,
+    "total_tests": 22,
+    "passed_tests": 17,
+    "failed_tests": 5,
+    "error_tests": 0,
+    "skipped_tests": 0,
+    "success_rate": 77.27272727272727,
+    "failures": [
+      {
+        "test": "test_04_create_data_interface (test_basic_library_workflow.TestBasicLibraryWorkflow.test_04_create_data_interface)",
+        "traceback": "Traceback (most recent call last):\n  File \"/Users/liu/Work/go-project/dapr-platform/datahub-service/e2e_tests/basic-library/test_basic_library_workflow.py\", line 185, in test_04_create_data_interface\n    self.assertTrue(response.business_success, f\"业务逻辑失败: {response.business_message}\")\nAssertionError: False is not true : 业务逻辑失败: 添加数据接口失败\n"
+      },
+      {
+        "test": "test_05_test_data_interface (test_basic_library_workflow.TestBasicLibraryWorkflow.test_05_test_data_interface)",
+        "traceback": "Traceback (most recent call last):\n  File \"/Users/liu/Work/go-project/dapr-platform/datahub-service/e2e_tests/basic-library/test_basic_library_workflow.py\", line 195, in test_05_test_data_interface\n    self.assertIsNotNone(self.created_resources['interface_id'], \"接口ID不能为空\")\nAssertionError: unexpectedly None : 接口ID不能为空\n"
+      },
+      {
+        "test": "test_07_validate_workflow_health (test_basic_library_workflow.TestBasicLibraryWorkflow.test_07_validate_workflow_health)",
+        "traceback": "Traceback (most recent call last):\n  File \"/Users/liu/Work/go-project/dapr-platform/datahub-service/e2e_tests/basic-library/test_basic_library_workflow.py\", line 237, in test_07_validate_workflow_health\n    self.assertIsNotNone(self.created_resources['interface_id'], \"接口ID不能为空\")\nAssertionError: unexpectedly None : 接口ID不能为空\n"
+      },
+      {
+        "test": "test_08_complete_workflow_integration (test_basic_library_workflow.TestBasicLibraryWorkflow.test_08_complete_workflow_integration)",
+        "traceback": "Traceback (most recent call last):\n  File \"/Users/liu/Work/go-project/dapr-platform/datahub-service/e2e_tests/basic-library/test_basic_library_workflow.py\", line 260, in test_08_complete_workflow_integration\n    self.assertIsNotNone(self.created_resources['interface_id'], \"接口ID不能为空\")\nAssertionError: unexpectedly None : 接口ID不能为空\n"
+      },
+      {
+        "test": "test_add_basic_library_valid_data (test_individual_apis.TestBasicLibraryAPIs.test_add_basic_library_valid_data)",
+        "traceback": "Traceback (most recent call last):\n  File \"/Users/liu/Work/go-project/dapr-platform/datahub-service/e2e_tests/basic-library/test_individual_apis.py\", line 83, in test_add_basic_library_valid_data\n    self.assertIsInstance(data, dict, \"返回数据应该是字典\")\nAssertionError: None is not an instance of <class 'dict'> : 返回数据应该是字典\n"
+      }
+    ],
+    "errors": [],
+    "test_details": []
+  }
+}

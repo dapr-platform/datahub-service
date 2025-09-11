@@ -40,6 +40,14 @@ type SyncEngine struct {
 	maxConcurrentTasks int
 	taskQueue          chan *SyncTaskRequest
 	workerPool         chan struct{}
+	syncTaskService    SyncTaskServiceInterface // 添加服务接口
+}
+
+// SyncTaskServiceInterface 定义同步任务服务接口
+type SyncTaskServiceInterface interface {
+	CreateSyncTaskExecution(ctx context.Context, taskID, executionType string) (*models.SyncTaskExecution, error)
+	UpdateSyncTaskExecution(ctx context.Context, executionID string, status string, result map[string]interface{}, errorMessage string) error
+	UpdateTaskNextRunTime(ctx context.Context, taskID string) error
 }
 
 // 使用models包中定义的类型
@@ -60,7 +68,6 @@ const (
 	TaskStatusSuccess   = models.TaskStatusSuccess
 	TaskStatusFailed    = models.TaskStatusFailed
 	TaskStatusCancelled = models.TaskStatusCancelled
-	TaskStatusPaused    = models.TaskStatusPaused
 )
 
 const (
@@ -70,12 +77,12 @@ const (
 )
 
 // NewSyncEngine 创建同步引擎实例
-func NewSyncEngine(db *gorm.DB, maxConcurrentTasks int) *SyncEngine {
+func NewSyncEngine(db *gorm.DB, maxConcurrentTasks int, syncTaskService SyncTaskServiceInterface) *SyncEngine {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// 创建数据源管理器
-	factory := datasource.NewDefaultDataSourceFactory()
-	datasourceManager := datasource.NewDefaultDataSourceManager(factory)
+	// 使用全局数据源注册表，确保内置类型已注册
+	registry := datasource.GetGlobalRegistry()
+	datasourceManager := registry.GetManager()
 
 	engine := &SyncEngine{
 		db:                 db,
@@ -86,6 +93,7 @@ func NewSyncEngine(db *gorm.DB, maxConcurrentTasks int) *SyncEngine {
 		maxConcurrentTasks: maxConcurrentTasks,
 		taskQueue:          make(chan *SyncTaskRequest, 1000),
 		workerPool:         make(chan struct{}, maxConcurrentTasks),
+		syncTaskService:    syncTaskService,
 	}
 
 	// 初始化各个处理器，传入数据源管理器
@@ -102,27 +110,59 @@ func NewSyncEngine(db *gorm.DB, maxConcurrentTasks int) *SyncEngine {
 
 // SubmitSyncTask 提交同步任务
 func (e *SyncEngine) SubmitSyncTask(request *SyncTaskRequest) (*models.SyncTask, error) {
-	// 创建同步任务记录，支持新的库类型字段
-	task := &models.SyncTask{
-		ID:           uuid.New().String(),
-		LibraryType:  request.LibraryType, // 新增库类型支持
-		LibraryID:    request.LibraryID,   // 新增库ID支持
-		DataSourceID: request.DataSourceID,
-		InterfaceID:  &request.InterfaceID,
-		TaskType:     string(request.SyncType),
-		Status:       string(TaskStatusPending),
-		Config:       request.Config,
-		CreatedBy:    request.ScheduledBy,
+	var task *models.SyncTask
+
+	// 检查是否为手动执行的已存在任务
+	if request.TaskID != "" && request.ScheduledBy == "manual" {
+		// 手动执行：查找已存在的任务并更新其状态
+		existingTask := &models.SyncTask{}
+		if err := e.db.First(existingTask, "id = ?", request.TaskID).Error; err != nil {
+			return nil, fmt.Errorf("查找任务失败: %w", err)
+		}
+
+		fmt.Printf("[DEBUG] 手动执行已存在任务: %s, 当前状态: %s\n", existingTask.ID, existingTask.Status)
+		task = existingTask
+
+		// 更新任务为运行状态
+		updates := map[string]interface{}{
+			"status":        string(TaskStatusRunning),
+			"start_time":    time.Now(),
+			"updated_at":    time.Now(),
+			"error_message": "", // 清空之前的错误信息
+		}
+		if err := e.db.Model(task).Updates(updates).Error; err != nil {
+			return nil, fmt.Errorf("更新任务状态失败: %w", err)
+		}
+
+		fmt.Printf("[DEBUG] 任务状态已更新为运行中: %s\n", task.ID)
+	} else {
+		// 定时任务或新任务：创建新的任务记录
+		task = &models.SyncTask{
+			ID:           uuid.New().String(),
+			LibraryType:  request.LibraryType,
+			LibraryID:    request.LibraryID,
+			DataSourceID: request.DataSourceID,
+			TaskType:     string(request.SyncType),
+			Status:       string(TaskStatusPending),
+			Config:       request.Config,
+			CreatedBy:    request.ScheduledBy,
+		}
+
+		// 保存到数据库
+		if err := e.db.Create(task).Error; err != nil {
+			return nil, fmt.Errorf("创建同步任务失败: %w", err)
+		}
+
+		fmt.Printf("[DEBUG] 创建新任务: %s, 调度方式: %s\n", task.ID, request.ScheduledBy)
 	}
 
-	// 保存到数据库
-	if err := e.db.Create(task).Error; err != nil {
-		return nil, fmt.Errorf("创建同步任务失败: %w", err)
-	}
+	// 设置任务ID到请求中，以便后续处理
+	request.TaskID = task.ID
 
 	// 加入任务队列
 	select {
 	case e.taskQueue <- request:
+		fmt.Printf("[DEBUG] 任务已加入执行队列: %s\n", task.ID)
 		return task, nil
 	default:
 		// 队列满了，更新任务状态为失败
@@ -152,18 +192,34 @@ func (e *SyncEngine) processTaskQueue() {
 
 // executeTask 执行同步任务
 func (e *SyncEngine) executeTask(request *SyncTaskRequest) {
-	// 获取任务信息，使用新的查询条件支持库类型
-	var task models.SyncTask
-	query := e.db.Where("library_type = ? AND library_id = ? AND data_source_id = ? AND task_type = ?",
-		request.LibraryType, request.LibraryID, request.DataSourceID, request.SyncType).
-		Order("created_at DESC")
+	fmt.Printf("[DEBUG] SyncEngine.executeTask - 开始执行任务: %s\n", request.TaskID)
 
-	if err := query.First(&task).Error; err != nil {
+	// 获取任务信息
+	var task models.SyncTask
+	var err error
+
+	if request.TaskID != "" {
+		// 直接通过任务ID查找
+		err = e.db.First(&task, "id = ?", request.TaskID).Error
+		fmt.Printf("[DEBUG] SyncEngine.executeTask - 通过任务ID查找任务: %s\n", request.TaskID)
+	} else {
+		// 通过其他条件查找（用于定时任务）
+		query := e.db.Where("library_type = ? AND library_id = ? AND data_source_id = ? AND task_type = ?",
+			request.LibraryType, request.LibraryID, request.DataSourceID, request.SyncType).
+			Order("created_at DESC")
+		err = query.First(&task).Error
+		fmt.Printf("[DEBUG] SyncEngine.executeTask - 通过条件查找任务: %s/%s/%s/%s\n",
+			request.LibraryType, request.LibraryID, request.DataSourceID, request.SyncType)
+	}
+
+	if err != nil {
+		fmt.Printf("[ERROR] SyncEngine.executeTask - 查找任务失败: %v\n", err)
 		e.notifyEvent(&SyncEvent{
 			EventType: "error",
 			Timestamp: time.Now(),
 			Data: map[string]interface{}{
 				"error":          "任务不存在",
+				"task_id":        request.TaskID,
 				"library_type":   request.LibraryType,
 				"library_id":     request.LibraryID,
 				"data_source_id": request.DataSourceID,
@@ -173,12 +229,30 @@ func (e *SyncEngine) executeTask(request *SyncTaskRequest) {
 		return
 	}
 
+	fmt.Printf("[DEBUG] SyncEngine.executeTask - 找到任务: %s, 状态: %s, 类型: %s\n",
+		task.ID, task.Status, task.TaskType)
+
+	// 创建执行记录
+	executionType := "manual"
+	if request.IsScheduled {
+		executionType = "scheduled"
+	}
+
+	execution, err := e.syncTaskService.CreateSyncTaskExecution(e.ctx, task.ID, executionType)
+	if err != nil {
+		fmt.Printf("[ERROR] SyncEngine.executeTask - 创建执行记录失败: %v\n", err)
+		return
+	}
+
+	fmt.Printf("[DEBUG] SyncEngine.executeTask - 创建执行记录: %s\n", execution.ID)
+
 	// 创建任务上下文
 	taskCtx, cancel := context.WithCancel(e.ctx)
 	defer cancel()
 
 	taskContext := &SyncTaskContext{
 		Task:      &task,
+		Execution: execution,
 		Context:   taskCtx,
 		Cancel:    cancel,
 		StartTime: time.Now(),
@@ -199,15 +273,19 @@ func (e *SyncEngine) executeTask(request *SyncTaskRequest) {
 	}()
 
 	// 根据同步类型选择处理器
+	fmt.Printf("[DEBUG] SyncEngine.executeTask - 选择处理器，同步类型: %s\n", request.SyncType)
 	processor, err := e.selectProcessor(request.SyncType)
 	if err != nil {
-		e.handleTaskError(&task, err)
+		fmt.Printf("[ERROR] SyncEngine.executeTask - 选择处理器失败: %v\n", err)
+		e.handleTaskError(&task, execution, err)
 		return
 	}
 
 	taskContext.Processor = processor
+	fmt.Printf("[DEBUG] SyncEngine.executeTask - 处理器已选择: %s\n", processor.GetProcessorType())
 
 	// 更新任务状态为运行中
+	fmt.Printf("[DEBUG] SyncEngine.executeTask - 更新任务状态为运行中: %s\n", task.ID)
 	e.updateTaskStatus(task.ID, TaskStatusRunning, "")
 
 	// 发送任务开始事件
@@ -223,16 +301,27 @@ func (e *SyncEngine) executeTask(request *SyncTaskRequest) {
 		},
 	})
 
+	fmt.Printf("[DEBUG] SyncEngine.executeTask - 开始执行同步处理: %s\n", task.ID)
 	// 执行同步处理
 	result, err := processor.Process(taskCtx, &task, taskContext.Progress)
 	if err != nil {
-		e.handleTaskError(&task, err)
+		fmt.Printf("[ERROR] SyncEngine.executeTask - 同步处理失败: %v\n", err)
+		e.handleTaskError(&task, execution, err)
 		return
 	}
 
 	// 处理成功
+	fmt.Printf("[DEBUG] SyncEngine.executeTask - 同步处理成功: %s, 处理行数: %d\n", task.ID, result.ProcessedRows)
 	taskContext.Result = result
-	e.handleTaskSuccess(&task, result)
+	e.handleTaskSuccess(&task, execution, result)
+
+	// 更新任务的下次运行时间（针对调度任务）
+	if request.IsScheduled {
+		err = e.syncTaskService.UpdateTaskNextRunTime(e.ctx, task.ID)
+		if err != nil {
+			fmt.Printf("[ERROR] SyncEngine.executeTask - 更新下次运行时间失败: %v\n", err)
+		}
+	}
 
 	// 执行回调
 	if request.Callback != nil {
@@ -326,8 +415,19 @@ func (e *SyncEngine) updateTaskStatus(taskID string, status TaskStatus, errorMes
 }
 
 // handleTaskError 处理任务错误
-func (e *SyncEngine) handleTaskError(task *models.SyncTask, err error) {
+func (e *SyncEngine) handleTaskError(task *models.SyncTask, execution *models.SyncTaskExecution, err error) {
 	e.updateTaskStatus(task.ID, TaskStatusFailed, err.Error())
+
+	// 更新执行记录
+	if execution != nil {
+		resultMap := map[string]interface{}{
+			"error": err.Error(),
+		}
+		updateErr := e.syncTaskService.UpdateSyncTaskExecution(e.ctx, execution.ID, "failed", resultMap, err.Error())
+		if updateErr != nil {
+			fmt.Printf("[ERROR] SyncEngine.handleTaskError - 更新执行记录失败: %v\n", updateErr)
+		}
+	}
 
 	e.notifyEvent(&SyncEvent{
 		TaskID:    task.ID,
@@ -340,7 +440,7 @@ func (e *SyncEngine) handleTaskError(task *models.SyncTask, err error) {
 }
 
 // handleTaskSuccess 处理任务成功
-func (e *SyncEngine) handleTaskSuccess(task *models.SyncTask, result *SyncResult) {
+func (e *SyncEngine) handleTaskSuccess(task *models.SyncTask, execution *models.SyncTaskExecution, result *SyncResult) {
 	// 更新任务结果
 	updates := map[string]interface{}{
 		"status":         string(TaskStatusSuccess),
@@ -348,9 +448,25 @@ func (e *SyncEngine) handleTaskSuccess(task *models.SyncTask, result *SyncResult
 		"processed_rows": result.ProcessedRows,
 		"result":         result.Statistics,
 		"updated_at":     time.Now(),
+		"last_run_time":  time.Now(),
 	}
 
 	e.db.Model(&models.SyncTask{}).Where("id = ?", task.ID).Updates(updates)
+
+	// 更新执行记录
+	if execution != nil {
+		resultMap := map[string]interface{}{
+			"processed_rows": result.ProcessedRows,
+			"success_rows":   result.SuccessRows,
+			"error_rows":     result.ErrorRows,
+			"duration":       result.Duration.String(),
+			"statistics":     result.Statistics,
+		}
+		updateErr := e.syncTaskService.UpdateSyncTaskExecution(e.ctx, execution.ID, "success", resultMap, "")
+		if updateErr != nil {
+			fmt.Printf("[ERROR] SyncEngine.handleTaskSuccess - 更新执行记录失败: %v\n", updateErr)
+		}
+	}
 
 	e.notifyEvent(&SyncEvent{
 		TaskID:    task.ID,

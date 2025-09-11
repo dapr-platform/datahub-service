@@ -26,7 +26,6 @@ const (
 	TaskStatusSuccess   TaskStatus = meta.SyncTaskStatusSuccess
 	TaskStatusFailed    TaskStatus = meta.SyncTaskStatusFailed
 	TaskStatusCancelled TaskStatus = meta.SyncTaskStatusCancelled
-	TaskStatusPaused    TaskStatus = meta.SyncTaskStatusPaused
 )
 
 // SyncType 同步类型枚举 - 使用meta中的定义
@@ -41,6 +40,7 @@ const (
 // SyncTaskContext 同步任务上下文
 type SyncTaskContext struct {
 	Task      *SyncTask
+	Execution *SyncTaskExecution
 	Context   context.Context
 	Cancel    context.CancelFunc
 	StartTime time.Time
@@ -73,18 +73,34 @@ type SyncProgress struct {
 
 // SyncResult 同步结果
 type SyncResult struct {
-	TaskID        string                 `json:"task_id"`
-	Status        TaskStatus             `json:"status"`
+	TaskID        string                          `json:"task_id"`
+	Status        TaskStatus                      `json:"status"`
+	ProcessedRows int64                           `json:"processed_rows"`
+	SuccessRows   int64                           `json:"success_rows"`
+	ErrorRows     int64                           `json:"error_rows"`
+	Duration      time.Duration                   `json:"-"`           // 不用于API序列化
+	DurationMs    int64                           `json:"duration_ms"` // 毫秒数，便于JSON序列化
+	StartTime     time.Time                       `json:"start_time"`
+	EndTime       time.Time                       `json:"end_time"`
+	ErrorMessage  string                          `json:"error_message,omitempty"`
+	Statistics    map[string]interface{}          `json:"statistics,omitempty"`
+	Metadata      map[string]interface{}          `json:"metadata,omitempty"`
+	Interfaces    map[string]*SyncInterfaceResult `json:"interfaces,omitempty"` // 各接口的处理结果
+	// 向后兼容字段
+	Success    bool                   `json:"success"`
+	ErrorCount int                    `json:"error_count"`
+	Details    map[string]interface{} `json:"details,omitempty"`
+}
+
+// SyncInterfaceResult 同步接口结果
+type SyncInterfaceResult struct {
+	Success       bool                   `json:"success"`
 	ProcessedRows int64                  `json:"processed_rows"`
-	SuccessRows   int64                  `json:"success_rows"`
-	ErrorRows     int64                  `json:"error_rows"`
-	Duration      time.Duration          `json:"-"`           // 不用于API序列化
-	DurationMs    int64                  `json:"duration_ms"` // 毫秒数，便于JSON序列化
-	StartTime     time.Time              `json:"start_time"`
-	EndTime       time.Time              `json:"end_time"`
 	ErrorMessage  string                 `json:"error_message,omitempty"`
-	Statistics    map[string]interface{} `json:"statistics,omitempty"`
-	Metadata      map[string]interface{} `json:"metadata,omitempty"`
+	Details       map[string]interface{} `json:"details,omitempty"`
+	StartTime     *time.Time             `json:"start_time,omitempty"`
+	EndTime       *time.Time             `json:"end_time,omitempty"`
+	Duration      *int64                 `json:"duration,omitempty"` // 持续时间，单位：毫秒
 }
 
 // SyncEvent 同步事件
@@ -97,15 +113,18 @@ type SyncEvent struct {
 
 // SyncTaskRequest 同步任务请求
 type SyncTaskRequest struct {
-	LibraryType  string                 `json:"library_type"` // 新增：库类型
-	LibraryID    string                 `json:"library_id"`   // 新增：库ID
+	TaskID       string                 `json:"task_id,omitempty"` // 任务ID，用于手动执行已存在的任务
+	LibraryType  string                 `json:"library_type"`      // 新增：库类型
+	LibraryID    string                 `json:"library_id"`        // 新增：库ID
 	DataSourceID string                 `json:"data_source_id"`
-	InterfaceID  string                 `json:"interface_id,omitempty"`
+	InterfaceIDs []string               `json:"interface_ids,omitempty"` // 支持多个接口ID
 	SyncType     SyncType               `json:"sync_type"`
 	Config       map[string]interface{} `json:"config,omitempty"`
 	Priority     int                    `json:"priority"`
 	ScheduledBy  string                 `json:"scheduled_by"`
+	IsScheduled  bool                   `json:"is_scheduled"` // 是否为调度执行
 	Callback     func(*SyncResult)      `json:"-"`
+
 }
 
 // ProgressEstimate 进度预估

@@ -2137,6 +2137,91 @@ const docTemplate = `{
                 }
             }
         },
+        "/basic-libraries": {
+            "get": {
+                "description": "分页获取数据基础库列表，支持多种过滤条件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "获取数据基础库列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "名称搜索（支持中英文）",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "active",
+                            "inactive"
+                        ],
+                        "type": "string",
+                        "description": "状态过滤",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "创建者过滤",
+                        "name": "created_by",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.BasicLibraryListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/basic-libraries/add-basic-library": {
             "post": {
                 "description": "添加数据基础库",
@@ -2275,6 +2360,32 @@ const docTemplate = `{
                 }
             }
         },
+        "/basic-libraries/datasource-manager-stats": {
+            "get": {
+                "description": "获取数据源管理器的运行统计信息，包括总数、类型分布、在线状态等",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "获取数据源管理器统计信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/basic-libraries/datasource-status/{id}": {
             "get": {
                 "description": "获取数据源的连接状态、最近同步时间等信息",
@@ -2309,6 +2420,97 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-libraries/datasources": {
+            "get": {
+                "description": "分页获取数据源列表，支持多种过滤条件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "获取数据源列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "基础库ID过滤",
+                        "name": "library_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "数据源类型过滤",
+                        "name": "source_type",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "active",
+                            "inactive"
+                        ],
+                        "type": "string",
+                        "description": "状态过滤",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "名称搜索",
+                        "name": "name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.DataSourceListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -2454,6 +2656,32 @@ const docTemplate = `{
                 }
             }
         },
+        "/basic-libraries/health-check-all": {
+            "post": {
+                "description": "对管理器中的所有数据源进行健康检查",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "健康检查所有数据源",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/basic-libraries/interface-preview/{id}": {
             "get": {
                 "description": "获取接口的样例数据用于预览",
@@ -2478,6 +2706,211 @@ const docTemplate = `{
                         "description": "数据条数",
                         "name": "limit",
                         "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-libraries/interfaces": {
+            "get": {
+                "description": "分页获取数据接口列表，支持多种过滤条件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "获取数据接口列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "基础库ID过滤",
+                        "name": "library_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "数据源ID过滤",
+                        "name": "data_source_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "接口类型过滤",
+                        "name": "interface_type",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "active",
+                            "inactive"
+                        ],
+                        "type": "string",
+                        "description": "状态过滤",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "名称搜索",
+                        "name": "name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.DataInterfaceListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-libraries/reload-datasource/{id}": {
+            "post": {
+                "description": "重新从数据库加载数据源配置并更新管理器中的实例",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "重新加载数据源",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "数据源ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-libraries/resident-datasources": {
+            "get": {
+                "description": "获取所有常驻数据源的运行状态和统计信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "获取常驻数据源状态",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-libraries/restart-resident-datasource/{id}": {
+            "post": {
+                "description": "重启指定的常驻数据源",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "重启常驻数据源",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "数据源ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -2664,6 +3097,387 @@ const docTemplate = `{
                 }
             }
         },
+        "/basic-libraries/update-datasource": {
+            "post": {
+                "description": "修改数据源信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "修改数据源",
+                "parameters": [
+                    {
+                        "description": "修改数据源请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateDataSourceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-libraries/update-interface": {
+            "post": {
+                "description": "修改数据接口信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "修改数据接口",
+                "parameters": [
+                    {
+                        "description": "修改数据接口请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateDataInterfaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-libraries/update-interface-fields": {
+            "post": {
+                "description": "更新数据接口的字段配置，并可选择同时更新数据库表结构",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "更新接口字段配置",
+                "parameters": [
+                    {
+                        "description": "更新字段配置请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateInterfaceFieldsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-view/{library_type}/{library_id}/tables": {
+            "get": {
+                "description": "获取指定基础库或主题库的所有数据接口(表)信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据查看"
+                ],
+                "summary": "获取库的所有数据接口",
+                "parameters": [
+                    {
+                        "enum": [
+                            "basic_library",
+                            "thematic_library"
+                        ],
+                        "type": "string",
+                        "description": "库类型",
+                        "name": "library_type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "库ID",
+                        "name": "library_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "是否包含列信息",
+                        "name": "include_columns",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "是否包含关系信息",
+                        "name": "include_relationships",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.LibraryTablesResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-view/{library_type}/{library_id}/tables/{table_name}/data": {
+            "get": {
+                "description": "获取指定表的数据内容",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据查看"
+                ],
+                "summary": "获取表数据",
+                "parameters": [
+                    {
+                        "enum": [
+                            "basic_library",
+                            "thematic_library"
+                        ],
+                        "type": "string",
+                        "description": "库类型",
+                        "name": "library_type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "库ID",
+                        "name": "library_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "表名",
+                        "name": "table_name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "maximum": 1000,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 100,
+                        "description": "限制返回行数",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 0,
+                        "type": "integer",
+                        "default": 0,
+                        "description": "偏移量",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-view/{library_type}/{library_id}/tables/{table_name}/structure": {
+            "get": {
+                "description": "获取指定表的结构信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据查看"
+                ],
+                "summary": "获取表结构",
+                "parameters": [
+                    {
+                        "enum": [
+                            "basic_library",
+                            "thematic_library"
+                        ],
+                        "type": "string",
+                        "description": "库类型",
+                        "name": "library_type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "库ID",
+                        "name": "library_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "表名",
+                        "name": "table_name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/events/broadcast": {
             "post": {
                 "description": "向所有连接的用户广播SSE事件",
@@ -2691,6 +3505,174 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/events/connections": {
+            "get": {
+                "description": "分页获取SSE连接列表，支持多种过滤条件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "事件管理"
+                ],
+                "summary": "获取SSE连接列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "用户名过滤",
+                        "name": "user_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "连接状态过滤",
+                        "name": "is_active",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "客户端IP过滤",
+                        "name": "client_ip",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.SSEConnectionListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/events/history": {
+            "get": {
+                "description": "分页获取事件历史列表，支持多种过滤条件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "事件管理"
+                ],
+                "summary": "获取事件历史列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "用户名过滤",
+                        "name": "user_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "事件类型过滤",
+                        "name": "event_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "发送状态过滤",
+                        "name": "sent",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "读取状态过滤",
+                        "name": "read",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.EventHistoryListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -3875,14 +4857,14 @@ const docTemplate = `{
         },
         "/meta/basic-libraries/data-interface-configs": {
             "get": {
-                "description": "获取所有数据源配置",
+                "description": "获取所有数据接口配置元数据",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "元数据"
                 ],
-                "summary": "获取所有数据源配置元数据",
+                "summary": "获取所有数据接口配置元数据",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3955,16 +4937,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/meta/basic-libraries/sync-task-meta": {
+        "/meta/sync-tasks": {
             "get": {
-                "description": "获取所有同步任务相关元数据",
+                "description": "获取所有同步任务相关元数据，包括任务类型、状态、调度类型等",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "元数据"
                 ],
-                "summary": "获取所有同步任务相关元数据",
+                "summary": "获取所有同步任务元数据",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3978,53 +4960,7 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "type": "object",
-                                            "additionalProperties": {
-                                                "type": "object",
-                                                "additionalProperties": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/meta/basic-libraries/sync-task-types": {
-            "get": {
-                "description": "获取所有同步任务类型元数据",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "元数据"
-                ],
-                "summary": "获取所有同步任务类型元数据",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "$ref": "#/definitions/meta.SyncTaskScheduleDefinition"
-                                            }
+                                            "additionalProperties": true
                                         }
                                     }
                                 }
@@ -5308,362 +6244,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/sharing/data-sync-logs": {
-            "get": {
-                "description": "分页获取数据同步日志列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据共享服务"
-                ],
-                "summary": "获取数据同步日志列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页数量",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "task_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "日志状态",
-                        "name": "status",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.DataSyncLog"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/sharing/data-sync-tasks": {
-            "get": {
-                "description": "分页获取数据同步任务列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据共享服务"
-                ],
-                "summary": "获取数据同步任务列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页数量",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "任务状态",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "创建人ID",
-                        "name": "created_by",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.DataSyncTask"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "创建新的数据同步任务",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据共享服务"
-                ],
-                "summary": "创建数据同步任务",
-                "parameters": [
-                    {
-                        "description": "数据同步任务信息",
-                        "name": "task",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.DataSyncTask"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "创建成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.DataSyncTask"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/sharing/data-sync-tasks/{id}": {
-            "get": {
-                "description": "根据ID获取数据同步任务详情",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据共享服务"
-                ],
-                "summary": "根据ID获取数据同步任务",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.DataSyncTask"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "任务不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "更新数据同步任务信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据共享服务"
-                ],
-                "summary": "更新数据同步任务",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新信息",
-                        "name": "updates",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新成功",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "任务不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "删除指定的数据同步任务",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据共享服务"
-                ],
-                "summary": "删除数据同步任务",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "任务ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "删除成功",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "任务不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/sse/{user_name}": {
             "get": {
                 "description": "前端页面通过此接口建立SSE连接，接收实时事件推送",
@@ -5884,6 +6464,149 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/executions": {
+            "get": {
+                "description": "分页获取同步任务执行记录列表，支持多种过滤条件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "获取同步任务执行记录列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "task_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "执行状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "执行类型",
+                        "name": "execution_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SyncTaskExecutionListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/executions/{id}": {
+            "get": {
+                "description": "根据执行记录ID获取同步任务执行记录的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "获取同步任务执行记录详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "执行记录ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.SyncTaskExecution"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "执行记录不存在",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -6205,6 +6928,76 @@ const docTemplate = `{
                 }
             }
         },
+        "/sync/tasks/{id}/executions": {
+            "get": {
+                "description": "获取指定同步任务的所有执行记录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "同步任务管理"
+                ],
+                "summary": "获取指定任务的执行记录",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SyncTaskExecutionListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/sync/tasks/{id}/retry": {
             "post": {
                 "description": "重试失败的同步任务，会创建一个新的任务实例",
@@ -6494,6 +7287,99 @@ const docTemplate = `{
             }
         },
         "/thematic-interfaces": {
+            "get": {
+                "description": "分页获取主题接口列表，支持多种过滤条件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题接口"
+                ],
+                "summary": "获取主题接口列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "主题库ID过滤",
+                        "name": "library_id",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "realtime",
+                            "batch"
+                        ],
+                        "type": "string",
+                        "description": "接口类型过滤",
+                        "name": "interface_type",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "active",
+                            "inactive"
+                        ],
+                        "type": "string",
+                        "description": "状态过滤",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "名称搜索（支持中英文）",
+                        "name": "name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.ThematicInterfaceListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
             "post": {
                 "description": "创建新的主题接口",
                 "consumes": [
@@ -6534,6 +7420,52 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-interfaces/update-fields": {
+            "post": {
+                "description": "更新主题接口的字段配置，并可选择同时更新数据库表结构",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题接口"
+                ],
+                "summary": "更新主题接口字段配置",
+                "parameters": [
+                    {
+                        "description": "更新字段配置请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateThematicInterfaceFieldsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
                         }
                     },
                     "400": {
@@ -6707,6 +7639,102 @@ const docTemplate = `{
             }
         },
         "/thematic-libraries": {
+            "get": {
+                "description": "分页获取数据主题库列表，支持多种过滤条件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据主题库"
+                ],
+                "summary": "获取数据主题库列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "business",
+                            "technical",
+                            "analysis",
+                            "report"
+                        ],
+                        "type": "string",
+                        "description": "主题分类过滤",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "数据域过滤",
+                        "name": "domain",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "draft",
+                            "published",
+                            "archived"
+                        ],
+                        "type": "string",
+                        "description": "状态过滤",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "名称搜索（支持中英文）",
+                        "name": "name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.ThematicLibraryListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
             "post": {
                 "description": "创建新的数据主题库",
                 "consumes": [
@@ -6993,6 +8021,26 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.BasicLibraryListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.BasicLibrary"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.BatchDeleteRequest": {
             "type": "object",
             "required": [
@@ -7020,6 +8068,42 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.ColumnInfo": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "data_type": {
+                    "type": "string"
+                },
+                "default_value": {},
+                "format": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "identity_generation": {
+                    "type": "string"
+                },
+                "is_generated": {
+                    "type": "boolean"
+                },
+                "is_identity": {
+                    "type": "boolean"
+                },
+                "is_nullable": {
+                    "type": "boolean"
+                },
+                "is_updatable": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "controllers.CreateApiApplicationRequest": {
             "type": "object",
             "required": [
@@ -7043,6 +8127,46 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "controllers.DataInterfaceListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DataInterface"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.DataSourceListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DataSource"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -7112,6 +8236,26 @@ const docTemplate = `{
                 "test_type": {
                     "type": "string",
                     "example": "connection"
+                }
+            }
+        },
+        "controllers.EventHistoryListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SSEEvent"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -7231,6 +8375,33 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.LibraryTablesResponse": {
+            "type": "object",
+            "properties": {
+                "library_id": {
+                    "type": "string"
+                },
+                "library_name": {
+                    "type": "string"
+                },
+                "library_type": {
+                    "description": "basic_library, thematic_library",
+                    "type": "string"
+                },
+                "schema_name": {
+                    "type": "string"
+                },
+                "tables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.TableInfo"
+                    }
+                },
+                "total_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.PaginatedResponse": {
             "type": "object",
             "properties": {
@@ -7257,6 +8428,66 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.PrimaryKey": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.Relationship": {
+            "type": "object",
+            "properties": {
+                "constraint_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "source_column_name": {
+                    "type": "string"
+                },
+                "source_table_name": {
+                    "type": "string"
+                },
+                "target_column_name": {
+                    "type": "string"
+                },
+                "target_table_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.SSEConnectionListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SSEConnection"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.SendEventRequest": {
             "type": "object",
             "properties": {
@@ -7278,12 +8509,15 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "data_source_id",
+                "interface_ids",
                 "library_id",
                 "library_type",
-                "task_type"
+                "task_type",
+                "trigger_type"
             ],
             "properties": {
                 "config": {
+                    "description": "任务级别的全局配置",
                     "type": "object",
                     "additionalProperties": true
                 },
@@ -7291,13 +8525,39 @@ const docTemplate = `{
                     "type": "string",
                     "example": "admin"
                 },
+                "cron_expression": {
+                    "type": "string",
+                    "example": "0 0 * * *"
+                },
                 "data_source_id": {
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
+                "interface_configs": {
+                    "description": "接口级别的配置，可选",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.SyncTaskInterfaceConfig"
+                    }
+                },
                 "interface_id": {
+                    "description": "向后兼容字段（已废弃，但保留以支持旧版本API）",
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "interface_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"550e8400-e29b-41d4-a716-446655440000\"]"
+                    ]
+                },
+                "interval_seconds": {
+                    "type": "integer",
+                    "example": 3600
                 },
                 "library_id": {
                     "type": "string",
@@ -7307,9 +8567,34 @@ const docTemplate = `{
                     "type": "string",
                     "example": "basic_library"
                 },
+                "scheduled_time": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
                 "task_type": {
                     "type": "string",
                     "example": "full_sync"
+                },
+                "trigger_type": {
+                    "type": "string",
+                    "example": "manual"
+                }
+            }
+        },
+        "controllers.SyncTaskInterfaceConfig": {
+            "type": "object",
+            "required": [
+                "interface_id"
+            ],
+            "properties": {
+                "config": {
+                    "description": "接口级别的特殊配置",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 }
             }
         },
@@ -7317,12 +8602,124 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "config": {
+                    "description": "任务级别的全局配置",
                     "type": "object",
                     "additionalProperties": true
+                },
+                "cron_expression": {
+                    "type": "string",
+                    "example": "0 0 * * *"
+                },
+                "interface_configs": {
+                    "description": "更新接口级别的配置",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.SyncTaskInterfaceConfig"
+                    }
+                },
+                "interface_ids": {
+                    "description": "更新接口列表",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "interval_seconds": {
+                    "type": "integer",
+                    "example": 3600
+                },
+                "scheduled_time": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "trigger_type": {
+                    "type": "string",
+                    "example": "manual"
                 },
                 "updated_by": {
                     "type": "string",
                     "example": "admin"
+                }
+            }
+        },
+        "controllers.TableInfo": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.ColumnInfo"
+                    }
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "live_rows_estimate": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "primary_keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.PrimaryKey"
+                    }
+                },
+                "relationships": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.Relationship"
+                    }
+                },
+                "schema": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.ThematicInterfaceListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ThematicInterface"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.ThematicLibraryListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ThematicLibrary"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -7351,6 +8748,151 @@ const docTemplate = `{
                 "status": {
                     "type": "string",
                     "example": "active"
+                }
+            }
+        },
+        "controllers.UpdateDataInterfaceRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "data_source_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440001"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "用户数据查询接口"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "interface_config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "name_en": {
+                    "type": "string",
+                    "example": "user_interface"
+                },
+                "name_zh": {
+                    "type": "string",
+                    "example": "用户接口"
+                },
+                "parse_config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "status": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "table_fields_config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "type": {
+                    "description": "realtime, batch",
+                    "type": "string",
+                    "example": "realtime"
+                }
+            }
+        },
+        "controllers.UpdateDataSourceRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "example": "db"
+                },
+                "connection_config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "用户数据源"
+                },
+                "params_config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "script": {
+                    "type": "string"
+                },
+                "script_enabled": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "mysql"
+                }
+            }
+        },
+        "controllers.UpdateInterfaceFieldsRequest": {
+            "type": "object",
+            "required": [
+                "fields",
+                "interface_id"
+            ],
+            "properties": {
+                "backup_table": {
+                    "description": "是否备份原表",
+                    "type": "boolean",
+                    "example": false
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TableField"
+                    }
+                },
+                "interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "update_table": {
+                    "description": "是否同时更新数据库表结构",
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "controllers.UpdateThematicInterfaceFieldsRequest": {
+            "type": "object",
+            "required": [
+                "fields",
+                "interface_id"
+            ],
+            "properties": {
+                "backup_table": {
+                    "description": "是否备份原表",
+                    "type": "boolean",
+                    "example": false
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TableField"
+                    }
+                },
+                "interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "update_table": {
+                    "description": "是否同时更新数据库表结构",
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },
@@ -7386,6 +8928,13 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default_value": {},
+                "dependencies": {
+                    "description": "依赖关系配置",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.FieldDependency"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
@@ -7635,38 +9184,23 @@ const docTemplate = `{
                 }
             }
         },
-        "meta.SyncTaskScheduleConfigField": {
+        "meta.FieldDependency": {
             "type": "object",
             "properties": {
-                "default_value": {},
-                "description": {
+                "action": {
+                    "description": "动作：show, hide, enable, disable, require, optional",
                     "type": "string"
                 },
-                "display_name": {
+                "condition": {
+                    "description": "条件：equals, not_equals, in, not_in, greater_than, less_than, contains, not_contains",
                     "type": "string"
                 },
-                "name": {
+                "field": {
+                    "description": "依赖的字段名",
                     "type": "string"
                 },
-                "required": {
-                    "type": "boolean"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "meta.SyncTaskScheduleDefinition": {
-            "type": "object",
-            "properties": {
-                "schedule_config_fields": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/meta.SyncTaskScheduleConfigField"
-                    }
-                },
-                "schedule_type": {
-                    "type": "string"
+                "value": {
+                    "description": "条件值"
                 }
             }
         },
@@ -8390,6 +9924,12 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.InterfaceField"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
@@ -8569,6 +10109,10 @@ const docTemplate = `{
                     "description": "是否启用脚本执行",
                     "type": "boolean"
                 },
+                "status": {
+                    "description": "active, inactive",
+                    "type": "string"
+                },
                 "type": {
                     "type": "string"
                 },
@@ -8621,113 +10165,6 @@ const docTemplate = `{
                 "subscriber_type": {
                     "description": "user/application",
                     "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.DataSyncLog": {
-            "type": "object",
-            "properties": {
-                "created_by": {
-                    "type": "string"
-                },
-                "details": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "end_time": {
-                    "type": "string"
-                },
-                "error_message": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "records_error": {
-                    "type": "integer"
-                },
-                "records_sync": {
-                    "type": "integer"
-                },
-                "records_total": {
-                    "type": "integer"
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "status": {
-                    "description": "running/success/failure",
-                    "type": "string"
-                },
-                "task": {
-                    "$ref": "#/definitions/models.DataSyncTask"
-                },
-                "task_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.DataSyncTask": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "creator_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "last_sync_time": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "next_sync_time": {
-                    "type": "string"
-                },
-                "schedule_config": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "source_config": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "source_type": {
-                    "description": "database/api/file",
-                    "type": "string"
-                },
-                "status": {
-                    "description": "active/inactive/error",
-                    "type": "string"
-                },
-                "sync_strategy": {
-                    "description": "full/incremental",
-                    "type": "string"
-                },
-                "target_config": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "target_type": {
-                    "description": "database/api/file",
-                    "type": "string"
-                },
-                "transform_rules": {
-                    "type": "object",
-                    "additionalProperties": true
                 },
                 "updated_at": {
                     "type": "string"
@@ -8866,6 +10303,63 @@ const docTemplate = `{
                 },
                 "target": {
                     "description": "检查目标",
+                    "type": "string"
+                }
+            }
+        },
+        "models.InterfaceField": {
+            "type": "object",
+            "properties": {
+                "check_constraint": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "data_type": {
+                    "type": "string"
+                },
+                "default_value": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interface_id": {
+                    "type": "string"
+                },
+                "is_increment_field": {
+                    "description": "是否为增量字段，增量更新时根据这个字段判断条件",
+                    "type": "boolean"
+                },
+                "is_nullable": {
+                    "type": "boolean"
+                },
+                "is_primary_key": {
+                    "type": "boolean"
+                },
+                "is_unique": {
+                    "type": "boolean"
+                },
+                "name_en": {
+                    "type": "string"
+                },
+                "name_zh": {
+                    "type": "string"
+                },
+                "order_num": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
                     "type": "string"
                 }
             }
@@ -9413,6 +10907,112 @@ const docTemplate = `{
                 }
             }
         },
+        "models.SSEConnection": {
+            "type": "object",
+            "properties": {
+                "client_ip": {
+                    "type": "string"
+                },
+                "connected_at": {
+                    "type": "string"
+                },
+                "connection_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "last_ping_at": {
+                    "type": "string"
+                },
+                "user_agent": {
+                    "type": "string"
+                },
+                "user_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SSEEvent": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "data": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "event_type": {
+                    "description": "data_change, system_notification, user_message等",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "read": {
+                    "type": "boolean"
+                },
+                "read_at": {
+                    "type": "string"
+                },
+                "read_by": {
+                    "type": "string"
+                },
+                "sent": {
+                    "type": "boolean"
+                },
+                "sent_at": {
+                    "type": "string"
+                },
+                "sent_by": {
+                    "type": "string"
+                },
+                "user_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SyncInterfaceResult": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "duration": {
+                    "description": "持续时间，单位：毫秒",
+                    "type": "integer"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "processed_rows": {
+                    "type": "integer"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
         "models.SyncProgress": {
             "type": "object",
             "properties": {
@@ -9446,6 +11046,10 @@ const docTemplate = `{
         "models.SyncResult": {
             "type": "object",
             "properties": {
+                "details": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
                 "duration_ms": {
                     "description": "毫秒数，便于JSON序列化",
                     "type": "integer"
@@ -9453,11 +11057,21 @@ const docTemplate = `{
                 "end_time": {
                     "type": "string"
                 },
+                "error_count": {
+                    "type": "integer"
+                },
                 "error_message": {
                     "type": "string"
                 },
                 "error_rows": {
                     "type": "integer"
+                },
+                "interfaces": {
+                    "description": "各接口的处理结果",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/models.SyncInterfaceResult"
+                    }
                 },
                 "metadata": {
                     "type": "object",
@@ -9475,6 +11089,10 @@ const docTemplate = `{
                 },
                 "status": {
                     "$ref": "#/definitions/models.TaskStatus"
+                },
+                "success": {
+                    "description": "向后兼容字段",
+                    "type": "boolean"
                 },
                 "success_rows": {
                     "type": "integer"
@@ -9496,19 +11114,31 @@ const docTemplate = `{
                     ]
                 },
                 "config": {
-                    "description": "同步配置",
-                    "type": "object",
-                    "additionalProperties": true
+                    "description": "配置和结果",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.JSONB"
+                        }
+                    ]
                 },
                 "created_at": {
+                    "description": "基础字段",
                     "type": "string"
                 },
                 "created_by": {
                     "type": "string",
                     "example": "system"
                 },
-                "data_interface": {
-                    "$ref": "#/definitions/models.DataInterface"
+                "cron_expression": {
+                    "description": "Cron表达式",
+                    "type": "string",
+                    "example": "0 0 * * *"
+                },
+                "data_interfaces": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DataInterface"
+                    }
                 },
                 "data_source": {
                     "$ref": "#/definitions/models.DataSource"
@@ -9527,13 +11157,25 @@ const docTemplate = `{
                 "error_message": {
                     "type": "string"
                 },
+                "executions": {
+                    "description": "执行记录关联",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SyncTaskExecution"
+                    }
+                },
                 "id": {
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
-                "interface_id": {
-                    "type": "string",
-                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                "interval_seconds": {
+                    "description": "间隔秒数",
+                    "type": "integer",
+                    "example": 3600
+                },
+                "last_run_time": {
+                    "description": "上次执行时间",
+                    "type": "string"
                 },
                 "library_id": {
                     "description": "基础库ID或主题库ID",
@@ -9544,6 +11186,10 @@ const docTemplate = `{
                     "description": "basic_library, thematic_library",
                     "type": "string",
                     "example": "basic_library"
+                },
+                "next_run_time": {
+                    "description": "下次执行时间",
+                    "type": "string"
                 },
                 "processed_rows": {
                     "type": "integer",
@@ -9556,8 +11202,173 @@ const docTemplate = `{
                 },
                 "result": {
                     "description": "同步结果",
-                    "type": "object",
-                    "additionalProperties": true
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.JSONB"
+                        }
+                    ]
+                },
+                "scheduled_time": {
+                    "description": "计划执行时间",
+                    "type": "string"
+                },
+                "start_time": {
+                    "description": "执行状态相关字段",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "pending, running, success, failed, cancelled",
+                    "type": "string",
+                    "example": "pending"
+                },
+                "task_interfaces": {
+                    "description": "多接口关联",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SyncTaskInterface"
+                    }
+                },
+                "task_type": {
+                    "description": "full_sync, incremental_sync, realtime_sync",
+                    "type": "string",
+                    "example": "full_sync"
+                },
+                "thematic_library": {
+                    "$ref": "#/definitions/models.ThematicLibrary"
+                },
+                "total_rows": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "trigger_type": {
+                    "description": "执行时机相关字段",
+                    "type": "string",
+                    "example": "manual"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SyncTaskExecution": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "duration": {
+                    "description": "执行时长，毫秒",
+                    "type": "integer"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "error_count": {
+                    "type": "integer"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "execution_type": {
+                    "description": "manual, scheduled, retry",
+                    "type": "string",
+                    "example": "manual"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "processed_rows": {
+                    "type": "integer"
+                },
+                "progress": {
+                    "description": "进度百分比 0-100",
+                    "type": "integer"
+                },
+                "result": {
+                    "description": "执行结果详情",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.JSONB"
+                        }
+                    ]
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "running, success, failed, cancelled",
+                    "type": "string",
+                    "example": "running"
+                },
+                "task": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.SyncTask"
+                        }
+                    ]
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "total_rows": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SyncTaskInterface": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "description": "接口级别的配置",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.JSONB"
+                        }
+                    ]
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "data_interface": {
+                    "$ref": "#/definitions/models.DataInterface"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "error_count": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "processed_rows": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "progress": {
+                    "description": "进度百分比 0-100",
+                    "type": "integer",
+                    "example": 0
+                },
+                "result": {
+                    "description": "接口级别的结果",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.JSONB"
+                        }
+                    ]
                 },
                 "start_time": {
                     "type": "string"
@@ -9567,13 +11378,17 @@ const docTemplate = `{
                     "type": "string",
                     "example": "pending"
                 },
-                "task_type": {
-                    "description": "full_sync, incremental_sync, realtime_sync",
-                    "type": "string",
-                    "example": "full_sync"
+                "sync_task": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.SyncTask"
+                        }
+                    ]
                 },
-                "thematic_library": {
-                    "$ref": "#/definitions/models.ThematicLibrary"
+                "task_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
                 "total_rows": {
                     "type": "integer",
@@ -9712,6 +11527,10 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "is_increment_field": {
+                    "description": "是否为增量字段，增量更新时根据这个字段判断条件",
+                    "type": "boolean"
+                },
                 "is_nullable": {
                     "type": "boolean"
                 },
@@ -9773,16 +11592,14 @@ const docTemplate = `{
                 "running",
                 "success",
                 "failed",
-                "cancelled",
-                "paused"
+                "cancelled"
             ],
             "x-enum-varnames": [
                 "TaskStatusPending",
                 "TaskStatusRunning",
                 "TaskStatusSuccess",
                 "TaskStatusFailed",
-                "TaskStatusCancelled",
-                "TaskStatusPaused"
+                "TaskStatusCancelled"
             ]
         },
         "models.ThematicInterface": {
@@ -9792,6 +11609,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "created_by": {
+                    "type": "string"
+                },
+                "data_source": {
+                    "$ref": "#/definitions/models.DataSource"
+                },
+                "data_source_id": {
                     "type": "string"
                 },
                 "description": {
@@ -9960,6 +11783,20 @@ const docTemplate = `{
                 },
                 "total_pages": {
                     "type": "integer"
+                }
+            }
+        },
+        "service.SyncTaskExecutionListResponse": {
+            "type": "object",
+            "properties": {
+                "executions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SyncTaskExecution"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/service.PaginationInfo"
                 }
             }
         },

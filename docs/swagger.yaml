@@ -17,6 +17,19 @@ definitions:
       comment:
         type: string
     type: object
+  controllers.BasicLibraryListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.BasicLibrary'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+    type: object
   controllers.BatchDeleteRequest:
     properties:
       task_ids:
@@ -33,6 +46,30 @@ definitions:
         type: object
       event_type:
         example: system_notification
+        type: string
+    type: object
+  controllers.ColumnInfo:
+    properties:
+      comment:
+        type: string
+      data_type:
+        type: string
+      default_value: {}
+      format:
+        type: string
+      id:
+        type: string
+      identity_generation:
+        type: string
+      is_generated:
+        type: boolean
+      is_identity:
+        type: boolean
+      is_nullable:
+        type: boolean
+      is_updatable:
+        type: boolean
+      name:
         type: string
     type: object
   controllers.CreateApiApplicationRequest:
@@ -52,6 +89,32 @@ definitions:
     - contact_email
     - contact_person
     - name
+    type: object
+  controllers.DataInterfaceListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.DataInterface'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  controllers.DataSourceListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.DataSource'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
     type: object
   controllers.DataSourceTestRequest:
     properties:
@@ -103,6 +166,19 @@ definitions:
       test_type:
         example: connection
         type: string
+    type: object
+  controllers.EventHistoryListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.SSEEvent'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
     type: object
   controllers.HealthResponse:
     properties:
@@ -190,6 +266,24 @@ definitions:
           type: string
         type: array
     type: object
+  controllers.LibraryTablesResponse:
+    properties:
+      library_id:
+        type: string
+      library_name:
+        type: string
+      library_type:
+        description: basic_library, thematic_library
+        type: string
+      schema_name:
+        type: string
+      tables:
+        items:
+          $ref: '#/definitions/controllers.TableInfo'
+        type: array
+      total_count:
+        type: integer
+    type: object
   controllers.PaginatedResponse:
     properties:
       data: {}
@@ -209,6 +303,45 @@ definitions:
         example: 100
         type: integer
     type: object
+  controllers.PrimaryKey:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  controllers.Relationship:
+    properties:
+      constraint_name:
+        type: string
+      id:
+        type: string
+      source_column_name:
+        type: string
+      source_table_name:
+        type: string
+      target_column_name:
+        type: string
+      target_table_name:
+        type: string
+    type: object
+  controllers.SSEConnectionListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.SSEConnection'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+    type: object
   controllers.SendEventRequest:
     properties:
       data:
@@ -225,39 +358,155 @@ definitions:
     properties:
       config:
         additionalProperties: true
+        description: 任务级别的全局配置
         type: object
       created_by:
         example: admin
         type: string
+      cron_expression:
+        example: 0 0 * * *
+        type: string
       data_source_id:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
+      interface_configs:
+        description: 接口级别的配置，可选
+        items:
+          $ref: '#/definitions/controllers.SyncTaskInterfaceConfig'
+        type: array
       interface_id:
+        description: 向后兼容字段（已废弃，但保留以支持旧版本API）
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
+      interface_ids:
+        example:
+        - '["550e8400-e29b-41d4-a716-446655440000"]'
+        items:
+          type: string
+        minItems: 1
+        type: array
+      interval_seconds:
+        example: 3600
+        type: integer
       library_id:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
       library_type:
         example: basic_library
         type: string
+      scheduled_time:
+        example: "2024-01-01T00:00:00Z"
+        type: string
       task_type:
         example: full_sync
         type: string
+      trigger_type:
+        example: manual
+        type: string
     required:
     - data_source_id
+    - interface_ids
     - library_id
     - library_type
     - task_type
+    - trigger_type
+    type: object
+  controllers.SyncTaskInterfaceConfig:
+    properties:
+      config:
+        additionalProperties: true
+        description: 接口级别的特殊配置
+        type: object
+      interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    required:
+    - interface_id
     type: object
   controllers.SyncTaskUpdateRequest:
     properties:
       config:
         additionalProperties: true
+        description: 任务级别的全局配置
         type: object
+      cron_expression:
+        example: 0 0 * * *
+        type: string
+      interface_configs:
+        description: 更新接口级别的配置
+        items:
+          $ref: '#/definitions/controllers.SyncTaskInterfaceConfig'
+        type: array
+      interface_ids:
+        description: 更新接口列表
+        items:
+          type: string
+        type: array
+      interval_seconds:
+        example: 3600
+        type: integer
+      scheduled_time:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      trigger_type:
+        example: manual
+        type: string
       updated_by:
         example: admin
         type: string
+    type: object
+  controllers.TableInfo:
+    properties:
+      columns:
+        items:
+          $ref: '#/definitions/controllers.ColumnInfo'
+        type: array
+      comment:
+        type: string
+      id:
+        type: integer
+      live_rows_estimate:
+        type: integer
+      name:
+        type: string
+      primary_keys:
+        items:
+          $ref: '#/definitions/controllers.PrimaryKey'
+        type: array
+      relationships:
+        items:
+          $ref: '#/definitions/controllers.Relationship'
+        type: array
+      schema:
+        type: string
+      size:
+        type: string
+    type: object
+  controllers.ThematicInterfaceListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.ThematicInterface'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  controllers.ThematicLibraryListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.ThematicLibrary'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
     type: object
   controllers.UpdateBasicLibraryRequest:
     properties:
@@ -278,6 +527,111 @@ definitions:
         type: string
     required:
     - id
+    type: object
+  controllers.UpdateDataInterfaceRequest:
+    properties:
+      data_source_id:
+        example: 550e8400-e29b-41d4-a716-446655440001
+        type: string
+      description:
+        example: 用户数据查询接口
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      interface_config:
+        additionalProperties: true
+        type: object
+      name_en:
+        example: user_interface
+        type: string
+      name_zh:
+        example: 用户接口
+        type: string
+      parse_config:
+        additionalProperties: true
+        type: object
+      status:
+        example: active
+        type: string
+      table_fields_config:
+        additionalProperties: true
+        type: object
+      type:
+        description: realtime, batch
+        example: realtime
+        type: string
+    required:
+    - id
+    type: object
+  controllers.UpdateDataSourceRequest:
+    properties:
+      category:
+        example: db
+        type: string
+      connection_config:
+        additionalProperties: true
+        type: object
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      name:
+        example: 用户数据源
+        type: string
+      params_config:
+        additionalProperties: true
+        type: object
+      script:
+        type: string
+      script_enabled:
+        type: boolean
+      type:
+        example: mysql
+        type: string
+    required:
+    - id
+    type: object
+  controllers.UpdateInterfaceFieldsRequest:
+    properties:
+      backup_table:
+        description: 是否备份原表
+        example: false
+        type: boolean
+      fields:
+        items:
+          $ref: '#/definitions/models.TableField'
+        type: array
+      interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      update_table:
+        description: 是否同时更新数据库表结构
+        example: true
+        type: boolean
+    required:
+    - fields
+    - interface_id
+    type: object
+  controllers.UpdateThematicInterfaceFieldsRequest:
+    properties:
+      backup_table:
+        description: 是否备份原表
+        example: false
+        type: boolean
+      fields:
+        items:
+          $ref: '#/definitions/models.TableField'
+        type: array
+      interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      update_table:
+        description: 是否同时更新数据库表结构
+        example: true
+        type: boolean
+    required:
+    - fields
+    - interface_id
     type: object
   meta.DataInterfaceConfigDefinition:
     properties:
@@ -301,6 +655,11 @@ definitions:
   meta.DataInterfaceConfigField:
     properties:
       default_value: {}
+      dependencies:
+        description: 依赖关系配置
+        items:
+          $ref: '#/definitions/meta.FieldDependency'
+        type: array
       description:
         type: string
       display_name:
@@ -475,28 +834,20 @@ definitions:
         description: required, format, range, custom
         type: string
     type: object
-  meta.SyncTaskScheduleConfigField:
+  meta.FieldDependency:
     properties:
-      default_value: {}
-      description:
+      action:
+        description: 动作：show, hide, enable, disable, require, optional
         type: string
-      display_name:
+      condition:
+        description: 条件：equals, not_equals, in, not_in, greater_than, less_than, contains,
+          not_contains
         type: string
-      name:
+      field:
+        description: 依赖的字段名
         type: string
-      required:
-        type: boolean
-      type:
-        type: string
-    type: object
-  meta.SyncTaskScheduleDefinition:
-    properties:
-      schedule_config_fields:
-        additionalProperties:
-          $ref: '#/definitions/meta.SyncTaskScheduleConfigField'
-        type: object
-      schedule_type:
-        type: string
+      value:
+        description: 条件值
     type: object
   meta.ThematicLibraryAccessLevel:
     properties:
@@ -981,6 +1332,10 @@ definitions:
         type: string
       description:
         type: string
+      fields:
+        items:
+          $ref: '#/definitions/models.InterfaceField'
+        type: array
       id:
         type: string
       interface_config:
@@ -1101,6 +1456,9 @@ definitions:
       script_enabled:
         description: 是否启用脚本执行
         type: boolean
+      status:
+        description: active, inactive
+        type: string
       type:
         type: string
       updated_at:
@@ -1138,80 +1496,6 @@ definitions:
       subscriber_type:
         description: user/application
         type: string
-      updated_at:
-        type: string
-      updated_by:
-        type: string
-    type: object
-  models.DataSyncLog:
-    properties:
-      created_by:
-        type: string
-      details:
-        additionalProperties: true
-        type: object
-      end_time:
-        type: string
-      error_message:
-        type: string
-      id:
-        type: string
-      records_error:
-        type: integer
-      records_sync:
-        type: integer
-      records_total:
-        type: integer
-      start_time:
-        type: string
-      status:
-        description: running/success/failure
-        type: string
-      task:
-        $ref: '#/definitions/models.DataSyncTask'
-      task_id:
-        type: string
-    type: object
-  models.DataSyncTask:
-    properties:
-      created_at:
-        type: string
-      created_by:
-        type: string
-      creator_name:
-        type: string
-      id:
-        type: string
-      last_sync_time:
-        type: string
-      name:
-        type: string
-      next_sync_time:
-        type: string
-      schedule_config:
-        additionalProperties: true
-        type: object
-      source_config:
-        additionalProperties: true
-        type: object
-      source_type:
-        description: database/api/file
-        type: string
-      status:
-        description: active/inactive/error
-        type: string
-      sync_strategy:
-        description: full/incremental
-        type: string
-      target_config:
-        additionalProperties: true
-        type: object
-      target_type:
-        description: database/api/file
-        type: string
-      transform_rules:
-        additionalProperties: true
-        type: object
       updated_at:
         type: string
       updated_by:
@@ -1310,6 +1594,44 @@ definitions:
         type: integer
       target:
         description: 检查目标
+        type: string
+    type: object
+  models.InterfaceField:
+    properties:
+      check_constraint:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: string
+      data_type:
+        type: string
+      default_value:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      interface_id:
+        type: string
+      is_increment_field:
+        description: 是否为增量字段，增量更新时根据这个字段判断条件
+        type: boolean
+      is_nullable:
+        type: boolean
+      is_primary_key:
+        type: boolean
+      is_unique:
+        type: boolean
+      name_en:
+        type: string
+      name_zh:
+        type: string
+      order_num:
+        type: integer
+      updated_at:
+        type: string
+      updated_by:
         type: string
     type: object
   models.JSONB:
@@ -1659,6 +1981,77 @@ definitions:
       updated_by:
         type: string
     type: object
+  models.SSEConnection:
+    properties:
+      client_ip:
+        type: string
+      connected_at:
+        type: string
+      connection_id:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      last_ping_at:
+        type: string
+      user_agent:
+        type: string
+      user_name:
+        type: string
+    type: object
+  models.SSEEvent:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: string
+      data:
+        additionalProperties: true
+        type: object
+      event_type:
+        description: data_change, system_notification, user_message等
+        type: string
+      id:
+        type: string
+      read:
+        type: boolean
+      read_at:
+        type: string
+      read_by:
+        type: string
+      sent:
+        type: boolean
+      sent_at:
+        type: string
+      sent_by:
+        type: string
+      user_name:
+        type: string
+    type: object
+  models.SyncInterfaceResult:
+    properties:
+      details:
+        additionalProperties: true
+        type: object
+      duration:
+        description: 持续时间，单位：毫秒
+        type: integer
+      end_time:
+        type: string
+      error_message:
+        type: string
+      processed_rows:
+        type: integer
+      start_time:
+        type: string
+      success:
+        type: boolean
+    type: object
   models.SyncProgress:
     properties:
       current_phase:
@@ -1681,15 +2074,25 @@ definitions:
     type: object
   models.SyncResult:
     properties:
+      details:
+        additionalProperties: true
+        type: object
       duration_ms:
         description: 毫秒数，便于JSON序列化
         type: integer
       end_time:
         type: string
+      error_count:
+        type: integer
       error_message:
         type: string
       error_rows:
         type: integer
+      interfaces:
+        additionalProperties:
+          $ref: '#/definitions/models.SyncInterfaceResult'
+        description: 各接口的处理结果
+        type: object
       metadata:
         additionalProperties: true
         type: object
@@ -1702,6 +2105,9 @@ definitions:
         type: object
       status:
         $ref: '#/definitions/models.TaskStatus'
+      success:
+        description: 向后兼容字段
+        type: boolean
       success_rows:
         type: integer
       task_id:
@@ -1714,16 +2120,23 @@ definitions:
         - $ref: '#/definitions/models.BasicLibrary'
         description: 动态关联 - 这些字段不存储在数据库中，在运行时根据LibraryType动态加载
       config:
-        additionalProperties: true
-        description: 同步配置
-        type: object
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: 配置和结果
       created_at:
+        description: 基础字段
         type: string
       created_by:
         example: system
         type: string
-      data_interface:
-        $ref: '#/definitions/models.DataInterface'
+      cron_expression:
+        description: Cron表达式
+        example: 0 0 * * *
+        type: string
+      data_interfaces:
+        items:
+          $ref: '#/definitions/models.DataInterface'
+        type: array
       data_source:
         $ref: '#/definitions/models.DataSource'
       data_source_id:
@@ -1736,11 +2149,20 @@ definitions:
         type: integer
       error_message:
         type: string
+      executions:
+        description: 执行记录关联
+        items:
+          $ref: '#/definitions/models.SyncTaskExecution'
+        type: array
       id:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
-      interface_id:
-        example: 550e8400-e29b-41d4-a716-446655440000
+      interval_seconds:
+        description: 间隔秒数
+        example: 3600
+        type: integer
+      last_run_time:
+        description: 上次执行时间
         type: string
       library_id:
         description: 基础库ID或主题库ID
@@ -1750,6 +2172,9 @@ definitions:
         description: basic_library, thematic_library
         example: basic_library
         type: string
+      next_run_time:
+        description: 下次执行时间
+        type: string
       processed_rows:
         example: 0
         type: integer
@@ -1758,21 +2183,131 @@ definitions:
         example: 0
         type: integer
       result:
-        additionalProperties: true
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
         description: 同步结果
-        type: object
+      scheduled_time:
+        description: 计划执行时间
+        type: string
       start_time:
+        description: 执行状态相关字段
         type: string
       status:
         description: pending, running, success, failed, cancelled
         example: pending
         type: string
+      task_interfaces:
+        description: 多接口关联
+        items:
+          $ref: '#/definitions/models.SyncTaskInterface'
+        type: array
       task_type:
         description: full_sync, incremental_sync, realtime_sync
         example: full_sync
         type: string
       thematic_library:
         $ref: '#/definitions/models.ThematicLibrary'
+      total_rows:
+        example: 0
+        type: integer
+      trigger_type:
+        description: 执行时机相关字段
+        example: manual
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.SyncTaskExecution:
+    properties:
+      created_at:
+        type: string
+      duration:
+        description: 执行时长，毫秒
+        type: integer
+      end_time:
+        type: string
+      error_count:
+        type: integer
+      error_message:
+        type: string
+      execution_type:
+        description: manual, scheduled, retry
+        example: manual
+        type: string
+      id:
+        type: string
+      processed_rows:
+        type: integer
+      progress:
+        description: 进度百分比 0-100
+        type: integer
+      result:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: 执行结果详情
+      start_time:
+        type: string
+      status:
+        description: running, success, failed, cancelled
+        example: running
+        type: string
+      task:
+        allOf:
+        - $ref: '#/definitions/models.SyncTask'
+        description: 关联关系
+      task_id:
+        type: string
+      total_rows:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.SyncTaskInterface:
+    properties:
+      config:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: 接口级别的配置
+      created_at:
+        type: string
+      data_interface:
+        $ref: '#/definitions/models.DataInterface'
+      end_time:
+        type: string
+      error_count:
+        example: 0
+        type: integer
+      error_message:
+        type: string
+      id:
+        type: string
+      interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      processed_rows:
+        example: 0
+        type: integer
+      progress:
+        description: 进度百分比 0-100
+        example: 0
+        type: integer
+      result:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: 接口级别的结果
+      start_time:
+        type: string
+      status:
+        description: pending, running, success, failed, cancelled
+        example: pending
+        type: string
+      sync_task:
+        allOf:
+        - $ref: '#/definitions/models.SyncTask'
+        description: 关联关系
+      task_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
       total_rows:
         example: 0
         type: integer
@@ -1870,6 +2405,9 @@ definitions:
         type: string
       description:
         type: string
+      is_increment_field:
+        description: 是否为增量字段，增量更新时根据这个字段判断条件
+        type: boolean
       is_nullable:
         type: boolean
       is_primary_key:
@@ -1915,7 +2453,6 @@ definitions:
     - success
     - failed
     - cancelled
-    - paused
     type: string
     x-enum-varnames:
     - TaskStatusPending
@@ -1923,12 +2460,15 @@ definitions:
     - TaskStatusSuccess
     - TaskStatusFailed
     - TaskStatusCancelled
-    - TaskStatusPaused
   models.ThematicInterface:
     properties:
       created_at:
         type: string
       created_by:
+        type: string
+      data_source:
+        $ref: '#/definitions/models.DataSource'
+      data_source_id:
         type: string
       description:
         type: string
@@ -2041,6 +2581,15 @@ definitions:
         type: integer
       total_pages:
         type: integer
+    type: object
+  service.SyncTaskExecutionListResponse:
+    properties:
+      executions:
+        items:
+          $ref: '#/definitions/models.SyncTaskExecution'
+        type: array
+      pagination:
+        $ref: '#/definitions/service.PaginationInfo'
     type: object
   service.SyncTaskListResponse:
     properties:
@@ -3443,6 +3992,60 @@ paths:
       summary: 执行数据质量检查
       tags:
       - 数据质量
+  /basic-libraries:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据基础库列表，支持多种过滤条件
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小
+        in: query
+        name: size
+        type: integer
+      - description: 名称搜索（支持中英文）
+        in: query
+        name: name
+        type: string
+      - description: 状态过滤
+        enum:
+        - active
+        - inactive
+        in: query
+        name: status
+        type: string
+      - description: 创建者过滤
+        in: query
+        name: created_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.BasicLibraryListResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据基础库列表
+      tags:
+      - 数据基础库
   /basic-libraries/add-basic-library:
     post:
       consumes:
@@ -3533,6 +4136,23 @@ paths:
       summary: 添加数据接口
       tags:
       - 数据基础库
+  /basic-libraries/datasource-manager-stats:
+    get:
+      description: 获取数据源管理器的运行统计信息，包括总数、类型分布、在线状态等
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据源管理器统计信息
+      tags:
+      - 数据基础库
   /basic-libraries/datasource-status/{id}:
     get:
       description: 获取数据源的连接状态、最近同步时间等信息
@@ -3558,6 +4178,64 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取数据源运行状态
+      tags:
+      - 数据基础库
+  /basic-libraries/datasources:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据源列表，支持多种过滤条件
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小
+        in: query
+        name: size
+        type: integer
+      - description: 基础库ID过滤
+        in: query
+        name: library_id
+        type: string
+      - description: 数据源类型过滤
+        in: query
+        name: source_type
+        type: string
+      - description: 状态过滤
+        enum:
+        - active
+        - inactive
+        in: query
+        name: status
+        type: string
+      - description: 名称搜索
+        in: query
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.DataSourceListResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据源列表
       tags:
       - 数据基础库
   /basic-libraries/delete-basic-library:
@@ -3650,6 +4328,23 @@ paths:
       summary: 删除数据接口
       tags:
       - 数据基础库
+  /basic-libraries/health-check-all:
+    post:
+      description: 对管理器中的所有数据源进行健康检查
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 健康检查所有数据源
+      tags:
+      - 数据基础库
   /basic-libraries/interface-preview/{id}:
     get:
       description: 获取接口的样例数据用于预览
@@ -3680,6 +4375,139 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 预览接口数据
+      tags:
+      - 数据基础库
+  /basic-libraries/interfaces:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据接口列表，支持多种过滤条件
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小
+        in: query
+        name: size
+        type: integer
+      - description: 基础库ID过滤
+        in: query
+        name: library_id
+        type: string
+      - description: 数据源ID过滤
+        in: query
+        name: data_source_id
+        type: string
+      - description: 接口类型过滤
+        in: query
+        name: interface_type
+        type: string
+      - description: 状态过滤
+        enum:
+        - active
+        - inactive
+        in: query
+        name: status
+        type: string
+      - description: 名称搜索
+        in: query
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.DataInterfaceListResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据接口列表
+      tags:
+      - 数据基础库
+  /basic-libraries/reload-datasource/{id}:
+    post:
+      description: 重新从数据库加载数据源配置并更新管理器中的实例
+      parameters:
+      - description: 数据源ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 重新加载数据源
+      tags:
+      - 数据基础库
+  /basic-libraries/resident-datasources:
+    get:
+      description: 获取所有常驻数据源的运行状态和统计信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取常驻数据源状态
+      tags:
+      - 数据基础库
+  /basic-libraries/restart-resident-datasource/{id}:
+    post:
+      description: 重启指定的常驻数据源
+      parameters:
+      - description: 数据源ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 重启常驻数据源
       tags:
       - 数据基础库
   /basic-libraries/test-datasource:
@@ -3782,6 +4610,260 @@ paths:
       summary: 修改数据基础库
       tags:
       - 数据基础库
+  /basic-libraries/update-datasource:
+    post:
+      consumes:
+      - application/json
+      description: 修改数据源信息
+      parameters:
+      - description: 修改数据源请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateDataSourceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 修改数据源
+      tags:
+      - 数据基础库
+  /basic-libraries/update-interface:
+    post:
+      consumes:
+      - application/json
+      description: 修改数据接口信息
+      parameters:
+      - description: 修改数据接口请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateDataInterfaceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 修改数据接口
+      tags:
+      - 数据基础库
+  /basic-libraries/update-interface-fields:
+    post:
+      consumes:
+      - application/json
+      description: 更新数据接口的字段配置，并可选择同时更新数据库表结构
+      parameters:
+      - description: 更新字段配置请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateInterfaceFieldsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新接口字段配置
+      tags:
+      - 数据基础库
+  /data-view/{library_type}/{library_id}/tables:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定基础库或主题库的所有数据接口(表)信息
+      parameters:
+      - description: 库类型
+        enum:
+        - basic_library
+        - thematic_library
+        in: path
+        name: library_type
+        required: true
+        type: string
+      - description: 库ID
+        format: uuid
+        in: path
+        name: library_id
+        required: true
+        type: string
+      - default: false
+        description: 是否包含列信息
+        in: query
+        name: include_columns
+        type: boolean
+      - default: false
+        description: 是否包含关系信息
+        in: query
+        name: include_relationships
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.LibraryTablesResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取库的所有数据接口
+      tags:
+      - 数据查看
+  /data-view/{library_type}/{library_id}/tables/{table_name}/data:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定表的数据内容
+      parameters:
+      - description: 库类型
+        enum:
+        - basic_library
+        - thematic_library
+        in: path
+        name: library_type
+        required: true
+        type: string
+      - description: 库ID
+        format: uuid
+        in: path
+        name: library_id
+        required: true
+        type: string
+      - description: 表名
+        in: path
+        name: table_name
+        required: true
+        type: string
+      - default: 100
+        description: 限制返回行数
+        in: query
+        maximum: 1000
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: 偏移量
+        in: query
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取表数据
+      tags:
+      - 数据查看
+  /data-view/{library_type}/{library_id}/tables/{table_name}/structure:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定表的结构信息
+      parameters:
+      - description: 库类型
+        enum:
+        - basic_library
+        - thematic_library
+        in: path
+        name: library_type
+        required: true
+        type: string
+      - description: 库ID
+        format: uuid
+        in: path
+        name: library_id
+        required: true
+        type: string
+      - description: 表名
+        in: path
+        name: table_name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取表结构
+      tags:
+      - 数据查看
   /events/broadcast:
     post:
       consumes:
@@ -3802,6 +4884,112 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 广播事件
+      tags:
+      - 事件管理
+  /events/connections:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取SSE连接列表，支持多种过滤条件
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小
+        in: query
+        name: size
+        type: integer
+      - description: 用户名过滤
+        in: query
+        name: user_name
+        type: string
+      - description: 连接状态过滤
+        in: query
+        name: is_active
+        type: boolean
+      - description: 客户端IP过滤
+        in: query
+        name: client_ip
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.SSEConnectionListResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取SSE连接列表
+      tags:
+      - 事件管理
+  /events/history:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取事件历史列表，支持多种过滤条件
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小
+        in: query
+        name: size
+        type: integer
+      - description: 用户名过滤
+        in: query
+        name: user_name
+        type: string
+      - description: 事件类型过滤
+        in: query
+        name: event_type
+        type: string
+      - description: 发送状态过滤
+        in: query
+        name: sent
+        type: boolean
+      - description: 读取状态过滤
+        in: query
+        name: read
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.EventHistoryListResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取事件历史列表
       tags:
       - 事件管理
   /events/send:
@@ -4548,7 +5736,7 @@ paths:
       - 系统
   /meta/basic-libraries/data-interface-configs:
     get:
-      description: 获取所有数据源配置
+      description: 获取所有数据接口配置元数据
       produces:
       - application/json
       responses:
@@ -4567,7 +5755,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取所有数据源配置元数据
+      summary: 获取所有数据接口配置元数据
       tags:
       - 元数据
   /meta/basic-libraries/data-sources:
@@ -4594,9 +5782,9 @@ paths:
       summary: 获取所有数据源类型元数据
       tags:
       - 元数据
-  /meta/basic-libraries/sync-task-meta:
+  /meta/sync-tasks:
     get:
-      description: 获取所有同步任务相关元数据
+      description: 获取所有同步任务相关元数据，包括任务类型、状态、调度类型等
       produces:
       - application/json
       responses:
@@ -4607,41 +5795,14 @@ paths:
             - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  additionalProperties:
-                    additionalProperties:
-                      type: string
-                    type: object
+                  additionalProperties: true
                   type: object
               type: object
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取所有同步任务相关元数据
-      tags:
-      - 元数据
-  /meta/basic-libraries/sync-task-types:
-    get:
-      description: 获取所有同步任务类型元数据
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  additionalProperties:
-                    $ref: '#/definitions/meta.SyncTaskScheduleDefinition'
-                  type: object
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取所有同步任务类型元数据
+      summary: 获取所有同步任务元数据
       tags:
       - 元数据
   /meta/thematic-libraries/access-levels:
@@ -5441,231 +6602,6 @@ paths:
       summary: 更新数据订阅
       tags:
       - 数据共享服务
-  /sharing/data-sync-logs:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取数据同步日志列表
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页数量
-        in: query
-        name: size
-        type: integer
-      - description: 任务ID
-        in: query
-        name: task_id
-        type: string
-      - description: 日志状态
-        in: query
-        name: status
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.DataSyncLog'
-                  type: array
-              type: object
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据同步日志列表
-      tags:
-      - 数据共享服务
-  /sharing/data-sync-tasks:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取数据同步任务列表
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页数量
-        in: query
-        name: size
-        type: integer
-      - description: 任务状态
-        in: query
-        name: status
-        type: string
-      - description: 创建人ID
-        in: query
-        name: created_by
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.DataSyncTask'
-                  type: array
-              type: object
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据同步任务列表
-      tags:
-      - 数据共享服务
-    post:
-      consumes:
-      - application/json
-      description: 创建新的数据同步任务
-      parameters:
-      - description: 数据同步任务信息
-        in: body
-        name: task
-        required: true
-        schema:
-          $ref: '#/definitions/models.DataSyncTask'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: 创建成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.DataSyncTask'
-              type: object
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 创建数据同步任务
-      tags:
-      - 数据共享服务
-  /sharing/data-sync-tasks/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: 删除指定的数据同步任务
-      parameters:
-      - description: 任务ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 删除成功
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: 任务不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 删除数据同步任务
-      tags:
-      - 数据共享服务
-    get:
-      consumes:
-      - application/json
-      description: 根据ID获取数据同步任务详情
-      parameters:
-      - description: 任务ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.DataSyncTask'
-              type: object
-        "404":
-          description: 任务不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 根据ID获取数据同步任务
-      tags:
-      - 数据共享服务
-    put:
-      consumes:
-      - application/json
-      description: 更新数据同步任务信息
-      parameters:
-      - description: 任务ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 更新信息
-        in: body
-        name: updates
-        required: true
-        schema:
-          additionalProperties: true
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 更新成功
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: 任务不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 更新数据同步任务
-      tags:
-      - 数据共享服务
   /sse/{user_name}:
     get:
       description: 前端页面通过此接口建立SSE连接，接收实时事件推送
@@ -5957,6 +6893,50 @@ paths:
       summary: 取消同步任务
       tags:
       - 同步任务管理
+  /sync/tasks/{id}/executions:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定同步任务的所有执行记录
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.SyncTaskExecutionListResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取指定任务的执行记录
+      tags:
+      - 同步任务管理
   /sync/tasks/{id}/retry:
     post:
       consumes:
@@ -6146,6 +7126,95 @@ paths:
       summary: 批量删除同步任务
       tags:
       - 同步任务管理
+  /sync/tasks/executions:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取同步任务执行记录列表，支持多种过滤条件
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小
+        in: query
+        name: size
+        type: integer
+      - description: 任务ID
+        in: query
+        name: task_id
+        type: string
+      - description: 执行状态
+        in: query
+        name: status
+        type: string
+      - description: 执行类型
+        in: query
+        name: execution_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.SyncTaskExecutionListResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取同步任务执行记录列表
+      tags:
+      - 同步任务管理
+  /sync/tasks/executions/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据执行记录ID获取同步任务执行记录的详细信息
+      parameters:
+      - description: 执行记录ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.SyncTaskExecution'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 执行记录不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取同步任务执行记录详情
+      tags:
+      - 同步任务管理
   /sync/tasks/statistics:
     get:
       consumes:
@@ -6214,6 +7283,66 @@ paths:
       tags:
       - 数据基础库
   /thematic-interfaces:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取主题接口列表，支持多种过滤条件
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小
+        in: query
+        name: size
+        type: integer
+      - description: 主题库ID过滤
+        in: query
+        name: library_id
+        type: string
+      - description: 接口类型过滤
+        enum:
+        - realtime
+        - batch
+        in: query
+        name: interface_type
+        type: string
+      - description: 状态过滤
+        enum:
+        - active
+        - inactive
+        in: query
+        name: status
+        type: string
+      - description: 名称搜索（支持中英文）
+        in: query
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.ThematicInterfaceListResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取主题接口列表
+      tags:
+      - 主题接口
     post:
       consumes:
       - application/json
@@ -6348,7 +7477,100 @@ paths:
       summary: 更新主题接口
       tags:
       - 主题接口
+  /thematic-interfaces/update-fields:
+    post:
+      consumes:
+      - application/json
+      description: 更新主题接口的字段配置，并可选择同时更新数据库表结构
+      parameters:
+      - description: 更新字段配置请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateThematicInterfaceFieldsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新主题接口字段配置
+      tags:
+      - 主题接口
   /thematic-libraries:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据主题库列表，支持多种过滤条件
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小
+        in: query
+        name: size
+        type: integer
+      - description: 主题分类过滤
+        enum:
+        - business
+        - technical
+        - analysis
+        - report
+        in: query
+        name: category
+        type: string
+      - description: 数据域过滤
+        in: query
+        name: domain
+        type: string
+      - description: 状态过滤
+        enum:
+        - draft
+        - published
+        - archived
+        in: query
+        name: status
+        type: string
+      - description: 名称搜索（支持中英文）
+        in: query
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.ThematicLibraryListResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据主题库列表
+      tags:
+      - 数据主题库
     post:
       consumes:
       - application/json

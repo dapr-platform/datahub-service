@@ -15,6 +15,7 @@ import (
 	"datahub-service/client"
 	"datahub-service/service/models"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -34,11 +35,42 @@ func NewSchemaService(db *gorm.DB) *SchemaService {
 
 	// 检查是否在Dapr环境中
 	if daprPort := os.Getenv("DAPR_HTTP_PORT"); daprPort != "" {
-		baseURL = fmt.Sprintf("http://localhost:%s/v1.0/invoke/postgre-meta/method", daprPort)
+		baseURL = fmt.Sprintf("http://localhost:%s/v1.0/invoke/postgres-meta/method", daprPort)
+		log.Printf("[DEBUG] SchemaService - 使用Dapr环境，baseURL: %s", baseURL)
+	} else {
+		log.Printf("[DEBUG] SchemaService - 使用默认环境，baseURL: %s", baseURL)
+	}
+
+	// 从环境变量获取数据库连接信息用于构建pg header
+	pgHeader := "default"
+	if dbHost := os.Getenv("DB_HOST"); dbHost != "" {
+		dbPort := os.Getenv("DB_PORT")
+		if dbPort == "" {
+			dbPort = "5432"
+		}
+		dbName := os.Getenv("DB_NAME")
+		if dbName == "" {
+			dbName = "postgres"
+		}
+		dbUser := os.Getenv("DB_USER")
+		if dbUser == "" {
+			dbUser = "postgres"
+		}
+		dbPassword := os.Getenv("DB_PASSWORD")
+		if dbPassword == "" {
+			dbPassword = "postgres"
+		}
+
+		// 构建PostgreSQL连接字符串用作pg header
+		pgHeader = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", dbUser, dbPassword, dbHost, dbPort, dbName)
+		log.Printf("[DEBUG] SchemaService - 构建pg header: postgresql://%s:***@%s:%s/%s", dbUser, dbHost, dbPort, dbName)
+	} else {
+		log.Printf("[DEBUG] SchemaService - 使用默认pg header: %s", pgHeader)
 	}
 
 	// 创建PgMeta客户端
-	pgClient := client.NewPgMetaClient(baseURL, "default")
+	pgClient := client.NewPgMetaClient(baseURL, pgHeader)
+	log.Printf("[DEBUG] SchemaService - PgMeta客户端创建成功")
 
 	return &SchemaService{
 		db:       db,
@@ -586,16 +618,24 @@ func (s *SchemaService) GetTableInfo(schemaName, tableName string) (*TableDefini
 
 // ListTables 列出schema中的所有表
 func (s *SchemaService) ListTables(schemaName string) ([]string, error) {
+	log.Printf("[DEBUG] SchemaService.ListTables - 开始获取表列表，schemaName: %s", schemaName)
+
+	// 调用PgMetaClient获取表列表
 	tables, err := s.pgClient.ListTables(nil, schemaName, "", nil, nil, nil)
 	if err != nil {
-		return nil, err
+		log.Printf("[ERROR] SchemaService.ListTables - PgMetaClient调用失败: %v", err)
+		return nil, fmt.Errorf("获取表列表失败: %v", err)
 	}
 
+	log.Printf("[DEBUG] SchemaService.ListTables - PgMetaClient返回了 %d 个表", len(tables))
+
 	tableNames := make([]string, 0, len(tables))
-	for _, table := range tables {
+	for i, table := range tables {
+		log.Printf("[DEBUG] SchemaService.ListTables - 表[%d]: ID=%d, Name=%s, Schema=%s", i, table.ID, table.Name, table.Schema)
 		tableNames = append(tableNames, table.Name)
 	}
 
+	log.Printf("[DEBUG] SchemaService.ListTables - 成功返回表名列表: %v", tableNames)
 	return tableNames, nil
 }
 
@@ -674,4 +714,94 @@ func (s *SchemaService) ListSchemas() ([]string, error) {
 	}
 
 	return schemaNames, nil
+}
+
+// GetTableData 获取表数据
+func (s *SchemaService) GetTableData(fullTableName string, limit, offset int) ([]map[string]interface{}, int, error) {
+	// 分离schema和表名
+	parts := strings.Split(fullTableName, ".")
+	if len(parts) != 2 {
+		return nil, 0, fmt.Errorf("无效的表名格式，应为 schema.table")
+	}
+
+	schemaName := parts[0]
+	tableName := parts[1]
+
+	// 验证表是否存在
+	var exists bool
+	checkSQL := `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables 
+			WHERE table_schema = $1 AND table_name = $2
+		)`
+	err := s.db.Raw(checkSQL, schemaName, tableName).Scan(&exists).Error
+	if err != nil {
+		return nil, 0, fmt.Errorf("检查表存在性失败: %v", err)
+	}
+	if !exists {
+		return nil, 0, fmt.Errorf("表 %s 不存在", fullTableName)
+	}
+
+	// 获取总行数
+	var totalCount int64
+	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s",
+		s.db.Statement.Quote(schemaName),
+		s.db.Statement.Quote(tableName))
+	err = s.db.Raw(countSQL).Scan(&totalCount).Error
+	if err != nil {
+		return nil, 0, fmt.Errorf("获取总行数失败: %v", err)
+	}
+
+	// 获取数据
+	dataSQL := fmt.Sprintf("SELECT * FROM %s.%s ORDER BY 1 LIMIT %d OFFSET %d",
+		s.db.Statement.Quote(schemaName),
+		s.db.Statement.Quote(tableName),
+		limit, offset)
+
+	rows, err := s.db.Raw(dataSQL).Rows()
+	if err != nil {
+		return nil, 0, fmt.Errorf("查询数据失败: %v", err)
+	}
+	defer rows.Close()
+
+	// 获取列名
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, 0, fmt.Errorf("获取列名失败: %v", err)
+	}
+
+	// 读取数据
+	var data []map[string]interface{}
+	for rows.Next() {
+		// 创建存储值的切片
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		// 扫描行数据
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return nil, 0, fmt.Errorf("扫描行数据失败: %v", err)
+		}
+
+		// 构建行数据映射
+		rowData := make(map[string]interface{})
+		for i, col := range columns {
+			val := values[i]
+			if b, ok := val.([]byte); ok {
+				// 将字节数组转换为字符串
+				rowData[col] = string(b)
+			} else {
+				rowData[col] = val
+			}
+		}
+		data = append(data, rowData)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("遍历数据失败: %v", err)
+	}
+
+	return data, int(totalCount), nil
 }

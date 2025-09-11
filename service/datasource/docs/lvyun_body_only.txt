@@ -1,0 +1,510 @@
+// 绿云酒店接口脚本 - 只包含Run函数体内容
+// 这个内容将被包装在YaegiScriptExecutor的Run函数中执行
+
+// 全局配置常量
+const (
+	VERSION = "3.0"
+	LOCALE  = "zh_CN"
+	FORMAT  = "json"
+)
+
+// 辅助函数：从map中安全获取字符串值
+getStringFromMap := func(m map[string]interface{}, key, defaultValue string) string {
+	if value, exists := m[key]; exists {
+		if strValue, ok := value.(string); ok {
+			return strValue
+		}
+	}
+	return defaultValue
+}
+
+// 辅助函数：生成签名
+generateSign := func(params map[string]interface{}, appSecret string) (string, error) {
+	// 1. 获取所有参数的key并排序
+	var keys []string
+	for key := range params {
+		if key != "sign" { // 排除sign参数本身
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+
+	// 2. 构建签名字符串
+	var signStr strings.Builder
+	signStr.WriteString(appSecret)
+
+	for _, key := range keys {
+		signStr.WriteString(key)
+		signStr.WriteString(fmt.Sprintf("%v", params[key]))
+	}
+
+	signStr.WriteString(appSecret)
+
+	// 3. SHA1加密并转换为大写
+	hash := sha1.Sum([]byte(signStr.String()))
+	return strings.ToUpper(hex.EncodeToString(hash[:])), nil
+}
+
+// 获取操作类型
+operationStr, ok := operation.(string)
+if !ok {
+	return nil, fmt.Errorf("operation参数类型错误")
+}
+
+switch operationStr {
+case "init":
+	// 初始化处理
+	fmt.Println("绿云接口数据源初始化")
+	return map[string]interface{}{
+		"success": true,
+		"message": "初始化成功",
+		"config": map[string]interface{}{
+			"initialized": true,
+			"init_time":   time.Now().Format(time.RFC3339),
+		},
+	}, nil
+
+case "start":
+	// 启动处理 - 获取sessionId
+	fmt.Println("绿云接口数据源启动，获取sessionId")
+	
+	// 类型检查
+	credentialsMap, ok := credentials.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("credentials参数类型错误")
+	}
+
+	baseURLStr, ok := baseURL.(string)
+	if !ok {
+		return nil, fmt.Errorf("baseURL参数类型错误")
+	}
+
+	httpPostFunc, ok := httpPost.(func(string, map[string]interface{}) (map[string]interface{}, error))
+	if !ok {
+		return nil, fmt.Errorf("httpPost函数类型错误")
+	}
+
+	// 准备登录参数
+	params := map[string]interface{}{
+		"v":              VERSION,
+		"hotelGroupCode": getStringFromMap(credentialsMap, "hotel_group_code", "LYG"),
+		"usercode":       getStringFromMap(credentialsMap, "username", ""),
+		"password":       getStringFromMap(credentialsMap, "password", ""),
+		"method":         "user.login",
+		"local":          LOCALE,
+		"format":         FORMAT,
+		"appKey":         getStringFromMap(credentialsMap, "api_key", ""),
+	}
+
+	// 生成签名
+	appSecret := getStringFromMap(credentialsMap, "api_secret", "")
+	sign, err := generateSign(params, appSecret)
+	if err != nil {
+		return nil, fmt.Errorf("生成签名失败: %v", err)
+	}
+	params["sign"] = sign
+
+	// 执行POST请求
+	response, err := httpPostFunc(baseURLStr, params)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP请求失败: %v", err)
+	}
+
+	// 检查HTTP状态码
+	if statusCode, exists := response["status_code"]; exists {
+		if code, ok := statusCode.(int); ok && code != 200 {
+			return nil, fmt.Errorf("HTTP请求失败，状态码: %d", code)
+		}
+	}
+
+	// 解析响应
+	resultCode := getStringFromMap(response, "resultCode", "")
+	if resultCode == "0" {
+		sessionId := getStringFromMap(response, "resultInfo", "")
+		if sessionId == "" {
+			return nil, fmt.Errorf("响应中未包含sessionId")
+		}
+
+		// 存储sessionId和相关信息
+		if updateSessionDataFunc, ok := updateSessionData.(func(string, interface{})); ok {
+			updateSessionDataFunc("sessionId", sessionId)
+			updateSessionDataFunc("loginTime", time.Now().Format(time.RFC3339))
+			updateSessionDataFunc("lastRefreshTime", time.Now().Format(time.RFC3339))
+		}
+
+		fmt.Printf("sessionId获取成功: %s\n", sessionId)
+
+		return map[string]interface{}{
+			"sessionId":       sessionId,
+			"loginTime":       time.Now().Format(time.RFC3339),
+			"lastRefreshTime": time.Now().Format(time.RFC3339),
+		}, nil
+	} else {
+		message := getStringFromMap(response, "message", "")
+		if message == "" {
+			message = getStringFromMap(response, "resultMsg", "登录失败")
+		}
+		return nil, fmt.Errorf("登录失败: %s", message)
+	}
+
+case "execute":
+	// 执行处理 - 执行数据查询
+	fmt.Println("执行绿云接口查询")
+	
+	// 检查sessionId是否存在
+	getSessionDataFunc, ok := getSessionData.(func(string) interface{})
+	if !ok {
+		return map[string]interface{}{
+			"success": false,
+			"message": "getSessionData函数类型错误",
+		}, nil
+	}
+
+	sessionIdRaw := getSessionDataFunc("sessionId")
+	if sessionIdRaw == nil {
+		return map[string]interface{}{
+			"success": false,
+			"message": "sessionId不存在，请先启动数据源",
+		}, nil
+	}
+
+	sessionId, ok := sessionIdRaw.(string)
+	if !ok {
+		return map[string]interface{}{
+			"success": false,
+			"message": "sessionId类型错误",
+		}, nil
+	}
+
+	// 类型检查
+	credentialsMap, ok := credentials.(map[string]interface{})
+	if !ok {
+		return map[string]interface{}{
+			"success": false,
+			"message": "credentials参数类型错误",
+		}, nil
+	}
+
+	baseURLStr, ok := baseURL.(string)
+	if !ok {
+		return map[string]interface{}{
+			"success": false,
+			"message": "baseURL参数类型错误",
+		}, nil
+	}
+
+	httpPostFunc, ok := httpPost.(func(string, map[string]interface{}) (map[string]interface{}, error))
+	if !ok {
+		return map[string]interface{}{
+			"success": false,
+			"message": "httpPost函数类型错误",
+		}, nil
+	}
+
+	// 从请求参数中获取查询信息
+	requestObj, ok := request.(map[string]interface{})
+	if !ok {
+		requestObj = make(map[string]interface{})
+	}
+
+	paramsObj, _ := requestObj["params"].(map[string]interface{})
+
+	exec := "Kpi_Ihotel_Room_Total"
+	if paramsObj != nil {
+		if execParam, exists := paramsObj["exec"]; exists {
+			if execStr, ok := execParam.(string); ok {
+				exec = execStr
+			}
+		}
+	}
+
+	hotelGroupCode := getStringFromMap(credentialsMap, "hotel_group_code", "LYG")
+	hotelCode := ""
+	if paramsObj != nil {
+		hotelCode = getStringFromMap(paramsObj, "hotel_code", "")
+	}
+
+	queryParams := hotelGroupCode
+	if hotelCode != "" {
+		queryParams += "," + hotelCode
+	}
+
+	requestParams := map[string]interface{}{
+		"method":         "crs.kpi",
+		"v":              VERSION,
+		"format":         FORMAT,
+		"local":          LOCALE,
+		"appKey":         getStringFromMap(credentialsMap, "api_key", ""),
+		"sessionId":      sessionId,
+		"hotelGroupCode": hotelGroupCode,
+		"hotelCode":      hotelCode,
+		"exec":           exec,
+		"params":         queryParams,
+	}
+
+	// 生成签名
+	appSecret := getStringFromMap(credentialsMap, "api_secret", "")
+	sign, err := generateSign(requestParams, appSecret)
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("生成签名失败: %v", err),
+		}, nil
+	}
+	requestParams["sign"] = sign
+
+	// 执行POST请求
+	response, err := httpPostFunc(baseURLStr, requestParams)
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("HTTP请求失败: %v", err),
+		}, nil
+	}
+
+	// 检查HTTP状态码
+	if statusCode, exists := response["status_code"]; exists {
+		if code, ok := statusCode.(int); ok && code != 200 {
+			return map[string]interface{}{
+				"success": false,
+				"message": fmt.Sprintf("HTTP请求失败，状态码: %d", code),
+			}, nil
+		}
+	}
+
+	// 解析响应
+	resultCode := 0
+	if rc, exists := response["resultCode"]; exists {
+		switch v := rc.(type) {
+		case int:
+			resultCode = v
+		case float64:
+			resultCode = int(v)
+		case string:
+			if v == "0" {
+				resultCode = 0
+			} else {
+				resultCode = -1
+			}
+		}
+	}
+
+	if resultCode == 0 {
+		data, _ := response["result"]
+		return map[string]interface{}{
+			"success": true,
+			"data":    data,
+			"message": getStringFromMap(response, "resultMsg", "查询成功"),
+			"metadata": map[string]interface{}{
+				"exec":      exec,
+				"params":    queryParams,
+				"queryTime": time.Now().Format(time.RFC3339),
+			},
+		}, nil
+	} else {
+		return map[string]interface{}{
+			"success": false,
+			"message": getStringFromMap(response, "resultMsg", "查询失败"),
+			"metadata": map[string]interface{}{
+				"resultCode": resultCode,
+			},
+		}, nil
+	}
+
+case "refresh":
+	// 刷新处理 - 刷新sessionId
+	fmt.Println("绿云接口数据源刷新sessionId")
+	
+	getSessionDataFunc, ok := getSessionData.(func(string) interface{})
+	if !ok {
+		return map[string]interface{}{
+			"success": false,
+			"message": "getSessionData函数类型错误",
+		}, nil
+	}
+
+	sessionIdRaw := getSessionDataFunc("sessionId")
+	if sessionIdRaw == nil {
+		return map[string]interface{}{
+			"success": false,
+			"message": "sessionId不存在，无法刷新",
+		}, nil
+	}
+
+	sessionId, ok := sessionIdRaw.(string)
+	if !ok {
+		return map[string]interface{}{
+			"success": false,
+			"message": "sessionId类型错误",
+		}, nil
+	}
+
+	// 类型检查
+	credentialsMap, ok := credentials.(map[string]interface{})
+	if !ok {
+		return map[string]interface{}{
+			"success": false,
+			"message": "credentials参数类型错误",
+		}, nil
+	}
+
+	baseURLStr, ok := baseURL.(string)
+	if !ok {
+		return map[string]interface{}{
+			"success": false,
+			"message": "baseURL参数类型错误",
+		}, nil
+	}
+
+	httpPostFunc, ok := httpPost.(func(string, map[string]interface{}) (map[string]interface{}, error))
+	if !ok {
+		return map[string]interface{}{
+			"success": false,
+			"message": "httpPost函数类型错误",
+		}, nil
+	}
+
+	// 刷新sessionId
+	params := map[string]interface{}{
+		"v":         VERSION,
+		"sessionId": sessionId,
+		"method":    "user.refresh",
+		"local":     LOCALE,
+		"format":    FORMAT,
+		"appKey":    getStringFromMap(credentialsMap, "api_key", ""),
+	}
+
+	// 生成签名
+	appSecret := getStringFromMap(credentialsMap, "api_secret", "")
+	sign, err := generateSign(params, appSecret)
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("生成签名失败: %v", err),
+		}, nil
+	}
+	params["sign"] = sign
+
+	// 执行POST请求
+	response, err := httpPostFunc(baseURLStr, params)
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("HTTP请求失败: %v", err),
+		}, nil
+	}
+
+	// 检查HTTP状态码
+	if statusCode, exists := response["status_code"]; exists {
+		if code, ok := statusCode.(int); ok && code != 200 {
+			return map[string]interface{}{
+				"success": false,
+				"message": fmt.Sprintf("HTTP请求失败，状态码: %d", code),
+			}, nil
+		}
+	}
+
+	// 解析响应
+	resultCode := getStringFromMap(response, "resultCode", "")
+	if resultCode == "0" {
+		newSessionId := getStringFromMap(response, "resultInfo", "")
+		if newSessionId == "" {
+			newSessionId = sessionId // 如果没有返回新的sessionId，使用原来的
+		}
+
+		// 更新sessionId和相关信息
+		if updateSessionDataFunc, ok := updateSessionData.(func(string, interface{})); ok {
+			updateSessionDataFunc("sessionId", newSessionId)
+			updateSessionDataFunc("lastRefreshTime", time.Now().Format(time.RFC3339))
+		}
+
+		fmt.Printf("sessionId刷新成功: %s\n", newSessionId)
+
+		return map[string]interface{}{
+			"success":         true,
+			"sessionId":       newSessionId,
+			"lastRefreshTime": time.Now().Format(time.RFC3339),
+		}, nil
+	} else {
+		message := getStringFromMap(response, "message", "")
+		if message == "" {
+			message = getStringFromMap(response, "resultMsg", "刷新失败")
+		}
+		return map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("刷新失败: %s", message),
+		}, nil
+	}
+
+case "stop":
+	// 停止处理 - 退出sessionId
+	fmt.Println("绿云接口数据源停止，退出sessionId")
+	
+	getSessionDataFunc, ok := getSessionData.(func(string) interface{})
+	if ok {
+		sessionIdRaw := getSessionDataFunc("sessionId")
+		if sessionIdRaw != nil {
+			if sessionId, ok := sessionIdRaw.(string); ok {
+				// 类型检查
+				credentialsMap, ok := credentials.(map[string]interface{})
+				if !ok {
+					return map[string]interface{}{
+						"success": true,
+						"message": "停止成功，但退出sessionId时发生错误：credentials参数类型错误",
+					}, nil
+				}
+
+				baseURLStr, ok := baseURL.(string)
+				if !ok {
+					return map[string]interface{}{
+						"success": true,
+						"message": "停止成功，但退出sessionId时发生错误：baseURL参数类型错误",
+					}, nil
+				}
+
+				httpPostFunc, ok := httpPost.(func(string, map[string]interface{}) (map[string]interface{}, error))
+				if !ok {
+					return map[string]interface{}{
+						"success": true,
+						"message": "停止成功，但退出sessionId时发生错误：httpPost函数类型错误",
+					}, nil
+				}
+
+				// 退出sessionId
+				params := map[string]interface{}{
+					"v":         VERSION,
+					"sessionId": sessionId,
+					"method":    "user.logout",
+					"local":     LOCALE,
+					"format":    FORMAT,
+					"appKey":    getStringFromMap(credentialsMap, "api_key", ""),
+				}
+
+				// 生成签名
+				appSecret := getStringFromMap(credentialsMap, "api_secret", "")
+				sign, err := generateSign(params, appSecret)
+				if err != nil {
+					fmt.Printf("退出sessionId时发生错误: %v\n", err)
+				} else {
+					params["sign"] = sign
+
+					// 执行POST请求
+					_, err = httpPostFunc(baseURLStr, params)
+					if err != nil {
+						fmt.Printf("退出sessionId时发生错误: %v\n", err)
+					} else {
+						fmt.Println("退出sessionId成功")
+					}
+				}
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"success": true,
+		"message": "停止成功，sessionId已退出",
+	}, nil
+
+default:
+	return nil, fmt.Errorf("不支持的操作类型: %s", operationStr)
+}

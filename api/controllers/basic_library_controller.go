@@ -86,6 +86,64 @@ type UpdateBasicLibraryRequest struct {
 	Status      string `json:"status,omitempty" example:"active"`
 }
 
+// UpdateDataSourceRequest 修改数据源请求结构
+type UpdateDataSourceRequest struct {
+	ID               string                 `json:"id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name             string                 `json:"name,omitempty" example:"用户数据源"`
+	Category         string                 `json:"category,omitempty" example:"db"`
+	Type             string                 `json:"type,omitempty" example:"mysql"`
+	ConnectionConfig map[string]interface{} `json:"connection_config,omitempty"`
+	ParamsConfig     map[string]interface{} `json:"params_config,omitempty"`
+	Script           string                 `json:"script,omitempty"`
+	ScriptEnabled    bool                   `json:"script_enabled,omitempty"`
+}
+
+// UpdateDataInterfaceRequest 修改数据接口请求结构
+type UpdateDataInterfaceRequest struct {
+	ID                string                 `json:"id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	NameZh            string                 `json:"name_zh,omitempty" example:"用户接口"`
+	NameEn            string                 `json:"name_en,omitempty" example:"user_interface"`
+	Type              string                 `json:"type,omitempty" example:"realtime"` // realtime, batch
+	Description       string                 `json:"description,omitempty" example:"用户数据查询接口"`
+	Status            string                 `json:"status,omitempty" example:"active"`
+	DataSourceID      string                 `json:"data_source_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440001"`
+	InterfaceConfig   map[string]interface{} `json:"interface_config,omitempty"`
+	ParseConfig       map[string]interface{} `json:"parse_config,omitempty"`
+	TableFieldsConfig map[string]interface{} `json:"table_fields_config,omitempty"`
+}
+
+// UpdateInterfaceFieldsRequest 更新接口字段配置请求结构
+type UpdateInterfaceFieldsRequest struct {
+	InterfaceID string              `json:"interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Fields      []models.TableField `json:"fields" validate:"required"`
+	UpdateTable bool                `json:"update_table" example:"true"`  // 是否同时更新数据库表结构
+	BackupTable bool                `json:"backup_table" example:"false"` // 是否备份原表
+}
+
+// BasicLibraryListResponse 数据基础库列表响应结构
+type BasicLibraryListResponse struct {
+	List  []models.BasicLibrary `json:"list"`
+	Total int64                 `json:"total"`
+	Page  int                   `json:"page"`
+	Size  int                   `json:"size"`
+}
+
+// DataSourceListResponse 数据源列表响应结构
+type DataSourceListResponse struct {
+	List  []models.DataSource `json:"list"`
+	Total int64               `json:"total"`
+	Page  int                 `json:"page"`
+	Size  int                 `json:"size"`
+}
+
+// DataInterfaceListResponse 数据接口列表响应结构
+type DataInterfaceListResponse struct {
+	List  []models.DataInterface `json:"list"`
+	Total int64                  `json:"total"`
+	Page  int                    `json:"page"`
+	Size  int                    `json:"size"`
+}
+
 // @Summary 添加数据基础库
 // @Description 添加数据基础库
 // @Tags 数据基础库
@@ -215,6 +273,64 @@ func (c *BasicLibraryController) AddDataSource(w http.ResponseWriter, r *http.Re
 	render.JSON(w, r, SuccessResponse("添加数据源成功", nil))
 }
 
+// @Summary 修改数据源
+// @Description 修改数据源信息
+// @Tags 数据基础库
+// @Accept json
+// @Produce json
+// @Param request body UpdateDataSourceRequest true "修改数据源请求"
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /basic-libraries/update-datasource [post]
+func (c *BasicLibraryController) UpdateDataSource(w http.ResponseWriter, r *http.Request) {
+	var req UpdateDataSourceRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.ID == "" {
+		render.JSON(w, r, BadRequestResponse("数据源ID不能为空", nil))
+		return
+	}
+
+	// 构建更新字段map
+	updates := make(map[string]interface{})
+	if req.Name != "" {
+		updates["name"] = req.Name
+	}
+	if req.Category != "" {
+		updates["category"] = req.Category
+	}
+	if req.Type != "" {
+		updates["type"] = req.Type
+	}
+	if req.ConnectionConfig != nil {
+		updates["connection_config"] = req.ConnectionConfig
+	}
+	if req.ParamsConfig != nil {
+		updates["params_config"] = req.ParamsConfig
+	}
+	if req.Script != "" {
+		updates["script"] = req.Script
+	}
+	updates["script_enabled"] = req.ScriptEnabled
+
+	if len(updates) == 0 {
+		render.JSON(w, r, BadRequestResponse("没有要更新的字段", nil))
+		return
+	}
+
+	err := c.service.UpdateDataSource(req.ID, updates)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("修改数据源失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("修改数据源成功", nil))
+}
+
 // @Summary 删除数据源
 // @Description 删除数据源
 // @Tags 数据基础库
@@ -265,6 +381,72 @@ func (c *BasicLibraryController) AddInterface(w http.ResponseWriter, r *http.Req
 	}
 
 	render.JSON(w, r, SuccessResponse("添加数据接口成功", nil))
+}
+
+// @Summary 修改数据接口
+// @Description 修改数据接口信息
+// @Tags 数据基础库
+// @Accept json
+// @Produce json
+// @Param request body UpdateDataInterfaceRequest true "修改数据接口请求"
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /basic-libraries/update-interface [post]
+func (c *BasicLibraryController) UpdateInterface(w http.ResponseWriter, r *http.Request) {
+	var req UpdateDataInterfaceRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.ID == "" {
+		render.JSON(w, r, BadRequestResponse("数据接口ID不能为空", nil))
+		return
+	}
+
+	// 构建更新字段map
+	updates := make(map[string]interface{})
+	if req.NameZh != "" {
+		updates["name_zh"] = req.NameZh
+	}
+	if req.NameEn != "" {
+		updates["name_en"] = req.NameEn
+	}
+	if req.Type != "" {
+		updates["type"] = req.Type
+	}
+	if req.Description != "" {
+		updates["description"] = req.Description
+	}
+	if req.Status != "" {
+		updates["status"] = req.Status
+	}
+	if req.DataSourceID != "" {
+		updates["data_source_id"] = req.DataSourceID
+	}
+	if req.InterfaceConfig != nil {
+		updates["interface_config"] = req.InterfaceConfig
+	}
+	if req.ParseConfig != nil {
+		updates["parse_config"] = req.ParseConfig
+	}
+	if req.TableFieldsConfig != nil {
+		updates["table_fields_config"] = req.TableFieldsConfig
+	}
+
+	if len(updates) == 0 {
+		render.JSON(w, r, BadRequestResponse("没有要更新的字段", nil))
+		return
+	}
+
+	err := c.service.UpdateDataInterface(req.ID, updates)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("修改数据接口失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("修改数据接口成功", nil))
 }
 
 // @Summary 删除数据接口
@@ -373,6 +555,156 @@ func (c *BasicLibraryController) GetDataSourceStatus(w http.ResponseWriter, r *h
 	render.JSON(w, r, SuccessResponse("获取状态成功", status))
 }
 
+// GetBasicLibraryList 获取数据基础库列表
+// @Summary 获取数据基础库列表
+// @Description 分页获取数据基础库列表，支持多种过滤条件
+// @Tags 数据基础库
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页大小" default(10)
+// @Param name query string false "名称搜索（支持中英文）"
+// @Param status query string false "状态过滤" Enums(active,inactive)
+// @Param created_by query string false "创建者过滤"
+// @Success 200 {object} APIResponse{data=BasicLibraryListResponse} "获取成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /basic-libraries [get]
+func (c *BasicLibraryController) GetBasicLibraryList(w http.ResponseWriter, r *http.Request) {
+	// 解析查询参数
+	page := 1
+	size := 10
+	name := r.URL.Query().Get("name")
+	status := r.URL.Query().Get("status")
+	createdBy := r.URL.Query().Get("created_by")
+
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+	if s, err := strconv.Atoi(r.URL.Query().Get("size")); err == nil && s > 0 && s <= 100 {
+		size = s
+	}
+
+	// 调用服务层方法
+	libraries, total, err := c.service.GetBasicLibraryList(page, size, name, status, createdBy)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取数据基础库列表失败", err))
+		return
+	}
+
+	// 构建响应
+	response := BasicLibraryListResponse{
+		List:  libraries,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据基础库列表成功", response))
+}
+
+// GetDataSourceList 获取数据源列表
+// @Summary 获取数据源列表
+// @Description 分页获取数据源列表，支持多种过滤条件
+// @Tags 数据基础库
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页大小" default(10)
+// @Param library_id query string false "基础库ID过滤"
+// @Param source_type query string false "数据源类型过滤"
+// @Param status query string false "状态过滤" Enums(active,inactive)
+// @Param name query string false "名称搜索"
+// @Success 200 {object} APIResponse{data=DataSourceListResponse} "获取成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /basic-libraries/datasources [get]
+func (c *BasicLibraryController) GetDataSourceList(w http.ResponseWriter, r *http.Request) {
+	// 解析查询参数
+	page := 1
+	size := 10
+	libraryID := r.URL.Query().Get("library_id")
+	sourceType := r.URL.Query().Get("source_type")
+	status := r.URL.Query().Get("status")
+	name := r.URL.Query().Get("name")
+
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+	if s, err := strconv.Atoi(r.URL.Query().Get("size")); err == nil && s > 0 && s <= 100 {
+		size = s
+	}
+
+	// 调用服务层方法
+	dataSources, total, err := c.service.GetDataSourceList(page, size, libraryID, sourceType, status, name)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取数据源列表失败", err))
+		return
+	}
+
+	// 构建响应
+	response := DataSourceListResponse{
+		List:  dataSources,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据源列表成功", response))
+}
+
+// GetDataInterfaceList 获取数据接口列表
+// @Summary 获取数据接口列表
+// @Description 分页获取数据接口列表，支持多种过滤条件
+// @Tags 数据基础库
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页大小" default(10)
+// @Param library_id query string false "基础库ID过滤"
+// @Param data_source_id query string false "数据源ID过滤"
+// @Param interface_type query string false "接口类型过滤"
+// @Param status query string false "状态过滤" Enums(active,inactive)
+// @Param name query string false "名称搜索"
+// @Success 200 {object} APIResponse{data=DataInterfaceListResponse} "获取成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /basic-libraries/interfaces [get]
+func (c *BasicLibraryController) GetDataInterfaceList(w http.ResponseWriter, r *http.Request) {
+	// 解析查询参数
+	page := 1
+	size := 10
+	libraryID := r.URL.Query().Get("library_id")
+	dataSourceID := r.URL.Query().Get("data_source_id")
+	interfaceType := r.URL.Query().Get("interface_type")
+	status := r.URL.Query().Get("status")
+	name := r.URL.Query().Get("name")
+
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+	if s, err := strconv.Atoi(r.URL.Query().Get("size")); err == nil && s > 0 && s <= 100 {
+		size = s
+	}
+
+	// 调用服务层方法
+	interfaces, total, err := c.service.GetDataInterfaceList(page, size, libraryID, dataSourceID, interfaceType, status, name)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取数据接口列表失败", err))
+		return
+	}
+
+	// 构建响应
+	response := DataInterfaceListResponse{
+		List:  interfaces,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据接口列表成功", response))
+}
+
 // PreviewInterfaceData 预览接口数据
 // @Summary 预览接口数据
 // @Description 获取接口的样例数据用于预览
@@ -405,4 +737,146 @@ func (c *BasicLibraryController) PreviewInterfaceData(w http.ResponseWriter, r *
 	}
 
 	render.JSON(w, r, SuccessResponse("数据预览成功", data))
+}
+
+// UpdateInterfaceFields 更新接口字段配置
+// @Summary 更新接口字段配置
+// @Description 更新数据接口的字段配置，并可选择同时更新数据库表结构
+// @Tags 数据基础库
+// @Accept json
+// @Produce json
+// @Param request body UpdateInterfaceFieldsRequest true "更新字段配置请求"
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /basic-libraries/update-interface-fields [post]
+func (c *BasicLibraryController) UpdateInterfaceFields(w http.ResponseWriter, r *http.Request) {
+	var req UpdateInterfaceFieldsRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.InterfaceID == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	if len(req.Fields) == 0 {
+		render.JSON(w, r, BadRequestResponse("字段配置不能为空", nil))
+		return
+	}
+
+	err := c.service.UpdateInterfaceFields(req.InterfaceID, req.Fields, req.UpdateTable)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("更新接口字段配置失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("更新接口字段配置成功", nil))
+}
+
+// GetDataSourceManagerStats 获取数据源管理器统计信息
+// @Summary 获取数据源管理器统计信息
+// @Description 获取数据源管理器的运行统计信息，包括总数、类型分布、在线状态等
+// @Tags 数据基础库
+// @Produce json
+// @Success 200 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /basic-libraries/datasource-manager-stats [get]
+func (c *BasicLibraryController) GetDataSourceManagerStats(w http.ResponseWriter, r *http.Request) {
+	datasourceInitService := c.service.GetDatasourceInitService()
+	stats := datasourceInitService.GetManagerStatistics()
+
+	render.JSON(w, r, SuccessResponse("获取统计信息成功", stats))
+}
+
+// GetResidentDataSources 获取所有常驻数据源状态
+// @Summary 获取常驻数据源状态
+// @Description 获取所有常驻数据源的运行状态和统计信息
+// @Tags 数据基础库
+// @Produce json
+// @Success 200 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /basic-libraries/resident-datasources [get]
+func (c *BasicLibraryController) GetResidentDataSources(w http.ResponseWriter, r *http.Request) {
+	datasourceInitService := c.service.GetDatasourceInitService()
+	residentSources := datasourceInitService.GetResidentDataSources()
+
+	render.JSON(w, r, SuccessResponse("获取常驻数据源状态成功", residentSources))
+}
+
+// RestartResidentDataSource 重启常驻数据源
+// @Summary 重启常驻数据源
+// @Description 重启指定的常驻数据源
+// @Tags 数据基础库
+// @Produce json
+// @Param id path string true "数据源ID"
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /basic-libraries/restart-resident-datasource/{id} [post]
+func (c *BasicLibraryController) RestartResidentDataSource(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("数据源ID参数不能为空", nil))
+		return
+	}
+
+	datasourceInitService := c.service.GetDatasourceInitService()
+	ctx := r.Context()
+
+	err := datasourceInitService.RestartResidentDataSource(ctx, id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("重启常驻数据源失败: "+err.Error(), err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("常驻数据源重启成功", nil))
+}
+
+// ReloadDataSource 重新加载数据源
+// @Summary 重新加载数据源
+// @Description 重新从数据库加载数据源配置并更新管理器中的实例
+// @Tags 数据基础库
+// @Produce json
+// @Param id path string true "数据源ID"
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /basic-libraries/reload-datasource/{id} [post]
+func (c *BasicLibraryController) ReloadDataSource(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("数据源ID参数不能为空", nil))
+		return
+	}
+
+	datasourceInitService := c.service.GetDatasourceInitService()
+	ctx := r.Context()
+
+	err := datasourceInitService.ReloadDataSource(ctx, id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("重新加载数据源失败: "+err.Error(), err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("数据源重新加载成功", nil))
+}
+
+// HealthCheckAllDataSources 对所有数据源进行健康检查
+// @Summary 健康检查所有数据源
+// @Description 对管理器中的所有数据源进行健康检查
+// @Tags 数据基础库
+// @Produce json
+// @Success 200 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /basic-libraries/health-check-all [post]
+func (c *BasicLibraryController) HealthCheckAllDataSources(w http.ResponseWriter, r *http.Request) {
+	datasourceInitService := c.service.GetDatasourceInitService()
+	ctx := r.Context()
+
+	results := datasourceInitService.HealthCheckAllDataSources(ctx)
+
+	render.JSON(w, r, SuccessResponse("健康检查完成", results))
 }

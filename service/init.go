@@ -12,6 +12,7 @@
 package service
 
 import (
+	"context"
 	"datahub-service/service/basic_library"
 	"datahub-service/service/database"
 	"datahub-service/service/sync_engine"
@@ -19,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -32,6 +34,7 @@ var (
 	GlobalSyncEngine             *sync_engine.SyncEngine
 	GlobalSchemaService          *database.SchemaService
 	GlobalSyncTaskService        *SyncTaskService
+	GlobalSchedulerService       *SchedulerService
 )
 
 func init() {
@@ -99,8 +102,49 @@ func initServices() {
 	// 将事件服务作为参数传递给BasicLibraryService
 	GlobalBasicLibraryService = basic_library.NewService(DB, GlobalEventService)
 	GlobalThematicLibraryService = thematic_library.NewService(DB)
-	GlobalSyncEngine = sync_engine.NewSyncEngine(DB, 10)
 	GlobalSchemaService = database.NewSchemaService(DB)
-	GlobalSyncTaskService = NewSyncTaskService(DB, GlobalBasicLibraryService, GlobalThematicLibraryService, GlobalSyncEngine)
+	GlobalSyncTaskService = NewSyncTaskService(DB, GlobalBasicLibraryService, GlobalThematicLibraryService, nil)
+	GlobalSyncEngine = sync_engine.NewSyncEngine(DB, 10, GlobalSyncTaskService)
+	// 更新SyncTaskService中的SyncEngine引用
+	GlobalSyncTaskService.syncEngine = GlobalSyncEngine
+	// 初始化调度器服务
+	GlobalSchedulerService = NewSchedulerService(DB, GlobalSyncTaskService, GlobalSyncEngine)
+
+	// 初始化数据源
+	initializeDataSources()
+
+	// 启动调度器
+	if err := GlobalSchedulerService.Start(); err != nil {
+		log.Printf("启动调度器服务失败: %v", err)
+	}
 	log.Println("服务初始化完成")
+}
+
+// initializeDataSources 初始化数据源
+func initializeDataSources() {
+	log.Println("开始初始化数据源...")
+
+	// 获取数据源初始化服务
+	datasourceInitService := GlobalBasicLibraryService.GetDatasourceInitService()
+
+	// 创建带超时的上下文
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	// 初始化并启动所有数据源（合并操作）
+	result, err := datasourceInitService.InitializeAndStartAllDataSources(ctx)
+	if err != nil {
+		log.Printf("数据源初始化失败: %v", err)
+		return
+	}
+
+	// 输出初始化结果
+	log.Printf("数据源初始化结果: 总计=%d, 成功=%d, 失败=%d, 跳过=%d, 耗时=%dms",
+		result.TotalCount, result.SuccessCount, result.FailedCount, result.SkippedCount, result.Duration)
+
+	if result.FailedCount > 0 {
+		log.Printf("失败的数据源: %v", result.FailedSources)
+	}
+
+	log.Println("数据源初始化和启动流程完成")
 }

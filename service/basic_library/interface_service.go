@@ -12,6 +12,10 @@
 package basic_library
 
 import (
+	"context"
+	"datahub-service/service/database"
+	"datahub-service/service/datasource"
+	"datahub-service/service/interface_executor"
 	"datahub-service/service/models"
 	"encoding/json"
 	"errors"
@@ -23,13 +27,21 @@ import (
 
 // InterfaceService 接口服务
 type InterfaceService struct {
-	db *gorm.DB
+	db                *gorm.DB
+	datasourceManager datasource.DataSourceManager
+	executor          *interface_executor.InterfaceExecutor
+	schemaService     *database.SchemaService
 }
 
 // NewInterfaceService 创建接口服务实例
-func NewInterfaceService(db *gorm.DB) *InterfaceService {
+func NewInterfaceService(db *gorm.DB, datasourceManager datasource.DataSourceManager) *InterfaceService {
+	executor := interface_executor.NewInterfaceExecutor(db, datasourceManager)
+	schemaService := database.NewSchemaService(db)
 	return &InterfaceService{
-		db: db,
+		db:                db,
+		datasourceManager: datasourceManager,
+		executor:          executor,
+		schemaService:     schemaService,
 	}
 }
 
@@ -66,6 +78,25 @@ func (s *InterfaceService) CreateDataInterface(interfaceData *models.DataInterfa
 	return s.db.Create(interfaceData).Error
 }
 
+// UpdateDataInterface 更新数据接口
+func (s *InterfaceService) UpdateDataInterface(id string, updates map[string]interface{}) error {
+	// 检查是否存在
+	var interfaceData models.DataInterface
+	if err := s.db.First(&interfaceData, "id = ?", id).Error; err != nil {
+		return err
+	}
+
+	// 如果更新英文名称，检查是否重复
+	if nameEn, exists := updates["name_en"]; exists {
+		var existing models.DataInterface
+		if err := s.db.Where("library_id = ? AND name_en = ? AND id != ?", interfaceData.LibraryID, nameEn, id).First(&existing).Error; err == nil {
+			return errors.New("接口英文名称在该基础库中已存在")
+		}
+	}
+
+	return s.db.Model(&interfaceData).Updates(updates).Error
+}
+
 // DeleteDataInterface 删除数据接口
 func (s *InterfaceService) DeleteDataInterface(interfaceData *models.DataInterface) error {
 	// 检查接口是否存在
@@ -76,6 +107,10 @@ func (s *InterfaceService) DeleteDataInterface(interfaceData *models.DataInterfa
 	s.db.Where("interface_id = ?", interfaceData.ID).Delete(&models.InterfaceField{})
 	s.db.Where("interface_id = ?", interfaceData.ID).Delete(&models.InterfaceStatus{})
 	s.db.Where("interface_id = ?", interfaceData.ID).Delete(&models.InterfaceStatus{})
+	err := s.schemaService.ManageTableSchema(interfaceData.ID, "drop_table", interfaceData.BasicLibrary.NameEn, interfaceData.NameEn, []models.TableField{})
+	if err != nil {
+		return fmt.Errorf("删除表结构失败: %w", err)
+	}
 	return s.db.Delete(interfaceData).Error
 }
 
@@ -116,86 +151,86 @@ func (s *InterfaceService) GetDataInterfaces(libraryID string, page, pageSize in
 		return nil, 0, err
 	}
 
-	// 分页查询
+	// 分页查询，预加载关联数据
 	offset := (page - 1) * pageSize
-	err := query.Preload("BasicLibrary").Offset(offset).Limit(pageSize).Find(&interfaces).Error
+	err := query.Preload("BasicLibrary").Preload("DataSource").
+		Preload("Fields").Preload("CleanRules").
+		Offset(offset).Limit(pageSize).Find(&interfaces).Error
 
 	return interfaces, total, err
 }
 
 // TestInterface 测试接口调用
 func (s *InterfaceService) TestInterface(interfaceID, testType string, parameters, options map[string]interface{}) (*InterfaceTestResult, error) {
-	startTime := time.Now()
-
-	// 获取接口信息
-	interfaceData, err := s.GetDataInterface(interfaceID)
-	if err != nil {
-		return &InterfaceTestResult{
-			Success:  false,
-			Message:  "接口不存在",
-			Duration: time.Since(startTime).Milliseconds(),
-			TestType: testType,
-			Error:    err.Error(),
-		}, err
-	}
+	ctx := context.Background()
 
 	// 根据测试类型进行不同的测试
 	switch testType {
 	case "data_fetch":
-		return s.testDataFetch(interfaceData, parameters, options, startTime)
+		// 数据获取测试：实际执行接口同步，更新表数据
+		request := &interface_executor.ExecuteRequest{
+			InterfaceID:   interfaceID,
+			InterfaceType: "basic_library",
+			ExecuteType:   "sync",
+			Parameters:    parameters,
+			Options:       options,
+		}
+
+		response, err := s.executor.Execute(ctx, request)
+		if err != nil {
+			return &InterfaceTestResult{
+				Success:  false,
+				Message:  "接口测试失败",
+				Duration: response.Duration,
+				TestType: testType,
+				Error:    err.Error(),
+			}, err
+		}
+
+		return &InterfaceTestResult{
+			Success:     response.Success,
+			Message:     response.Message,
+			Duration:    response.Duration,
+			TestType:    testType,
+			Data:        response.Data,
+			RowCount:    response.RowCount,
+			ColumnCount: response.ColumnCount,
+			DataTypes:   response.DataTypes,
+			Warnings:    response.Warnings,
+		}, nil
+
 	case "performance":
-		return s.testPerformance(interfaceData, parameters, options, startTime)
+		return s.testPerformance(nil, parameters, options, time.Now())
 	case "validation":
-		return s.testValidation(interfaceData, parameters, options, startTime)
+		return s.testValidation(nil, parameters, options, time.Now())
 	default:
 		return &InterfaceTestResult{
 			Success:  false,
 			Message:  "不支持的测试类型",
-			Duration: time.Since(startTime).Milliseconds(),
+			Duration: 0,
 			TestType: testType,
 			Error:    "unsupported test type",
 		}, fmt.Errorf("不支持的测试类型: %s", testType)
 	}
 }
 
-// testDataFetch 测试数据获取
-func (s *InterfaceService) testDataFetch(interfaceData *models.DataInterface, parameters, options map[string]interface{}, startTime time.Time) (*InterfaceTestResult, error) {
-	// 模拟数据获取
-	sampleData := []map[string]interface{}{
-		{"id": 1, "name": "用户A", "email": "usera@example.com", "created_at": "2024-01-01T10:00:00Z"},
-		{"id": 2, "name": "用户B", "email": "userb@example.com", "created_at": "2024-01-01T11:00:00Z"},
-		{"id": 3, "name": "用户C", "email": "userc@example.com", "created_at": "2024-01-01T12:00:00Z"},
+// isDateTime 检测字符串是否为日期时间格式
+func (s *InterfaceService) isDateTime(str string) bool {
+	// 常见的日期时间格式
+	formats := []string{
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+		"15:04:05",
 	}
 
-	// 分析数据类型
-	dataTypes := map[string]string{
-		"id":         "integer",
-		"name":       "string",
-		"email":      "string",
-		"created_at": "datetime",
+	for _, format := range formats {
+		if _, err := time.Parse(format, str); err == nil {
+			return true
+		}
 	}
-
-	warnings := []string{}
-	if len(sampleData) > 1000 {
-		warnings = append(warnings, "数据量较大，建议分页查询")
-	}
-
-	// 更新接口状态
-	s.updateInterfaceStatus(interfaceData.ID, "active", nil, nil)
-
-	result := &InterfaceTestResult{
-		Success:     true,
-		Message:     "数据获取测试成功",
-		Duration:    time.Since(startTime).Milliseconds(),
-		TestType:    "data_fetch",
-		Data:        sampleData,
-		RowCount:    len(sampleData),
-		ColumnCount: len(dataTypes),
-		DataTypes:   dataTypes,
-		Warnings:    warnings,
-	}
-
-	return result, nil
+	return false
 }
 
 // testPerformance 测试性能
@@ -272,49 +307,38 @@ func (s *InterfaceService) testValidation(interfaceData *models.DataInterface, p
 
 // PreviewInterfaceData 预览接口数据
 func (s *InterfaceService) PreviewInterfaceData(id string, limit int) (interface{}, error) {
-	// 获取接口信息
-	interfaceData, err := s.GetDataInterface(id)
+	ctx := context.Background()
+
+	// 使用通用执行器进行预览
+	request := &interface_executor.ExecuteRequest{
+		InterfaceID:   id,
+		InterfaceType: "basic_library",
+		ExecuteType:   "preview",
+		Limit:         limit,
+	}
+
+	response, err := s.executor.Execute(ctx, request)
 	if err != nil {
 		return nil, err
 	}
 
-	// 检查表是否已创建
-	if !interfaceData.IsTableCreated {
-		return nil, fmt.Errorf("接口表尚未创建，无法预览数据")
-	}
-
-	// 构造表名：schema.table_name
-	schemaName := interfaceData.BasicLibrary.NameEn
-	tableName := interfaceData.NameEn
-	fullTableName := fmt.Sprintf(`"%s"."%s"`, schemaName, tableName)
-
-	// 设置默认限制
-	if limit <= 0 || limit > 1000 {
-		limit = 10
-	}
-
-	// 查询真实数据
-	previewData, actualCount, err := s.queryTableData(fullTableName, limit)
-	if err != nil {
-		return nil, fmt.Errorf("查询接口表数据失败: %v", err)
-	}
-
-	// 获取表结构信息
-	tableInfo, err := s.getTableStructure(fullTableName)
-
+	// 返回预览结果
 	return map[string]interface{}{
-		"interface_id":     id,
-		"interface_name":   interfaceData.NameZh,
-		"interface_type":   interfaceData.Type,
-		"schema_name":      schemaName,
-		"table_name":       tableName,
-		"full_table_name":  fullTableName,
-		"requested_limit":  limit,
-		"actual_count":     actualCount,
-		"preview_data":     previewData,
-		"fields_info":      tableInfo,
-		"is_table_created": interfaceData.IsTableCreated,
-		"queried_at":       time.Now(),
+		"interface_id":    response.Metadata["interface_id"],
+		"interface_name":  response.Metadata["interface_name"],
+		"interface_type":  "basic_library",
+		"schema_name":     response.Metadata["schema_name"],
+		"table_name":      response.Metadata["table_name"],
+		"requested_limit": response.Metadata["requested_limit"],
+		"actual_count":    response.RowCount,
+		"preview_data":    response.Data,
+		"data_types":      response.DataTypes,
+		"column_count":    response.ColumnCount,
+		"warnings":        response.Warnings,
+		"queried_at":      time.Now(),
+		"success":         response.Success,
+		"message":         response.Message,
+		"duration":        response.Duration,
 	}, nil
 }
 
@@ -412,151 +436,6 @@ func (s *InterfaceService) getFieldsInfo(fields []models.TableField) []map[strin
 	}
 
 	return fieldsInfo
-}
-
-// queryTableData 查询表数据
-func (s *InterfaceService) queryTableData(fullTableName string, limit int) ([]map[string]interface{}, int, error) {
-	// 构造安全的查询SQL
-	sql := fmt.Sprintf("SELECT * FROM %s LIMIT %d", fullTableName, limit)
-
-	rows, err := s.db.Raw(sql).Rows()
-	if err != nil {
-		return nil, 0, err
-	}
-	defer rows.Close()
-
-	// 获取列名
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, 0, err
-	}
-
-	var result []map[string]interface{}
-	for rows.Next() {
-		// 创建接收数据的slice
-		values := make([]interface{}, len(columns))
-		valuePtrs := make([]interface{}, len(columns))
-		for i := range values {
-			valuePtrs[i] = &values[i]
-		}
-
-		// 扫描行数据
-		if err := rows.Scan(valuePtrs...); err != nil {
-			return nil, 0, err
-		}
-
-		// 构造map
-		record := make(map[string]interface{})
-		for i, col := range columns {
-			val := values[i]
-			if val != nil {
-				// 处理字节数组类型
-				if b, ok := val.([]byte); ok {
-					record[col] = string(b)
-				} else {
-					record[col] = val
-				}
-			} else {
-				record[col] = nil
-			}
-		}
-		result = append(result, record)
-	}
-
-	return result, len(result), nil
-}
-
-// getTableStructure 获取表结构信息
-func (s *InterfaceService) getTableStructure(fullTableName string) ([]map[string]interface{}, error) {
-	// 解析schema和table名称 - 从 "schema"."table" 格式中提取
-	// 去掉引号并分割
-	cleanName := fullTableName[1 : len(fullTableName)-1] // 去掉外层引号
-	parts := []string{}
-	current := ""
-	inQuotes := false
-
-	for i, char := range cleanName {
-		if char == '"' {
-			inQuotes = !inQuotes
-		} else if char == '.' && !inQuotes {
-			parts = append(parts, current)
-			current = ""
-			continue
-		} else {
-			current += string(char)
-		}
-
-		if i == len(cleanName)-1 {
-			parts = append(parts, current)
-		}
-	}
-
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("无效的表名格式: %s", fullTableName)
-	}
-
-	schemaName := parts[0]
-	tableName := parts[1]
-
-	// 查询PostgreSQL系统表获取列信息
-	sql := `
-		SELECT 
-			column_name,
-			data_type,
-			character_maximum_length,
-			numeric_precision,
-			numeric_scale,
-			is_nullable,
-			column_default,
-			ordinal_position
-		FROM information_schema.columns 
-		WHERE table_schema = ? AND table_name = ?
-		ORDER BY ordinal_position
-	`
-
-	rows, err := s.db.Raw(sql, schemaName, tableName).Rows()
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var fieldsInfo []map[string]interface{}
-	for rows.Next() {
-		var columnName, dataType, isNullable string
-		var maxLength, precision, scale, position *int
-		var defaultValue *string
-
-		err := rows.Scan(&columnName, &dataType, &maxLength, &precision, &scale, &isNullable, &defaultValue, &position)
-		if err != nil {
-			return nil, err
-		}
-
-		fieldInfo := map[string]interface{}{
-			"name_en":     columnName,
-			"name_zh":     columnName, // 如果没有中文名映射，使用英文名
-			"data_type":   dataType,
-			"is_nullable": isNullable == "YES",
-			"order_num":   position,
-			"description": "",
-		}
-
-		if maxLength != nil {
-			fieldInfo["data_length"] = *maxLength
-		}
-		if precision != nil {
-			fieldInfo["data_precision"] = *precision
-		}
-		if scale != nil {
-			fieldInfo["data_scale"] = *scale
-		}
-		if defaultValue != nil {
-			fieldInfo["default_value"] = *defaultValue
-		}
-
-		fieldsInfo = append(fieldsInfo, fieldInfo)
-	}
-
-	return fieldsInfo, nil
 }
 
 // updateInterfaceStatus 更新接口状态
@@ -662,6 +541,94 @@ func (s *InterfaceService) CreateInterfaceFields(interfaceID string, fields []ma
 
 		if err := s.db.Create(&field).Error; err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+// UpdateInterfaceFields 更新接口字段配置
+func (s *InterfaceService) UpdateInterfaceFields(interfaceID string, fields []models.TableField, updateTable bool) error {
+	// 获取接口信息
+	interfaceData, err := s.GetDataInterface(interfaceID)
+	if err != nil {
+		return fmt.Errorf("获取接口信息失败: %w", err)
+	}
+	schemaName := interfaceData.BasicLibrary.NameEn
+	tableName := interfaceData.NameEn
+
+	if schemaName == "" || tableName == "" {
+		return fmt.Errorf("接口信息中没有找到库名或表名")
+	}
+	if !interfaceData.IsTableCreated {
+		err := s.schemaService.ManageTableSchema(interfaceID, "create_table", schemaName, tableName, fields)
+		if err != nil {
+			return fmt.Errorf("创建表结构失败: %w", err)
+		}
+		interfaceData.IsTableCreated = true
+		if err := s.db.Model(&interfaceData).Where("id = ?", interfaceID).Updates(map[string]interface{}{"is_table_created": true}).Error; err != nil {
+			s.schemaService.ManageTableSchema(interfaceID, "drop_table", schemaName, tableName, []models.TableField{})
+			return fmt.Errorf("更新接口表创建状态失败: %w", err)
+		}
+	}
+
+	// 转换字段为JSONB格式（需要是map[string]interface{}）
+	fieldsData := make(models.JSONB)
+	for i, field := range fields {
+		fieldsData[fmt.Sprintf("field_%d", i)] = field
+	}
+
+	// 更新接口字段配置
+	updates := map[string]interface{}{
+		"table_fields_config": fieldsData,
+		"updated_at":          time.Now(),
+	}
+
+	if err := s.db.Model(&models.DataInterface{}).Where("id = ?", interfaceID).Updates(updates).Error; err != nil {
+		s.schemaService.ManageTableSchema(interfaceID, "drop_table", schemaName, tableName, []models.TableField{})
+		interfaceData.IsTableCreated = false
+		s.db.Model(&interfaceData).Where("id = ?", interfaceID).Updates(map[string]interface{}{"is_table_created": false})
+		return fmt.Errorf("更新接口字段配置失败: %w", err)
+	}
+
+	// 如果需要更新表结构
+	if updateTable && interfaceData.IsTableCreated {
+		schemaName := interfaceData.BasicLibrary.NameEn
+		tableName := interfaceData.NameEn
+
+		// 调用SchemaService更新表结构
+		err := s.schemaService.ManageTableSchema(interfaceID, "alter_table", schemaName, tableName, fields)
+		if err != nil {
+			// 如果表结构更新失败，记录警告但不回滚字段配置更新
+			// 因为字段配置可能用于其他目的（如数据验证、界面显示等）
+			return fmt.Errorf("更新表结构失败，但字段配置已更新: %w", err)
+		}
+	}
+
+	// 删除旧的接口字段记录
+	if err := s.db.Where("interface_id = ?", interfaceID).Delete(&models.InterfaceField{}).Error; err != nil {
+		return fmt.Errorf("删除旧字段记录失败: %w", err)
+	}
+
+	// 创建新的接口字段记录
+	for _, field := range fields {
+		interfaceField := models.InterfaceField{
+			InterfaceID:      interfaceID,
+			NameZh:           field.NameZh,
+			NameEn:           field.NameEn,
+			DataType:         field.DataType,
+			IsPrimaryKey:     field.IsPrimaryKey,
+			IsUnique:         field.IsUnique,
+			IsNullable:       field.IsNullable,
+			DefaultValue:     field.DefaultValue,
+			Description:      field.Description,
+			OrderNum:         field.OrderNum,
+			CheckConstraint:  field.CheckConstraint,
+			IsIncrementField: field.IsIncrementField,
+		}
+
+		if err := s.db.Create(&interfaceField).Error; err != nil {
+			return fmt.Errorf("创建字段记录失败: %w", err)
 		}
 	}
 

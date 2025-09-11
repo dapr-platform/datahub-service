@@ -600,3 +600,68 @@ func (s *EventService) getTriggersViaHTTP() ([]TriggerInfo, error) {
 	log.Printf("通过 HTTP 获取到 %d 个触发器", len(triggers))
 	return triggers, nil
 }
+
+// GetSSEConnectionList 获取SSE连接列表
+func (s *EventService) GetSSEConnectionList(page, pageSize int, userName, clientIP string, isActive *bool) ([]models.SSEConnection, int64, error) {
+	var connections []models.SSEConnection
+	var total int64
+
+	query := s.db.Model(&models.SSEConnection{})
+
+	// 添加过滤条件
+	if userName != "" {
+		query = query.Where("user_name = ?", userName)
+	}
+	if clientIP != "" {
+		query = query.Where("client_ip = ?", clientIP)
+	}
+	if isActive != nil {
+		query = query.Where("is_active = ?", *isActive)
+	}
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * pageSize
+	err := query.Order("connected_at DESC").
+		Offset(offset).Limit(pageSize).Find(&connections).Error
+
+	return connections, total, err
+}
+
+// GetEventHistoryList 获取事件历史列表
+func (s *EventService) GetEventHistoryList(page, pageSize int, userName, eventType string, sent, read *bool) ([]models.SSEEvent, int64, error) {
+	var events []models.SSEEvent
+	var total int64
+
+	query := s.db.Model(&models.SSEEvent{})
+
+	// 添加过滤条件
+	if userName != "" {
+		query = query.Where("user_name = ?", userName)
+	}
+	if eventType != "" {
+		query = query.Where("event_type = ?", eventType)
+	}
+	if sent != nil {
+		query = query.Where("sent = ?", *sent)
+	}
+	if read != nil {
+		query = query.Where("read = ?", *read)
+	}
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * pageSize
+	err := query.Order("created_at DESC").
+		Offset(offset).Limit(pageSize).Find(&events).Error
+
+	return events, total, err
+}

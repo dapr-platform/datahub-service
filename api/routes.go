@@ -52,6 +52,10 @@ func InitRoute(r *chi.Mux) {
 	r.Route("/events", func(r chi.Router) {
 		r.Post("/send", eventController.SendEvent)
 		r.Post("/broadcast", eventController.BroadcastEvent)
+
+		// 列表查询接口
+		r.Get("/connections", eventController.GetSSEConnectionList)
+		r.Get("/history", eventController.GetEventHistoryList)
 	})
 
 	// 表管理
@@ -63,18 +67,32 @@ func InitRoute(r *chi.Mux) {
 	// 元数据管理
 	r.Route("/meta", func(r chi.Router) {
 		metaController := controllers.NewMetaController()
-		r.Get("/basic-libraries/data-sources", metaController.GetDataSourceTypes)
-		r.Get("/basic-libraries/data-interface-configs", metaController.GetDataInterfaceConfigs)
-		r.Get("/basic-libraries/sync-task-types", metaController.GetSyncTaskTypes)
-		r.Get("/basic-libraries/sync-task-meta", metaController.GetSyncTaskRelated)
-		r.Get("/thematic-libraries/categories", metaController.GetThematicLibraryCategories)
-		r.Get("/thematic-libraries/domains", metaController.GetThematicLibraryDomains)
-		r.Get("/thematic-libraries/access-levels", metaController.GetThematicLibraryAccessLevels)
+
+		// 通用同步任务元数据（基础库和主题库共用）
+		r.Get("/sync-tasks", metaController.GetSyncTaskMeta)
+
+		// 基础库相关元数据
+		r.Route("/basic-libraries", func(r chi.Router) {
+			r.Get("/data-sources", metaController.GetDataSourceTypes)
+			r.Get("/data-interface-configs", metaController.GetDataInterfaceConfigs)
+		})
+
+		// 主题库相关元数据
+		r.Route("/thematic-libraries", func(r chi.Router) {
+			r.Get("/categories", metaController.GetThematicLibraryCategories)
+			r.Get("/domains", metaController.GetThematicLibraryDomains)
+			r.Get("/access-levels", metaController.GetThematicLibraryAccessLevels)
+		})
 	})
 
 	// 基础库管理（保留现有功能接口）
 	r.Route("/basic-libraries", func(r chi.Router) {
 		basicLibraryController := controllers.NewBasicLibraryController()
+
+		// 列表查询接口
+		r.Get("/", basicLibraryController.GetBasicLibraryList)
+		r.Get("/datasources", basicLibraryController.GetDataSourceList)
+		r.Get("/interfaces", basicLibraryController.GetDataInterfaceList)
 
 		// 数据源测试
 		r.Post("/test-datasource", basicLibraryController.TestDataSource)
@@ -100,25 +118,64 @@ func InitRoute(r *chi.Mux) {
 		// 添加数据源
 		r.Post("/add-datasource", basicLibraryController.AddDataSource)
 
+		// 修改数据源
+		r.Post("/update-datasource", basicLibraryController.UpdateDataSource)
+
 		// 删除数据源
 		r.Post("/delete-datasource", basicLibraryController.DeleteDataSource)
 
 		// 添加数据接口
 		r.Post("/add-interface", basicLibraryController.AddInterface)
 
+		// 修改数据接口
+		r.Post("/update-interface", basicLibraryController.UpdateInterface)
+
 		// 删除数据接口
 		r.Post("/delete-interface", basicLibraryController.DeleteInterface)
+
+		// 更新接口字段配置
+		r.Post("/update-interface-fields", basicLibraryController.UpdateInterfaceFields)
+
+		// 数据源管理器相关接口
+		r.Get("/datasource-manager-stats", basicLibraryController.GetDataSourceManagerStats)
+		r.Get("/resident-datasources", basicLibraryController.GetResidentDataSources)
+		r.Post("/restart-resident-datasource/{id}", basicLibraryController.RestartResidentDataSource)
+		r.Post("/reload-datasource/{id}", basicLibraryController.ReloadDataSource)
+		r.Post("/health-check-all", basicLibraryController.HealthCheckAllDataSources)
 	})
 
 	// 主题库管理
 	r.Route("/thematic-libraries", func(r chi.Router) {
 		thematicLibraryController := controllers.NewThematicLibraryController()
 
+		// 列表查询接口
+		r.Get("/", thematicLibraryController.GetThematicLibraryList)
+
 		// 基础CRUD操作
 		r.Post("/", thematicLibraryController.CreateThematicLibrary)
 		r.Get("/{id}", thematicLibraryController.GetThematicLibrary)
 		r.Put("/{id}", thematicLibraryController.UpdateThematicLibrary)
 		r.Delete("/{id}", thematicLibraryController.DeleteThematicLibrary)
+
+		// 发布操作
+		r.Post("/{id}/publish", thematicLibraryController.PublishThematicLibrary)
+	})
+
+	// 主题接口管理
+	r.Route("/thematic-interfaces", func(r chi.Router) {
+		thematicLibraryController := controllers.NewThematicLibraryController()
+
+		// 列表查询接口
+		r.Get("/", thematicLibraryController.GetThematicInterfaceList)
+
+		// 基础CRUD操作
+		r.Post("/", thematicLibraryController.CreateThematicInterface)
+		r.Get("/{id}", thematicLibraryController.GetThematicInterface)
+		r.Put("/{id}", thematicLibraryController.UpdateThematicInterface)
+		r.Delete("/{id}", thematicLibraryController.DeleteThematicInterface)
+
+		// 更新主题接口字段配置
+		r.Post("/update-fields", thematicLibraryController.UpdateThematicInterfaceFields)
 	})
 
 	// 通用同步任务管理（统一接口）
@@ -275,18 +332,6 @@ func InitRoute(r *chi.Mux) {
 			r.Post("/{id}/approve", sharingController.ApproveDataAccessRequest)
 		})
 
-		// 数据同步任务管理
-		r.Route("/data-sync-tasks", func(r chi.Router) {
-			r.Post("/", sharingController.CreateDataSyncTask)
-			r.Get("/", sharingController.GetDataSyncTasks)
-			r.Get("/{id}", sharingController.GetDataSyncTaskByID)
-			r.Put("/{id}", sharingController.UpdateDataSyncTask)
-			r.Delete("/{id}", sharingController.DeleteDataSyncTask)
-		})
-
-		// 数据同步日志管理
-		r.Get("/data-sync-logs", sharingController.GetDataSyncLogs)
-
 		// API使用日志管理
 		r.Get("/api-usage-logs", sharingController.GetApiUsageLogs)
 	})
@@ -331,5 +376,18 @@ func InitRoute(r *chi.Mux) {
 
 		// 性能报告
 		r.Get("/performance-report", monitoringController.GeneratePerformanceReport)
+	})
+
+	// 数据查看路由
+	dataViewController := controllers.NewDataViewController(service.DB)
+	r.Route("/data-view", func(r chi.Router) {
+		// 获取库的所有表
+		r.Get("/{library_type}/{library_id}/tables", dataViewController.GetLibraryTables)
+
+		// 获取表数据
+		r.Get("/{library_type}/{library_id}/tables/{table_name}/data", dataViewController.GetTableData)
+
+		// 获取表结构
+		r.Get("/{library_type}/{library_id}/tables/{table_name}/structure", dataViewController.GetTableStructure)
 	})
 }

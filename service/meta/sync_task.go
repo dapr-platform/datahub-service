@@ -9,81 +9,89 @@ const (
 	SyncTaskTypeRealtimeSync    = "realtime_sync"
 )
 
-var SyncTaskTypes = []MetaField{	
+var SyncTaskTypes = []MetaField{
 	{
-		Name: "full_sync",
-		DisplayName: "全量同步",
-		Type: "string",
-		Required: true,
+		Name:         "full_sync",
+		DisplayName:  "全量同步",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "incremental_sync",
-		DisplayName: "增量同步",
-		Type: "string",
-		Required: true,
+		Name:         "incremental_sync",
+		DisplayName:  "增量同步",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "realtime_sync",
-		DisplayName: "实时同步",
-		Type: "string",
-		Required: true,
+		Name:         "realtime_sync",
+		DisplayName:  "实时同步",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 }
 
-
 // 同步任务状态常量
 const (
-	SyncTaskStatusPending   = "pending"
-	SyncTaskStatusRunning   = "running"
-	SyncTaskStatusSuccess   = "success"
-	SyncTaskStatusFailed    = "failed"
-	SyncTaskStatusCancelled = "cancelled"
-	SyncTaskStatusPaused    = "paused"
+	SyncTaskStatusPending   = "pending"   // 待执行
+	SyncTaskStatusRunning   = "running"   // 运行中
+	SyncTaskStatusSuccess   = "success"   // 成功
+	SyncTaskStatusFailed    = "failed"    // 失败
+	SyncTaskStatusCancelled = "cancelled" // 已取消
 )
+
+// 同步任务执行时机常量
+const (
+	SyncTaskTriggerManual   = "manual"   // 手动执行
+	SyncTaskTriggerOnce     = "once"     // 单次执行
+	SyncTaskTriggerInterval = "interval" // 间隔执行
+	SyncTaskTriggerCron     = "cron"     // Cron表达式执行
+)
+
+// 同步任务执行记录状态常量
+const (
+	SyncExecutionStatusRunning   = "running"   // 运行中
+	SyncExecutionStatusSuccess   = "success"   // 成功
+	SyncExecutionStatusFailed    = "failed"    // 失败
+	SyncExecutionStatusCancelled = "cancelled" // 已取消
+)
+
 var SyncTaskStatuses = []MetaField{
 	{
-		Name: "pending",
-		DisplayName: "待执行",
-		Type: "string",
-		Required: true,
+		Name:         "pending",
+		DisplayName:  "待执行",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "running",
-		DisplayName: "执行中",
-		Type: "string",
-		Required: true,
+		Name:         "running",
+		DisplayName:  "执行中",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "success",
-		DisplayName: "成功",
-		Type: "string",
-		Required: true,
+		Name:         "success",
+		DisplayName:  "成功",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "failed",
-		DisplayName: "失败",
-		Type: "string",
-		Required: true,
+		Name:         "failed",
+		DisplayName:  "失败",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "cancelled",
-		DisplayName: "取消",
-		Type: "string",
-		Required: true,
-		DefaultValue: "",
-	},
-	{
-		Name: "paused",
-		DisplayName: "暂停",
-		Type: "string",
-		Required: true,
+		Name:         "cancelled",
+		DisplayName:  "取消",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 }
@@ -95,33 +103,34 @@ const (
 	SyncTaskScheduleTypeOnce     = "once"
 	SyncTaskScheduleTypeManual   = "manual"
 )
-var SyncTaskScheduleTypes = []MetaField{		
+
+var SyncTaskScheduleTypes = []MetaField{
 	{
-		Name: "cron",
-		DisplayName: "Cron",
-		Type: "string",
-		Required: true,
+		Name:         "cron",
+		DisplayName:  "Cron",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "interval",
-		DisplayName: "Interval",
-		Type: "string",
-		Required: true,
+		Name:         "interval",
+		DisplayName:  "Interval",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "once",
-		DisplayName: "Once",
-		Type: "string",
-		Required: true,
+		Name:         "once",
+		DisplayName:  "Once",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "manual",
-		DisplayName: "Manual",
-		Type: "string",
-		Required: true,
+		Name:         "manual",
+		DisplayName:  "Manual",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 }
@@ -144,54 +153,55 @@ const (
 	SyncEventTypeResume   = "resume"
 	SyncEventTypeCancel   = "cancel"
 )
-var SyncEventTypes = []MetaField{	
+
+var SyncEventTypes = []MetaField{
 	{
-		Name: "start",
-		DisplayName: "开始",
-		Type: "string",
-		Required: true,
+		Name:         "start",
+		DisplayName:  "开始",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "progress",
-		DisplayName: "进度",
-		Type: "string",
-		Required: true,
+		Name:         "progress",
+		DisplayName:  "进度",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "complete",
-		DisplayName: "完成",
-		Type: "string",
-		Required: true,
+		Name:         "complete",
+		DisplayName:  "完成",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "error",
-		DisplayName: "错误",
-		Type: "string",
-		Required: true,
+		Name:         "error",
+		DisplayName:  "错误",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "pause",
-		DisplayName: "暂停",
-		Type: "string",
-		Required: true,
+		Name:         "pause",
+		DisplayName:  "暂停",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "resume",
-		DisplayName: "恢复",
-		Type: "string",
-		Required: true,
+		Name:         "resume",
+		DisplayName:  "恢复",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 	{
-		Name: "cancel",
-		DisplayName: "取消",
-		Type: "string",
-		Required: true,
+		Name:         "cancel",
+		DisplayName:  "取消",
+		Type:         "string",
+		Required:     true,
 		DefaultValue: "",
 	},
 }
@@ -202,7 +212,6 @@ const (
 	ComplexityMedium = "medium"
 	ComplexityHigh   = "high"
 )
-
 
 // 调度配置字段常量
 const (
@@ -224,7 +233,28 @@ func IsValidTaskStatus(status string) bool {
 		SyncTaskStatusSuccess:   true,
 		SyncTaskStatusFailed:    true,
 		SyncTaskStatusCancelled: true,
-		SyncTaskStatusPaused:    true,
+	}
+	return validStatuses[status]
+}
+
+// IsValidSyncTaskTrigger 验证同步任务执行时机是否有效
+func IsValidSyncTaskTrigger(trigger string) bool {
+	validTriggers := map[string]bool{
+		SyncTaskTriggerManual:   true,
+		SyncTaskTriggerOnce:     true,
+		SyncTaskTriggerInterval: true,
+		SyncTaskTriggerCron:     true,
+	}
+	return validTriggers[trigger]
+}
+
+// IsValidSyncExecutionStatus 验证同步执行记录状态是否有效
+func IsValidSyncExecutionStatus(status string) bool {
+	validStatuses := map[string]bool{
+		SyncExecutionStatusRunning:   true,
+		SyncExecutionStatusSuccess:   true,
+		SyncExecutionStatusFailed:    true,
+		SyncExecutionStatusCancelled: true,
 	}
 	return validStatuses[status]
 }
@@ -302,11 +332,6 @@ func CanTransitionStatus(from, to string) bool {
 		SyncTaskStatusRunning: {
 			SyncTaskStatusSuccess,
 			SyncTaskStatusFailed,
-			SyncTaskStatusCancelled,
-			SyncTaskStatusPaused,
-		},
-		SyncTaskStatusPaused: {
-			SyncTaskStatusRunning,
 			SyncTaskStatusCancelled,
 		},
 		SyncTaskStatusFailed: {

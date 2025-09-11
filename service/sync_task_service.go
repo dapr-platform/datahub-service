@@ -271,10 +271,14 @@ func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTas
 		return nil, err
 	}
 
-	// 验证接口（如果提供）
-	if req.InterfaceID != nil {
-		if err := handler.ValidateInterface(req.LibraryID, *req.InterfaceID); err != nil {
-			return nil, err
+	// 验证所有接口
+	if len(req.InterfaceIDs) == 0 {
+		return nil, fmt.Errorf("必须提供至少一个接口ID")
+	}
+
+	for _, interfaceID := range req.InterfaceIDs {
+		if err := handler.ValidateInterface(req.LibraryID, interfaceID); err != nil {
+			return nil, fmt.Errorf("验证接口 %s 失败: %w", interfaceID, err)
 		}
 	}
 
@@ -284,20 +288,69 @@ func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTas
 		return nil, fmt.Errorf("准备任务配置失败: %w", err)
 	}
 
+	// 开启事务
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	// 创建任务
 	task := &models.SyncTask{
-		LibraryType:  req.LibraryType,
-		LibraryID:    req.LibraryID,
-		DataSourceID: req.DataSourceID,
-		InterfaceID:  req.InterfaceID,
-		TaskType:     req.TaskType,
-		Status:       meta.SyncTaskStatusPending,
-		Config:       config,
-		CreatedBy:    req.CreatedBy,
+		LibraryType:     req.LibraryType,
+		LibraryID:       req.LibraryID,
+		DataSourceID:    req.DataSourceID,
+		TaskType:        req.TaskType,
+		TriggerType:     req.TriggerType,
+		CronExpression:  req.CronExpression,
+		IntervalSeconds: req.IntervalSeconds,
+		ScheduledTime:   req.ScheduledTime,
+		Status:          meta.SyncTaskStatusPending,
+		Config:          config,
+		CreatedBy:       req.CreatedBy,
 	}
 
-	if err := s.db.Create(task).Error; err != nil {
+	// 根据触发类型设置下次执行时间
+	if err := s.calculateNextRunTime(task); err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("计算下次执行时间失败: %w", err)
+	}
+
+	if err := tx.Create(task).Error; err != nil {
+		tx.Rollback()
 		return nil, fmt.Errorf("创建同步任务失败: %w", err)
+	}
+
+	// 创建接口配置映射
+	interfaceConfigMap := make(map[string]map[string]interface{})
+	for _, interfaceConfig := range req.InterfaceConfigs {
+		interfaceConfigMap[interfaceConfig.InterfaceID] = interfaceConfig.Config
+	}
+
+	// 创建任务接口关联记录
+	for _, interfaceID := range req.InterfaceIDs {
+		taskInterface := &models.SyncTaskInterface{
+			TaskID:      task.ID,
+			InterfaceID: interfaceID,
+			Status:      meta.SyncTaskStatusPending,
+			Config:      interfaceConfigMap[interfaceID],
+		}
+
+		if err := tx.Create(taskInterface).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("创建任务接口关联失败: %w", err)
+		}
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	// 重新加载任务以包含关联数据
+	if err := s.db.Preload("TaskInterfaces").Preload("DataSource").First(task, "id = ?", task.ID).Error; err != nil {
+		return nil, fmt.Errorf("重新加载任务失败: %w", err)
 	}
 
 	return task, nil
@@ -306,7 +359,11 @@ func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTas
 // GetSyncTaskByID 根据ID获取同步任务
 func (s *SyncTaskService) GetSyncTaskByID(ctx context.Context, taskID string) (*models.SyncTask, error) {
 	var task models.SyncTask
-	if err := s.db.Preload("DataSource").Preload("DataInterface").First(&task, "id = ?", taskID).Error; err != nil {
+	if err := s.db.Preload("DataSource").
+		Preload("TaskInterfaces").
+		Preload("TaskInterfaces.DataInterface").
+		Preload("DataInterfaces").
+		First(&task, "id = ?", taskID).Error; err != nil {
 		return nil, fmt.Errorf("获取同步任务失败: %w", err)
 	}
 
@@ -345,15 +402,37 @@ func (s *SyncTaskService) loadLibraryInfo(task *models.SyncTask) error {
 	return nil
 }
 
+// SyncTaskInterfaceConfig 接口级别的配置
+type SyncTaskInterfaceConfig struct {
+	InterfaceID string                 `json:"interface_id"`
+	Config      map[string]interface{} `json:"config,omitempty"`
+}
+
 // CreateSyncTaskRequest 创建同步任务请求
 type CreateSyncTaskRequest struct {
-	LibraryType  string                 `json:"library_type" binding:"required"`
-	LibraryID    string                 `json:"library_id" binding:"required"`
-	DataSourceID string                 `json:"data_source_id" binding:"required"`
-	InterfaceID  *string                `json:"interface_id,omitempty"`
-	TaskType     string                 `json:"task_type" binding:"required"`
-	Config       map[string]interface{} `json:"config,omitempty"`
-	CreatedBy    string                 `json:"created_by"`
+	LibraryType      string                    `json:"library_type" binding:"required"`
+	LibraryID        string                    `json:"library_id" binding:"required"`
+	DataSourceID     string                    `json:"data_source_id" binding:"required"`
+	InterfaceIDs     []string                  `json:"interface_ids" binding:"required,min=1"`
+	InterfaceConfigs []SyncTaskInterfaceConfig `json:"interface_configs,omitempty"`
+	TaskType         string                    `json:"task_type" binding:"required"`
+	TriggerType      string                    `json:"trigger_type" binding:"required"`
+	CronExpression   string                    `json:"cron_expression,omitempty"`
+	IntervalSeconds  int                       `json:"interval_seconds,omitempty"`
+	ScheduledTime    *time.Time                `json:"scheduled_time,omitempty"`
+	Config           map[string]interface{}    `json:"config,omitempty"`
+	CreatedBy        string                    `json:"created_by"`
+}
+
+// UpdateSyncTaskRequest 更新同步任务请求
+type UpdateSyncTaskRequest struct {
+	TriggerType      string                    `json:"trigger_type,omitempty"`
+	CronExpression   string                    `json:"cron_expression,omitempty"`
+	IntervalSeconds  int                       `json:"interval_seconds,omitempty"`
+	Config           map[string]interface{}    `json:"config,omitempty"`
+	InterfaceIDs     []string                  `json:"interface_ids,omitempty"`
+	InterfaceConfigs []SyncTaskInterfaceConfig `json:"interface_configs,omitempty"`
+	UpdatedBy        string                    `json:"updated_by"`
 }
 
 // GetSyncTaskListRequest 获取同步任务列表请求
@@ -390,6 +469,21 @@ type SyncTaskStatusResponse struct {
 	Error     string               `json:"error,omitempty"`
 	Result    *models.SyncResult   `json:"result,omitempty"`
 	Processor string               `json:"processor,omitempty"`
+}
+
+// GetSyncTaskExecutionListRequest 获取同步任务执行记录列表请求
+type GetSyncTaskExecutionListRequest struct {
+	Page          int    `json:"page"`
+	Size          int    `json:"size"`
+	TaskID        string `json:"task_id,omitempty"`
+	Status        string `json:"status,omitempty"`
+	ExecutionType string `json:"execution_type,omitempty"`
+}
+
+// SyncTaskExecutionListResponse 同步任务执行记录列表响应
+type SyncTaskExecutionListResponse struct {
+	Executions []models.SyncTaskExecution `json:"executions"`
+	Pagination PaginationInfo             `json:"pagination"`
 }
 
 // BatchDeleteResponse 批量删除响应
@@ -440,7 +534,10 @@ func (s *SyncTaskService) GetSyncTaskList(ctx context.Context, req *GetSyncTaskL
 	// 分页查询
 	offset := (req.Page - 1) * req.Size
 	var tasks []models.SyncTask
-	if err := query.Preload("DataSource").Preload("DataInterface").
+	if err := query.Preload("DataSource").
+		Preload("TaskInterfaces").
+		Preload("TaskInterfaces.DataInterface").
+		Preload("DataInterfaces").
 		Order("created_at DESC").
 		Offset(offset).Limit(req.Size).
 		Find(&tasks).Error; err != nil {
@@ -470,10 +567,10 @@ func (s *SyncTaskService) GetSyncTaskList(ctx context.Context, req *GetSyncTaskL
 }
 
 // UpdateSyncTask 更新同步任务
-func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, config map[string]interface{}, updatedBy string) (*models.SyncTask, error) {
+func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req *UpdateSyncTaskRequest) (*models.SyncTask, error) {
 	// 获取任务
 	var task models.SyncTask
-	if err := s.db.First(&task, "id = ?", taskID).Error; err != nil {
+	if err := s.db.Preload("TaskInterfaces").First(&task, "id = ?", taskID).Error; err != nil {
 		return nil, fmt.Errorf("任务不存在: %w", err)
 	}
 
@@ -482,25 +579,107 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, con
 		return nil, fmt.Errorf("任务状态 %s 不允许更新", task.Status)
 	}
 
+	// 开启事务
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	// 准备更新数据
 	updates := map[string]interface{}{
 		"updated_at": time.Now(),
 	}
 
-	if config != nil {
-		updates["config"] = config
+	if req.TriggerType != "" {
+		updates["trigger_type"] = req.TriggerType
 	}
-	if updatedBy != "" {
-		updates["updated_by"] = updatedBy
+	if req.CronExpression != "" {
+		updates["cron_expression"] = req.CronExpression
+	}
+	if req.IntervalSeconds > 0 {
+		updates["interval_seconds"] = req.IntervalSeconds
+	}
+	if req.Config != nil {
+		updates["config"] = req.Config
+	}
+	if req.UpdatedBy != "" {
+		updates["updated_by"] = req.UpdatedBy
 	}
 
-	// 更新任务
-	if err := s.db.Model(&task).Updates(updates).Error; err != nil {
+	// 更新任务基本信息
+	if err := tx.Model(&task).Updates(updates).Error; err != nil {
+		tx.Rollback()
 		return nil, fmt.Errorf("更新任务失败: %w", err)
 	}
 
+	// 更新接口配置（如果提供）
+	if len(req.InterfaceIDs) > 0 {
+		// 获取处理器以验证接口
+		handler, err := s.getHandler(task.LibraryType)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
+		// 验证所有新接口
+		for _, interfaceID := range req.InterfaceIDs {
+			if err := handler.ValidateInterface(task.LibraryID, interfaceID); err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("验证接口 %s 失败: %w", interfaceID, err)
+			}
+		}
+
+		// 删除现有的接口关联
+		if err := tx.Where("task_id = ?", taskID).Delete(&models.SyncTaskInterface{}).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("删除旧接口关联失败: %w", err)
+		}
+
+		// 创建接口配置映射
+		interfaceConfigMap := make(map[string]map[string]interface{})
+		for _, interfaceConfig := range req.InterfaceConfigs {
+			interfaceConfigMap[interfaceConfig.InterfaceID] = interfaceConfig.Config
+		}
+
+		// 创建新的接口关联
+		for _, interfaceID := range req.InterfaceIDs {
+			taskInterface := &models.SyncTaskInterface{
+				TaskID:      taskID,
+				InterfaceID: interfaceID,
+				Status:      meta.SyncTaskStatusPending,
+				Config:      interfaceConfigMap[interfaceID],
+			}
+
+			if err := tx.Create(taskInterface).Error; err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("创建新接口关联失败: %w", err)
+			}
+		}
+	} else if len(req.InterfaceConfigs) > 0 {
+		// 仅更新接口级别配置，不改变接口列表
+		for _, interfaceConfig := range req.InterfaceConfigs {
+			if err := tx.Model(&models.SyncTaskInterface{}).
+				Where("task_id = ? AND interface_id = ?", taskID, interfaceConfig.InterfaceID).
+				Update("config", interfaceConfig.Config).Error; err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("更新接口配置失败: %w", err)
+			}
+		}
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("提交事务失败: %w", err)
+	}
+
 	// 重新获取更新后的任务
-	if err := s.db.Preload("DataSource").Preload("DataInterface").First(&task, "id = ?", taskID).Error; err != nil {
+	if err := s.db.Preload("DataSource").
+		Preload("TaskInterfaces").
+		Preload("TaskInterfaces.DataInterface").
+		Preload("DataInterfaces").
+		First(&task, "id = ?", taskID).Error; err != nil {
 		return nil, fmt.Errorf("获取更新后的任务失败: %w", err)
 	}
 
@@ -535,54 +714,58 @@ func (s *SyncTaskService) DeleteSyncTask(ctx context.Context, taskID string) err
 
 // StartSyncTask 启动同步任务
 func (s *SyncTaskService) StartSyncTask(ctx context.Context, taskID string) error {
+	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 开始启动任务: %s\n", taskID)
+
 	// 获取任务
 	var task models.SyncTask
 	if err := s.db.First(&task, "id = ?", taskID).Error; err != nil {
+		fmt.Printf("[ERROR] SyncTaskService.StartSyncTask - 任务不存在: %s, 错误: %v\n", taskID, err)
 		return fmt.Errorf("任务不存在: %w", err)
 	}
 
+	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 找到任务: %s, 当前状态: %s, 类型: %s\n", task.ID, task.Status, task.TaskType)
+
 	// 检查任务状态
-	if task.Status != meta.SyncTaskStatusPending {
-		return fmt.Errorf("只有待执行状态的任务可以启动，当前状态: %s", task.Status)
+	if task.Status != meta.SyncTaskStatusPending && task.Status != meta.SyncTaskStatusFailed {
+		fmt.Printf("[ERROR] SyncTaskService.StartSyncTask - 任务状态不允许启动: %s, 当前状态: %s\n", taskID, task.Status)
+		return fmt.Errorf("只有待执行状态或失败状态的任务可以启动，当前状态: %s", task.Status)
 	}
 
 	// 创建同步引擎请求
 	syncRequest := &sync_engine.SyncTaskRequest{
+		TaskID:       task.ID, // 传递任务ID，用于手动执行
 		LibraryType:  task.LibraryType,
 		LibraryID:    task.LibraryID,
 		DataSourceID: task.DataSourceID,
 		SyncType:     sync_engine.SyncType(task.TaskType),
-		Config:       task.Config,
+		Config:       map[string]interface{}(task.Config),
 		Priority:     1, // 默认优先级
 		ScheduledBy:  "manual",
 	}
 
-	// 如果有接口ID，设置它
-	if task.InterfaceID != nil {
-		syncRequest.InterfaceID = *task.InterfaceID
+	// 加载任务接口关联
+	if err := s.db.Preload("TaskInterfaces").First(&task, "id = ?", taskID).Error; err != nil {
+		return fmt.Errorf("加载任务接口信息失败: %w", err)
 	}
+
+	// 设置接口ID列表
+	var interfaceIDs []string
+	for _, taskInterface := range task.TaskInterfaces {
+		interfaceIDs = append(interfaceIDs, taskInterface.InterfaceID)
+	}
+	syncRequest.InterfaceIDs = interfaceIDs
+
+
+	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 准备提交任务到同步引擎: %+v\n", syncRequest)
 
 	// 提交任务到同步引擎
 	syncTask, err := s.syncEngine.SubmitSyncTask(syncRequest)
 	if err != nil {
+		fmt.Printf("[ERROR] SyncTaskService.StartSyncTask - 提交任务到引擎失败: %v\n", err)
 		return fmt.Errorf("提交同步任务到引擎失败: %w", err)
 	}
 
-	// 更新原任务的ID为引擎返回的任务ID
-	if syncTask != nil {
-		task.ID = syncTask.ID
-	}
-
-	// 更新任务状态为运行中
-	updates := map[string]interface{}{
-		"status":     meta.SyncTaskStatusRunning,
-		"start_time": time.Now(),
-		"updated_at": time.Now(),
-	}
-
-	if err := s.db.Model(&task).Updates(updates).Error; err != nil {
-		return fmt.Errorf("更新任务状态失败: %w", err)
-	}
+	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 任务已提交到同步引擎，返回任务ID: %s\n", syncTask.ID)
 
 	return nil
 }
@@ -653,9 +836,9 @@ func (s *SyncTaskService) CancelSyncTask(ctx context.Context, taskID string) err
 
 // RetrySyncTask 重试同步任务
 func (s *SyncTaskService) RetrySyncTask(ctx context.Context, taskID string) (*models.SyncTask, error) {
-	// 获取原任务
+	// 获取原任务及其接口关联
 	var originalTask models.SyncTask
-	if err := s.db.First(&originalTask, "id = ?", taskID).Error; err != nil {
+	if err := s.db.Preload("TaskInterfaces").First(&originalTask, "id = ?", taskID).Error; err != nil {
 		return nil, fmt.Errorf("任务不存在: %w", err)
 	}
 
@@ -664,24 +847,56 @@ func (s *SyncTaskService) RetrySyncTask(ctx context.Context, taskID string) (*mo
 		return nil, fmt.Errorf("任务状态 %s 不允许重试", originalTask.Status)
 	}
 
+	// 开启事务
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	// 创建新任务
 	newTask := &models.SyncTask{
 		LibraryType:  originalTask.LibraryType,
 		LibraryID:    originalTask.LibraryID,
 		DataSourceID: originalTask.DataSourceID,
-		InterfaceID:  originalTask.InterfaceID,
 		TaskType:     originalTask.TaskType,
 		Status:       meta.SyncTaskStatusPending,
 		Config:       originalTask.Config,
 		CreatedBy:    originalTask.CreatedBy,
 	}
 
-	if err := s.db.Create(newTask).Error; err != nil {
+	if err := tx.Create(newTask).Error; err != nil {
+		tx.Rollback()
 		return nil, fmt.Errorf("创建重试任务失败: %w", err)
 	}
 
+	// 复制原任务的接口关联
+	for _, originalTaskInterface := range originalTask.TaskInterfaces {
+		newTaskInterface := &models.SyncTaskInterface{
+			TaskID:      newTask.ID,
+			InterfaceID: originalTaskInterface.InterfaceID,
+			Status:      meta.SyncTaskStatusPending,
+			Config:      originalTaskInterface.Config,
+		}
+
+		if err := tx.Create(newTaskInterface).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("创建重试任务接口关联失败: %w", err)
+		}
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("提交事务失败: %w", err)
+	}
+
 	// 加载关联信息
-	if err := s.db.Preload("DataSource").Preload("DataInterface").First(newTask, "id = ?", newTask.ID).Error; err != nil {
+	if err := s.db.Preload("DataSource").
+		Preload("TaskInterfaces").
+		Preload("TaskInterfaces.DataInterface").
+		Preload("DataInterfaces").
+		First(newTask, "id = ?", newTask.ID).Error; err != nil {
 		return nil, fmt.Errorf("获取新任务失败: %w", err)
 	}
 
@@ -782,6 +997,175 @@ func (s *SyncTaskService) GetSyncTaskStatistics(ctx context.Context, libraryType
 	}
 
 	return stats, nil
+}
+
+// GetSyncTaskExecutionList 获取同步任务执行记录列表
+func (s *SyncTaskService) GetSyncTaskExecutionList(ctx context.Context, req *GetSyncTaskExecutionListRequest) (*SyncTaskExecutionListResponse, error) {
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.Size <= 0 || req.Size > 100 {
+		req.Size = 10
+	}
+
+	query := s.db.Model(&models.SyncTaskExecution{}).Preload("Task")
+
+	// 应用过滤条件
+	if req.TaskID != "" {
+		query = query.Where("task_id = ?", req.TaskID)
+	}
+	if req.Status != "" {
+		query = query.Where("status = ?", req.Status)
+	}
+	if req.ExecutionType != "" {
+		query = query.Where("execution_type = ?", req.ExecutionType)
+	}
+
+	// 获取总数
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, fmt.Errorf("获取执行记录总数失败: %w", err)
+	}
+
+	// 获取分页数据
+	var executions []models.SyncTaskExecution
+	offset := (req.Page - 1) * req.Size
+	if err := query.Order("created_at DESC").Offset(offset).Limit(req.Size).Find(&executions).Error; err != nil {
+		return nil, fmt.Errorf("获取执行记录列表失败: %w", err)
+	}
+
+	totalPages := (total + int64(req.Size) - 1) / int64(req.Size)
+
+	return &SyncTaskExecutionListResponse{
+		Executions: executions,
+		Pagination: PaginationInfo{
+			Page:       req.Page,
+			Size:       req.Size,
+			Total:      total,
+			TotalPages: totalPages,
+		},
+	}, nil
+}
+
+// GetSyncTaskExecutionByID 根据ID获取同步任务执行记录
+func (s *SyncTaskService) GetSyncTaskExecutionByID(ctx context.Context, executionID string) (*models.SyncTaskExecution, error) {
+	var execution models.SyncTaskExecution
+	if err := s.db.Preload("Task").Where("id = ?", executionID).First(&execution).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("执行记录不存在")
+		}
+		return nil, fmt.Errorf("获取执行记录失败: %w", err)
+	}
+
+	return &execution, nil
+}
+
+// CreateSyncTaskExecution 创建同步任务执行记录
+func (s *SyncTaskService) CreateSyncTaskExecution(ctx context.Context, taskID, executionType string) (*models.SyncTaskExecution, error) {
+	execution := &models.SyncTaskExecution{
+		TaskID:        taskID,
+		ExecutionType: executionType,
+		Status:        meta.SyncExecutionStatusRunning,
+		StartTime:     time.Now(),
+	}
+
+	if err := s.db.Create(execution).Error; err != nil {
+		return nil, fmt.Errorf("创建执行记录失败: %w", err)
+	}
+
+	return execution, nil
+}
+
+// UpdateSyncTaskExecution 更新同步任务执行记录
+func (s *SyncTaskService) UpdateSyncTaskExecution(ctx context.Context, executionID string, status string, result map[string]interface{}, errorMessage string) error {
+	updates := map[string]interface{}{
+		"status":     status,
+		"updated_at": time.Now(),
+	}
+
+	if status != meta.SyncExecutionStatusRunning {
+		endTime := time.Now()
+		updates["end_time"] = &endTime
+	}
+
+	if result != nil {
+		updates["result"] = result
+	}
+
+	if errorMessage != "" {
+		updates["error_message"] = errorMessage
+	}
+
+	if err := s.db.Model(&models.SyncTaskExecution{}).Where("id = ?", executionID).Updates(updates).Error; err != nil {
+		return fmt.Errorf("更新执行记录失败: %w", err)
+	}
+
+	return nil
+}
+
+// calculateNextRunTime 计算下次执行时间
+func (s *SyncTaskService) calculateNextRunTime(task *models.SyncTask) error {
+	switch task.TriggerType {
+	case meta.SyncTaskTriggerManual:
+		// 手动执行，不设置下次执行时间
+		task.NextRunTime = nil
+	case meta.SyncTaskTriggerOnce:
+		// 单次执行，使用计划执行时间
+		task.NextRunTime = task.ScheduledTime
+	case meta.SyncTaskTriggerInterval:
+		// 间隔执行，设置为当前时间加上间隔
+		if task.IntervalSeconds > 0 {
+			nextTime := time.Now().Add(time.Duration(task.IntervalSeconds) * time.Second)
+			task.NextRunTime = &nextTime
+		}
+	case meta.SyncTaskTriggerCron:
+		// Cron表达式执行，需要解析Cron表达式计算下次执行时间
+		// 这里可以使用第三方库如 github.com/robfig/cron/v3 来解析
+		// 暂时简化处理，设置为1小时后
+		nextTime := time.Now().Add(time.Hour)
+		task.NextRunTime = &nextTime
+	}
+
+	return nil
+}
+
+// GetScheduledTasks 获取需要执行的调度任务
+func (s *SyncTaskService) GetScheduledTasks(ctx context.Context) ([]models.SyncTask, error) {
+	var tasks []models.SyncTask
+	now := time.Now()
+
+	// 查找状态为pending且下次执行时间已到的任务
+	err := s.db.Where("status = ? AND next_run_time IS NOT NULL AND next_run_time <= ?",
+		meta.SyncTaskStatusPending, now).Find(&tasks).Error
+	if err != nil {
+		return nil, fmt.Errorf("获取调度任务失败: %w", err)
+	}
+
+	return tasks, nil
+}
+
+// UpdateTaskNextRunTime 更新任务的下次执行时间
+func (s *SyncTaskService) UpdateTaskNextRunTime(ctx context.Context, taskID string) error {
+	var task models.SyncTask
+	if err := s.db.Where("id = ?", taskID).First(&task).Error; err != nil {
+		return fmt.Errorf("获取任务失败: %w", err)
+	}
+
+	if err := s.calculateNextRunTime(&task); err != nil {
+		return fmt.Errorf("计算下次执行时间失败: %w", err)
+	}
+
+	updates := map[string]interface{}{
+		"next_run_time": task.NextRunTime,
+		"last_run_time": time.Now(),
+		"updated_at":    time.Now(),
+	}
+
+	if err := s.db.Model(&models.SyncTask{}).Where("id = ?", taskID).Updates(updates).Error; err != nil {
+		return fmt.Errorf("更新任务执行时间失败: %w", err)
+	}
+
+	return nil
 }
 
 // 辅助函数

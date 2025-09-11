@@ -21,13 +21,13 @@ import (
 
 // ValidationService 数据源配置验证服务
 type ValidationService struct {
-	db       *gorm.DB
+	db *gorm.DB
 }
 
 // NewValidationService 创建数据源配置验证服务实例
 func NewValidationService(db *gorm.DB) *ValidationService {
 	return &ValidationService{
-		db:       db,
+		db: db,
 	}
 }
 
@@ -90,9 +90,6 @@ func (s *ValidationService) generateSuggestions(definition *meta.DataSourceTypeD
 		suggestions = append(suggestions, "建议使用HTTPS确保数据传输安全")
 		suggestions = append(suggestions, "建议配置适当的超时时间")
 		suggestions = append(suggestions, "确保API授权信息正确")
-	case meta.DataSourceCategoryFile:
-		suggestions = append(suggestions, "建议检查文件权限配置")
-		suggestions = append(suggestions, "确保文件格式解析正确")
 	}
 
 	// 根据具体配置添加针对性建议

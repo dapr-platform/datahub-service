@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -83,7 +84,6 @@ func (c *EventController) HandleSSE(w http.ResponseWriter, r *http.Request) {
 		select {
 		case event := <-client.Channel:
 			// 发送事件数据
-			
 
 			fmt.Fprintf(w, "data: %s\n\n", toJSON(event))
 
@@ -198,6 +198,155 @@ type SendEventRequest struct {
 type BroadcastEventRequest struct {
 	EventType string                 `json:"event_type" example:"system_notification"`
 	Data      map[string]interface{} `json:"data"`
+}
+
+// GetSSEConnectionList 获取SSE连接列表
+// @Summary 获取SSE连接列表
+// @Description 分页获取SSE连接列表，支持多种过滤条件
+// @Tags 事件管理
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页大小" default(10)
+// @Param user_name query string false "用户名过滤"
+// @Param is_active query bool false "连接状态过滤"
+// @Param client_ip query string false "客户端IP过滤"
+// @Success 200 {object} APIResponse{data=SSEConnectionListResponse} "获取成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /events/connections [get]
+func (c *EventController) GetSSEConnectionList(w http.ResponseWriter, r *http.Request) {
+	// 解析查询参数
+	page := 1
+	size := 10
+	userName := r.URL.Query().Get("user_name")
+	clientIP := r.URL.Query().Get("client_ip")
+	isActiveStr := r.URL.Query().Get("is_active")
+
+	var isActive *bool
+	if isActiveStr != "" {
+		if isActiveStr == "true" {
+			val := true
+			isActive = &val
+		} else if isActiveStr == "false" {
+			val := false
+			isActive = &val
+		}
+	}
+
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+	if s, err := strconv.Atoi(r.URL.Query().Get("size")); err == nil && s > 0 && s <= 100 {
+		size = s
+	}
+
+	// 调用服务层方法
+	connections, total, err := c.eventService.GetSSEConnectionList(page, size, userName, clientIP, isActive)
+	if err != nil {
+		render.Render(w, r, ErrorResponse(http.StatusInternalServerError, "获取SSE连接列表失败", err))
+		return
+	}
+
+	// 构建响应
+	response := SSEConnectionListResponse{
+		List:  connections,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.Render(w, r, SuccessResponse("获取SSE连接列表成功", response))
+}
+
+// GetEventHistoryList 获取事件历史列表
+// @Summary 获取事件历史列表
+// @Description 分页获取事件历史列表，支持多种过滤条件
+// @Tags 事件管理
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页大小" default(10)
+// @Param user_name query string false "用户名过滤"
+// @Param event_type query string false "事件类型过滤"
+// @Param sent query bool false "发送状态过滤"
+// @Param read query bool false "读取状态过滤"
+// @Success 200 {object} APIResponse{data=EventHistoryListResponse} "获取成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /events/history [get]
+func (c *EventController) GetEventHistoryList(w http.ResponseWriter, r *http.Request) {
+	// 解析查询参数
+	page := 1
+	size := 10
+	userName := r.URL.Query().Get("user_name")
+	eventType := r.URL.Query().Get("event_type")
+	sentStr := r.URL.Query().Get("sent")
+	readStr := r.URL.Query().Get("read")
+
+	var sent *bool
+	if sentStr != "" {
+		if sentStr == "true" {
+			val := true
+			sent = &val
+		} else if sentStr == "false" {
+			val := false
+			sent = &val
+		}
+	}
+
+	var read *bool
+	if readStr != "" {
+		if readStr == "true" {
+			val := true
+			read = &val
+		} else if readStr == "false" {
+			val := false
+			read = &val
+		}
+	}
+
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+	if s, err := strconv.Atoi(r.URL.Query().Get("size")); err == nil && s > 0 && s <= 100 {
+		size = s
+	}
+
+	// 调用服务层方法
+	events, total, err := c.eventService.GetEventHistoryList(page, size, userName, eventType, sent, read)
+	if err != nil {
+		render.Render(w, r, ErrorResponse(http.StatusInternalServerError, "获取事件历史列表失败", err))
+		return
+	}
+
+	// 构建响应
+	response := EventHistoryListResponse{
+		List:  events,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.Render(w, r, SuccessResponse("获取事件历史列表成功", response))
+}
+
+// === 请求和响应结构体 ===
+
+// SSEConnectionListResponse SSE连接列表响应结构
+type SSEConnectionListResponse struct {
+	List  []models.SSEConnection `json:"list"`
+	Total int64                  `json:"total"`
+	Page  int                    `json:"page"`
+	Size  int                    `json:"size"`
+}
+
+// EventHistoryListResponse 事件历史列表响应结构
+type EventHistoryListResponse struct {
+	List  []models.SSEEvent `json:"list"`
+	Total int64             `json:"total"`
+	Page  int               `json:"page"`
+	Size  int               `json:"size"`
 }
 
 // toJSON 将对象转换为JSON字符串

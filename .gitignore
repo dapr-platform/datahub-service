@@ -55,3 +55,5 @@ Thumbs.db
 
 datahub-service
 start.sh
+ai_docs/
+*.md

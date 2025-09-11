@@ -1,0 +1,396 @@
+/*
+ * 数据源脚本通用模板
+ * 
+ * 功能说明：
+ * 1. 支持数据源生命周期管理（初始化、启动、执行、停止）
+ * 2. 支持会话管理和状态保持
+ * 3. 支持HTTP请求和自定义认证逻辑
+ * 4. 支持参数注入和动态配置
+ * 
+ * 注意事项：
+ * 1. 此脚本内容将被包装在 YaegiScriptExecutor 的 Run 函数中执行
+ * 2. 不需要包含 package 声明和 import 语句
+ * 3. 脚本可以直接使用预定义的变量和辅助函数
+ * 4. 必须根据 operation 参数处理不同的操作类型
+ */
+
+// ==================== 配置常量 ====================
+const (
+    // 根据实际需求定义常量
+    VERSION = "1.0"
+    LOCALE  = "zh_CN"
+    FORMAT  = "json"
+)
+
+// ==================== 辅助函数定义 ====================
+
+// 从map中安全获取字符串值
+getStringFromMap := func(m map[string]interface{}, key, defaultValue string) string {
+    if value, exists := m[key]; exists {
+        if strValue, ok := value.(string); ok {
+            return strValue
+        }
+    }
+    return defaultValue
+}
+
+// 从map中安全获取整数值
+getIntFromMap := func(m map[string]interface{}, key string, defaultValue int) int {
+    if value, exists := m[key]; exists {
+        switch v := value.(type) {
+        case int:
+            return v
+        case float64:
+            return int(v)
+        case string:
+            if intValue, err := strconv.Atoi(v); err == nil {
+                return intValue
+            }
+        }
+    }
+    return defaultValue
+}
+
+// 从map中安全获取布尔值
+getBoolFromMap := func(m map[string]interface{}, key string, defaultValue bool) bool {
+    if value, exists := m[key]; exists {
+        if boolValue, ok := value.(bool); ok {
+            return boolValue
+        }
+    }
+    return defaultValue
+}
+
+// 生成时间戳
+getCurrentTimestamp := func() string {
+    return time.Now().Format(time.RFC3339)
+}
+
+// ==================== 主逻辑处理 ====================
+
+// 获取操作类型
+operationStr, ok := operation.(string)
+if !ok {
+    return nil, fmt.Errorf("operation参数类型错误，期望string类型")
+}
+
+// 根据操作类型执行相应逻辑
+switch operationStr {
+case "init":
+    // ==================== 初始化操作 ====================
+    fmt.Println("数据源初始化开始")
+    
+    // 检查必需的配置参数
+    if credentials == nil {
+        return nil, fmt.Errorf("credentials参数未设置")
+    }
+    
+    credentialsMap, ok := credentials.(map[string]interface{})
+    if !ok {
+        return nil, fmt.Errorf("credentials参数类型错误，期望map[string]interface{}类型")
+    }
+    
+    // 验证必需的配置字段（根据实际需求修改）
+    requiredFields := []string{"username", "password", "api_key"}
+    for _, field := range requiredFields {
+        if _, exists := credentialsMap[field]; !exists {
+            return nil, fmt.Errorf("缺少必需的配置参数: %s", field)
+        }
+    }
+    
+    // 设置默认配置（根据实际需求修改）
+    if _, exists := credentialsMap["timeout"]; !exists {
+        credentialsMap["timeout"] = 30
+    }
+    
+    fmt.Println("数据源初始化完成")
+    return map[string]interface{}{
+        "success": true,
+        "message": "初始化成功",
+        "config": map[string]interface{}{
+            "initialized": true,
+            "init_time":   getCurrentTimestamp(),
+            "version":     VERSION,
+        },
+    }, nil
+
+case "start":
+    // ==================== 启动操作 ====================
+    fmt.Println("数据源启动开始")
+    
+    // 类型检查
+    credentialsMap, ok := credentials.(map[string]interface{})
+    if !ok {
+        return nil, fmt.Errorf("credentials参数类型错误")
+    }
+    
+    baseURLStr, ok := baseURL.(string)
+    if !ok {
+        return nil, fmt.Errorf("baseURL参数类型错误")
+    }
+    
+    httpPostFunc, ok := httpPost.(func(string, map[string]interface{}) (map[string]interface{}, error))
+    if !ok {
+        return nil, fmt.Errorf("httpPost函数类型错误")
+    }
+    
+    // 准备连接参数（根据实际API要求修改）
+    connectParams := map[string]interface{}{
+        "version":  VERSION,
+        "username": getStringFromMap(credentialsMap, "username", ""),
+        "password": getStringFromMap(credentialsMap, "password", ""),
+        "api_key":  getStringFromMap(credentialsMap, "api_key", ""),
+        "locale":   LOCALE,
+        "format":   FORMAT,
+    }
+    
+    // 执行连接请求
+    response, err := httpPostFunc(baseURLStr, connectParams)
+    if err != nil {
+        return nil, fmt.Errorf("连接请求失败: %v", err)
+    }
+    
+    // 检查HTTP状态码
+    if statusCode, exists := response["status_code"]; exists {
+        if code, ok := statusCode.(int); ok && code != 200 {
+            return nil, fmt.Errorf("HTTP请求失败，状态码: %d", code)
+        }
+    }
+    
+    // 解析响应并获取会话信息（根据实际API响应格式修改）
+    resultCode := getStringFromMap(response, "resultCode", "")
+    if resultCode == "0" || resultCode == "success" {
+        sessionId := getStringFromMap(response, "sessionId", "")
+        if sessionId == "" {
+            sessionId = getStringFromMap(response, "token", "")
+        }
+        if sessionId == "" {
+            return nil, fmt.Errorf("响应中未包含会话标识")
+        }
+        
+        // 存储会话信息
+        if updateSessionDataFunc, ok := updateSessionData.(func(string, interface{})); ok {
+            updateSessionDataFunc("sessionId", sessionId)
+            updateSessionDataFunc("loginTime", getCurrentTimestamp())
+            updateSessionDataFunc("lastRefreshTime", getCurrentTimestamp())
+        }
+        
+        fmt.Printf("会话建立成功: %s\n", sessionId)
+        
+        return map[string]interface{}{
+            "success":         true,
+            "message":         "启动成功",
+            "sessionId":       sessionId,
+            "loginTime":       getCurrentTimestamp(),
+            "lastRefreshTime": getCurrentTimestamp(),
+        }, nil
+    } else {
+        message := getStringFromMap(response, "message", "")
+        if message == "" {
+            message = getStringFromMap(response, "error", "启动失败")
+        }
+        return nil, fmt.Errorf("启动失败: %s", message)
+    }
+
+case "execute":
+    // ==================== 执行操作 ====================
+    fmt.Println("执行数据操作")
+    
+    // 检查会话是否存在
+    getSessionDataFunc, ok := getSessionData.(func(string) interface{})
+    if !ok {
+        return map[string]interface{}{
+            "success": false,
+            "message": "getSessionData函数类型错误",
+        }, nil
+    }
+    
+    sessionIdRaw := getSessionDataFunc("sessionId")
+    if sessionIdRaw == nil {
+        return map[string]interface{}{
+            "success": false,
+            "message": "会话不存在，请先启动数据源",
+        }, nil
+    }
+    
+    sessionId, ok := sessionIdRaw.(string)
+    if !ok {
+        return map[string]interface{}{
+            "success": false,
+            "message": "会话标识类型错误",
+        }, nil
+    }
+    
+    // 类型检查
+    credentialsMap, ok := credentials.(map[string]interface{})
+    if !ok {
+        return map[string]interface{}{
+            "success": false,
+            "message": "credentials参数类型错误",
+        }, nil
+    }
+    
+    baseURLStr, ok := baseURL.(string)
+    if !ok {
+        return map[string]interface{}{
+            "success": false,
+            "message": "baseURL参数类型错误",
+        }, nil
+    }
+    
+    httpPostFunc, ok := httpPost.(func(string, map[string]interface{}) (map[string]interface{}, error))
+    if !ok {
+        return map[string]interface{}{
+            "success": false,
+            "message": "httpPost函数类型错误",
+        }, nil
+    }
+    
+    // 从请求参数中获取查询信息
+    requestObj, ok := request.(map[string]interface{})
+    if !ok {
+        requestObj = make(map[string]interface{})
+    }
+    
+    paramsObj, _ := requestObj["params"].(map[string]interface{})
+    
+    // 构建查询参数（根据实际API要求修改）
+    queryParams := map[string]interface{}{
+        "version":   VERSION,
+        "sessionId": sessionId,
+        "api_key":   getStringFromMap(credentialsMap, "api_key", ""),
+        "locale":    LOCALE,
+        "format":    FORMAT,
+    }
+    
+    // 添加业务查询参数
+    if paramsObj != nil {
+        for key, value := range paramsObj {
+            queryParams[key] = value
+        }
+    }
+    
+    // 执行查询请求
+    response, err := httpPostFunc(baseURLStr, queryParams)
+    if err != nil {
+        return map[string]interface{}{
+            "success": false,
+            "message": fmt.Sprintf("查询请求失败: %v", err),
+        }, nil
+    }
+    
+    // 检查HTTP状态码
+    if statusCode, exists := response["status_code"]; exists {
+        if code, ok := statusCode.(int); ok && code != 200 {
+            return map[string]interface{}{
+                "success": false,
+                "message": fmt.Sprintf("HTTP请求失败，状态码: %d", code),
+            }, nil
+        }
+    }
+    
+    // 解析响应结果（根据实际API响应格式修改）
+    resultCode := 0
+    if rc, exists := response["resultCode"]; exists {
+        switch v := rc.(type) {
+        case int:
+            resultCode = v
+        case float64:
+            resultCode = int(v)
+        case string:
+            if v == "0" || v == "success" {
+                resultCode = 0
+            } else {
+                resultCode = -1
+            }
+        }
+    }
+    
+    if resultCode == 0 {
+        data, _ := response["data"]
+        if data == nil {
+            data, _ = response["result"]
+        }
+        
+        return map[string]interface{}{
+            "success": true,
+            "data":    data,
+            "message": getStringFromMap(response, "message", "查询成功"),
+            "metadata": map[string]interface{}{
+                "queryTime": getCurrentTimestamp(),
+                "sessionId": sessionId,
+            },
+        }, nil
+    } else {
+        return map[string]interface{}{
+            "success": false,
+            "message": getStringFromMap(response, "message", "查询失败"),
+            "metadata": map[string]interface{}{
+                "resultCode": resultCode,
+            },
+        }, nil
+    }
+
+case "stop":
+    // ==================== 停止操作 ====================
+    fmt.Println("数据源停止")
+    
+    getSessionDataFunc, ok := getSessionData.(func(string) interface{})
+    if ok {
+        sessionIdRaw := getSessionDataFunc("sessionId")
+        if sessionIdRaw != nil {
+            if sessionId, ok := sessionIdRaw.(string); ok {
+                // 类型检查
+                credentialsMap, ok := credentials.(map[string]interface{})
+                if !ok {
+                    return map[string]interface{}{
+                        "success": true,
+                        "message": "停止成功，但退出会话时发生错误：credentials参数类型错误",
+                    }, nil
+                }
+                
+                baseURLStr, ok := baseURL.(string)
+                if !ok {
+                    return map[string]interface{}{
+                        "success": true,
+                        "message": "停止成功，但退出会话时发生错误：baseURL参数类型错误",
+                    }, nil
+                }
+                
+                httpPostFunc, ok := httpPost.(func(string, map[string]interface{}) (map[string]interface{}, error))
+                if !ok {
+                    return map[string]interface{}{
+                        "success": true,
+                        "message": "停止成功，但退出会话时发生错误：httpPost函数类型错误",
+                    }, nil
+                }
+                
+                // 构建退出请求参数（根据实际API要求修改）
+                logoutParams := map[string]interface{}{
+                    "version":   VERSION,
+                    "sessionId": sessionId,
+                    "api_key":   getStringFromMap(credentialsMap, "api_key", ""),
+                    "action":    "logout",
+                    "locale":    LOCALE,
+                    "format":    FORMAT,
+                }
+                
+                // 执行退出请求
+                _, err := httpPostFunc(baseURLStr, logoutParams)
+                if err != nil {
+                    fmt.Printf("退出会话时发生错误: %v\n", err)
+                } else {
+                    fmt.Println("会话退出成功")
+                }
+            }
+        }
+    }
+    
+    return map[string]interface{}{
+        "success": true,
+        "message": "停止成功，会话已退出",
+    }, nil
+
+default:
+    return nil, fmt.Errorf("不支持的操作类型: %s", operationStr)
+}

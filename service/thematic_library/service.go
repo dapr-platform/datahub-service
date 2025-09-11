@@ -15,18 +15,24 @@ import (
 	"datahub-service/service/database"
 	"datahub-service/service/models"
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 )
 
 // ThematicLibraryService 数据主题库服务
 type Service struct {
-	db *gorm.DB
+	db            *gorm.DB
+	schemaService *database.SchemaService
 }
 
 // NewThematicLibraryService 创建数据主题库服务实例
 func NewService(db *gorm.DB) *Service {
-	service := &Service{db: db}
+	schemaService := database.NewSchemaService(db)
+	service := &Service{
+		db:            db,
+		schemaService: schemaService,
+	}
 	return service
 }
 
@@ -114,6 +120,76 @@ func (s *Service) GetThematicLibraries(page, pageSize int, category, domain, sta
 	err := query.Offset(offset).Limit(pageSize).Find(&libraries).Error
 
 	return libraries, total, err
+}
+
+// GetThematicLibraryList 获取数据主题库列表（支持名称搜索）
+func (s *Service) GetThematicLibraryList(page, pageSize int, category, domain, status, name string) ([]models.ThematicLibrary, int64, error) {
+	var libraries []models.ThematicLibrary
+	var total int64
+
+	query := s.db.Model(&models.ThematicLibrary{})
+
+	// 添加过滤条件
+	if category != "" {
+		query = query.Where("category = ?", category)
+	}
+	if domain != "" {
+		query = query.Where("domain = ?", domain)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if name != "" {
+		query = query.Where("name_zh ILIKE ? OR name_en ILIKE ?", "%"+name+"%", "%"+name+"%")
+	}
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询，预加载关联数据
+	offset := (page - 1) * pageSize
+	err := query.Preload("Interfaces").
+		Order("created_at DESC").
+		Offset(offset).Limit(pageSize).Find(&libraries).Error
+
+	return libraries, total, err
+}
+
+// GetThematicInterfaceList 获取主题接口列表（支持名称搜索）
+func (s *Service) GetThematicInterfaceList(page, pageSize int, libraryID, interfaceType, status, name string) ([]models.ThematicInterface, int64, error) {
+	var interfaces []models.ThematicInterface
+	var total int64
+
+	query := s.db.Model(&models.ThematicInterface{})
+
+	// 添加过滤条件
+	if libraryID != "" {
+		query = query.Where("library_id = ?", libraryID)
+	}
+	if interfaceType != "" {
+		query = query.Where("type = ?", interfaceType)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if name != "" {
+		query = query.Where("name_zh ILIKE ? OR name_en ILIKE ?", "%"+name+"%", "%"+name+"%")
+	}
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询，预加载主题库信息
+	offset := (page - 1) * pageSize
+	err := query.Preload("ThematicLibrary").
+		Order("created_at DESC").
+		Offset(offset).Limit(pageSize).Find(&interfaces).Error
+
+	return interfaces, total, err
 }
 
 // UpdateThematicLibrary 更新数据主题库
@@ -223,7 +299,6 @@ func (s *Service) CreateThematicInterface(thematicInterface *models.ThematicInte
 	if err := s.db.Where("library_id = ? AND name_en = ?", thematicInterface.LibraryID, thematicInterface.NameEn).First(&existing).Error; err == nil {
 		return errors.New("同一主题库下接口英文名称已存在")
 	}
-	
 
 	return s.db.Create(thematicInterface).Error
 }
@@ -347,4 +422,49 @@ func isValidSchemaName(name string) bool {
 	}
 
 	return true
+}
+
+// UpdateThematicInterfaceFields 更新主题接口字段配置
+func (s *Service) UpdateThematicInterfaceFields(interfaceID string, fields []models.TableField, updateTable bool) error {
+	// 获取主题接口信息
+	interfaceData, err := s.GetThematicInterface(interfaceID)
+	if err != nil {
+		return fmt.Errorf("获取主题接口信息失败: %w", err)
+	}
+
+	// 转换字段为JSONB格式
+	fieldsData := make(models.JSONB)
+	for i, field := range fields {
+		fieldsData[fmt.Sprintf("field_%d", i)] = field
+	}
+
+	// 更新主题接口字段配置
+	updates := map[string]interface{}{
+		"table_fields_config": fieldsData,
+	}
+
+	if err := s.db.Model(&models.ThematicInterface{}).Where("id = ?", interfaceID).Updates(updates).Error; err != nil {
+		return fmt.Errorf("更新主题接口字段配置失败: %w", err)
+	}
+
+	// 如果需要更新表结构
+	if updateTable {
+		// 获取主题库信息
+		var library models.ThematicLibrary
+		if err := s.db.First(&library, "id = ?", interfaceData.LibraryID).Error; err != nil {
+			return fmt.Errorf("获取主题库信息失败: %w", err)
+		}
+
+		schemaName := library.NameEn
+		tableName := interfaceData.NameEn
+
+		// 调用SchemaService更新表结构
+		err := s.schemaService.ManageTableSchema(interfaceID, "alter", schemaName, tableName, fields)
+		if err != nil {
+			// 如果表结构更新失败，记录警告但不回滚字段配置更新
+			return fmt.Errorf("更新表结构失败，但字段配置已更新: %w", err)
+		}
+	}
+
+	return nil
 }

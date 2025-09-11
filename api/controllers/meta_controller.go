@@ -25,37 +25,33 @@ func (c *MetaController) GetDataSourceTypes(w http.ResponseWriter, r *http.Reque
 	render.JSON(w, r, SuccessResponse("获取数据源类型元数据成功", meta.DataSourceTypes))
 }
 
-// @Summary 获取所有数据源配置元数据
-// @Description 获取所有数据源配置
+// @Summary 获取所有数据接口配置元数据
+// @Description 获取所有数据接口配置元数据
 // @Tags 元数据
 // @Produce json
 // @Success 200 {object} APIResponse{data=map[string]meta.DataInterfaceConfigDefinition}
 // @Failure 500 {object} APIResponse
 // @Router /meta/basic-libraries/data-interface-configs [get]
 func (c *MetaController) GetDataInterfaceConfigs(w http.ResponseWriter, r *http.Request) {
-	render.JSON(w, r, SuccessResponse("获取数据源配置元数据成功", meta.DataInterfaceConfigDefinitions))
+	render.JSON(w, r, SuccessResponse("获取数据接口配置元数据成功", meta.DataInterfaceConfigDefinitions))
 }
 
-// @Summary 获取所有同步任务类型元数据
-// @Description 获取所有同步任务类型元数据
+// @Summary 获取所有同步任务元数据
+// @Description 获取所有同步任务相关元数据，包括任务类型、状态、调度类型等
 // @Tags 元数据
 // @Produce json
-// @Success 200 {object} APIResponse{data=map[string]meta.SyncTaskScheduleDefinition}
+// @Success 200 {object} APIResponse{data=map[string]interface{}}
 // @Failure 500 {object} APIResponse
-// @Router /meta/basic-libraries/sync-task-types [get]
-func (c *MetaController) GetSyncTaskTypes(w http.ResponseWriter, r *http.Request) {
-	render.JSON(w, r, SuccessResponse("获取同步任务类型元数据成功", meta.SyncTaskScheduleDefinitions))
-}
-
-// @Summary 获取所有同步任务相关元数据
-// @Description 获取所有同步任务相关元数据
-// @Tags 元数据
-// @Produce json
-// @Success 200 {object} APIResponse{data=map[string]map[string]string}
-// @Failure 500 {object} APIResponse
-// @Router /meta/basic-libraries/sync-task-meta [get]
-func (c *MetaController) GetSyncTaskRelated(w http.ResponseWriter, r *http.Request) {
-	render.JSON(w, r, SuccessResponse("获取同步任务相关元数据成功", meta.SyncTaskMetas))
+// @Router /meta/sync-tasks [get]
+func (c *MetaController) GetSyncTaskMeta(w http.ResponseWriter, r *http.Request) {
+	syncTaskMeta := map[string]interface{}{
+		"task_types":       meta.SyncTaskMetas["sync_task_types"],
+		"task_statuses":    meta.SyncTaskMetas["sync_task_statuses"],
+		"schedule_types":   meta.SyncTaskMetas["sync_task_schedule_types"],
+		"event_types":      meta.SyncTaskMetas["sync_event_types"],
+		"schedule_configs": meta.SyncTaskScheduleDefinitions,
+	}
+	render.JSON(w, r, SuccessResponse("获取同步任务元数据成功", syncTaskMeta))
 }
 
 // @Summary 获取所有数据主题库分类元数据

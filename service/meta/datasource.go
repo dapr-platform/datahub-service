@@ -195,10 +195,8 @@ func (d *DataSourceTypeDefinition) applyValidationRules(connectionConfig, params
 	for k, v := range connectionConfig {
 		allConfig[k] = v
 	}
-	if paramsConfig != nil {
-		for k, v := range paramsConfig {
-			allConfig[k] = v
-		}
+	for k, v := range paramsConfig {
+		allConfig[k] = v
 	}
 
 	// 应用验证规则
@@ -277,23 +275,14 @@ const (
 	DataSourceCategoryDatabase  = "database"
 	DataSourceCategoryMessaging = "messaging"
 	DataSourceCategoryAPI       = "api"
-	DataSourceCategoryFile      = "file"
 )
 
 const (
-	DataSourceTypePostgreSQL   = "postgresql"
-	DataSourceTypeMySQL        = "mysql"
-	DataSourceTypeKafka        = "kafka"
-	DataSourceTypeHTTP         = "http"
-	DataSourceTypeHTTPWithAuth = "http_with_auth"
-	DataSourceTypeMQTT         = "mqtt"
-	DataSourceTypeRedis        = "redis"
-	DataSourceTypeDatabase     = "database"
-	DataSourceTypeAPI          = "api"
-	DataSourceTypeFile         = "file"
-	DataSourceTypeCSV          = "csv"
-	DataSourceTypeJSON         = "json"
-	DataSourceTypeExcel        = "excel"
+	DataSourceTypeDBPostgreSQL      = "postgresql"
+	DataSourceTypeApiHTTP           = "http"
+	DataSourceTypeApiHTTPWithAuth   = "http_with_auth"
+	DataSourceTypeMessagingMQTT     = "mqtt"
+	DataSourceTypeMessagingHttpPost = "http_post"
 )
 const DataSourceFieldHost = "host"
 const DataSourceFieldPort = "port"
@@ -339,9 +328,9 @@ func init() {
 func initializeDefaultTypes() {
 	// PostgreSQL 数据源
 	postgresql := &DataSourceTypeDefinition{
-		ID:          DataSourceTypePostgreSQL,
+		ID:          DataSourceTypeDBPostgreSQL,
 		Category:    DataSourceCategoryDatabase,
-		Type:        DataSourceTypePostgreSQL,
+		Type:        DataSourceTypeDBPostgreSQL,
 		Name:        "PostgreSQL",
 		Description: "PostgreSQL关系型数据库",
 		Icon:        "postgresql",
@@ -448,158 +437,11 @@ func initializeDefaultTypes() {
 		IsActive:          true,
 	}
 
-	// MySQL 数据源
-	mysql := &DataSourceTypeDefinition{
-		ID:          DataSourceTypeMySQL,
-		Category:    DataSourceCategoryDatabase,
-		Type:        DataSourceTypeMySQL,
-		Name:        "MySQL",
-		Description: "MySQL关系型数据库",
-		Icon:        "mysql",
-		MetaConfig: []DataSourceConfigField{
-			{
-				Name:         DataSourceFieldHost,
-				DisplayName:  "主机",
-				Type:         "string",
-				Required:     true,
-				DefaultValue: "localhost",
-				Description:  "数据库服务器地址",
-			},
-			{
-				Name:         DataSourceFieldPort,
-				DisplayName:  "端口",
-				Type:         "number",
-				Required:     true,
-				DefaultValue: float64(3306),
-				Description:  "数据库端口号",
-				Min:          1,
-				Max:          65535,
-			},
-			{
-				Name:        DataSourceFieldDatabase,
-				DisplayName: "数据库",
-				Type:        "string",
-				Required:    true,
-				Description: "数据库名称",
-			},
-			{
-				Name:        DataSourceFieldUsername,
-				DisplayName: "用户名",
-				Type:        "string",
-				Required:    true,
-				Description: "数据库用户名",
-			},
-			{
-				Name:        DataSourceFieldPassword,
-				DisplayName: "密码",
-				Type:        "string",
-				Required:    true,
-				Description: "数据库密码",
-			},
-			{
-				Name:         DataSourceFieldCharset,
-				DisplayName:  "字符集",
-				Type:         "string",
-				Required:     false,
-				DefaultValue: "utf8mb4",
-				Description:  "数据库字符集",
-				Options:      []string{"utf8", "utf8mb4", "latin1"},
-			},
-		},
-		Examples: []DataSourceExample{
-			{
-				Name:        "本地MySQL",
-				Description: "连接本地MySQL数据库",
-				ConnectionConfig: map[string]interface{}{
-					DataSourceFieldHost:     "localhost",
-					DataSourceFieldPort:     3306,
-					DataSourceFieldDatabase: "test_db",
-					DataSourceFieldUsername: "root",
-					DataSourceFieldPassword: "password",
-					DataSourceFieldCharset:  "utf8mb4",
-				},
-			},
-		},
-		SupportedFeatures: []string{"batch_query", "real_time_sync", "transaction"},
-		Documentation:     "MySQL是世界上最流行的开源关系型数据库管理系统",
-		IsActive:          true,
-	}
-
-	// Kafka 数据源
-	kafka := &DataSourceTypeDefinition{
-		ID:          DataSourceTypeKafka,
-		Category:    DataSourceCategoryMessaging,
-		Type:        DataSourceTypeKafka,
-		Name:        "Apache Kafka",
-		Description: "Kafka消息队列",
-		Icon:        "kafka",
-		MetaConfig: []DataSourceConfigField{
-			{
-				Name:         DataSourceFieldBootstrapServers,
-				DisplayName:  "Bootstrap Servers",
-				Type:         "string",
-				Required:     true,
-				DefaultValue: "localhost:9092",
-				Description:  "Kafka服务器地址",
-			},
-			{
-				Name:        DataSourceFieldTopic,
-				DisplayName: "主题",
-				Type:        "string",
-				Required:    true,
-				Description: "Kafka主题名称",
-			},
-			{
-				Name:         DataSourceFieldGroupId,
-				DisplayName:  "消费者组ID",
-				Type:         "string",
-				Required:     false,
-				DefaultValue: "datahub-consumer",
-				Description:  "消费者组标识",
-			},
-		},
-		ParamsConfig: []DataSourceConfigField{
-			{
-				Name:         DataSourceFieldAutoOffsetReset,
-				DisplayName:  "偏移量重置策略",
-				Type:         "string",
-				Required:     false,
-				DefaultValue: "latest",
-				Description:  "消费者偏移量重置策略",
-				Options:      []string{"earliest", "latest", "none"},
-			},
-			{
-				Name:         DataSourceFieldMaxPollRecords,
-				DisplayName:  "最大拉取记录数",
-				Type:         "number",
-				Required:     false,
-				DefaultValue: float64(500),
-				Description:  "单次拉取的最大记录数",
-				Min:          1,
-				Max:          10000,
-			},
-		},
-		Examples: []DataSourceExample{
-			{
-				Name:        "本地Kafka",
-				Description: "连接本地Kafka服务",
-				ConnectionConfig: map[string]interface{}{
-					DataSourceFieldBootstrapServers: "localhost:9092",
-					DataSourceFieldTopic:            "test-topic",
-					DataSourceFieldGroupId:          "test-group",
-				},
-			},
-		},
-		SupportedFeatures: []string{"real_time_streaming", "batch_processing", "message_ordering"},
-		Documentation:     "Apache Kafka是一个分布式流处理平台",
-		IsActive:          true,
-	}
-
 	// HTTP 数据源（无认证）
 	httpNoAuth := &DataSourceTypeDefinition{
-		ID:          DataSourceTypeHTTP,
+		ID:          DataSourceTypeApiHTTP,
 		Category:    DataSourceCategoryAPI,
-		Type:        DataSourceTypeHTTP,
+		Type:        DataSourceTypeApiHTTP,
 		Name:        "HTTP(无认证)",
 		Description: "HTTP REST API数据源",
 		Icon:        "http",
@@ -641,11 +483,12 @@ func initializeDefaultTypes() {
 	}
 	// HTTP 数据源 带认证
 	httpWithAuth := &DataSourceTypeDefinition{
-		ID:          DataSourceTypeHTTPWithAuth,
+		ID:          DataSourceTypeApiHTTPWithAuth,
 		Category:    DataSourceCategoryAPI,
-		Type:        DataSourceTypeHTTPWithAuth,
+		Type:        DataSourceTypeApiHTTPWithAuth,
 		Name:        "HTTP(带认证)",
 		Description: "HTTP REST API数据源",
+		IsActive:    true,
 	}
 	httpWithAuth.MetaConfig = []DataSourceConfigField{
 		{
@@ -743,11 +586,176 @@ func initializeDefaultTypes() {
 			Description: "作用域",
 		},
 	}
+	// MQTT 数据源
+	mqtt := &DataSourceTypeDefinition{
+		ID:          DataSourceTypeMessagingMQTT,
+		Category:    DataSourceCategoryMessaging,
+		Type:        DataSourceTypeMessagingMQTT,
+		Name:        "MQTT",
+		Description: "MQTT消息数据源（作为客户端订阅消息）",
+		Icon:        "mqtt",
+		MetaConfig: []DataSourceConfigField{
+			{
+				Name:         DataSourceFieldHost,
+				DisplayName:  "MQTT服务器地址",
+				Type:         "string",
+				Required:     true,
+				DefaultValue: "localhost",
+				Description:  "MQTT broker地址",
+				Pattern:      `^[a-zA-Z0-9.-]+$`,
+			},
+			{
+				Name:         DataSourceFieldPort,
+				DisplayName:  "端口",
+				Type:         "number",
+				Required:     true,
+				DefaultValue: float64(1883),
+				Description:  "MQTT端口号",
+				Min:          1,
+				Max:          65535,
+			},
+			{
+				Name:         DataSourceFieldClientId,
+				DisplayName:  "客户端ID",
+				Type:         "string",
+				Required:     true,
+				DefaultValue: "datahub-client",
+				Description:  "MQTT客户端标识",
+			},
+			{
+				Name:         DataSourceFieldUsername,
+				DisplayName:  "用户名",
+				Type:         "string",
+				Required:     false,
+				DefaultValue: "",
+				Description:  "MQTT认证用户名",
+			},
+			{
+				Name:        DataSourceFieldPassword,
+				DisplayName: "密码",
+				Type:        "string",
+				Required:    false,
+				Description: "MQTT认证密码",
+			},
+		},
+		ParamsConfig: []DataSourceConfigField{
+			{
+				Name:         DataSourceFieldTimeout,
+				DisplayName:  "连接超时(秒)",
+				Type:         "number",
+				Required:     false,
+				DefaultValue: float64(30),
+				Description:  "MQTT连接超时时间",
+				Min:          1,
+				Max:          300,
+			},
+		},
+		Examples: []DataSourceExample{
+			{
+				Name:        "本地MQTT服务器",
+				Description: "连接本地MQTT broker",
+				ConnectionConfig: map[string]interface{}{
+					DataSourceFieldHost:     "localhost",
+					DataSourceFieldPort:     1883,
+					DataSourceFieldClientId: "datahub-client-001",
+					DataSourceFieldUsername: "",
+					DataSourceFieldPassword: "",
+				},
+			},
+		},
+		SupportedFeatures: []string{"real_time_messaging", "topic_subscription", "qos_support"},
+		Documentation:     "MQTT数据源支持实时消息订阅",
+		IsActive:          true,
+	}
+
+	// Http Post 数据源
+	httpPost := &DataSourceTypeDefinition{
+		ID:          DataSourceTypeMessagingHttpPost,
+		Category:    DataSourceCategoryMessaging,
+		Type:        DataSourceTypeMessagingHttpPost,
+		Name:        "HTTP POST接收器",
+		Description: "HTTP POST数据源（作为服务器接收第三方POST数据）",
+		Icon:        "http-post",
+		MetaConfig: []DataSourceConfigField{
+			{
+				Name:         DataSourceFieldPort,
+				DisplayName:  "监听端口",
+				Type:         "number",
+				Required:     true,
+				DefaultValue: float64(8080),
+				Description:  "HTTP服务器监听端口",
+				Min:          1024,
+				Max:          65535,
+			},
+			{
+				Name:         "path_prefix",
+				DisplayName:  "路径前缀",
+				Type:         "string",
+				Required:     false,
+				DefaultValue: "/webhook",
+				Description:  "接收POST请求的路径前缀",
+				Pattern:      `^/.*`,
+			},
+			{
+				Name:         "auth_required",
+				DisplayName:  "是否需要认证",
+				Type:         "boolean",
+				Required:     false,
+				DefaultValue: false,
+				Description:  "是否需要认证才能接收数据",
+			},
+			{
+				Name:         "auth_token",
+				DisplayName:  "认证令牌",
+				Type:         "string",
+				Required:     false,
+				DefaultValue: "",
+				Description:  "用于验证POST请求的令牌",
+			},
+		},
+		ParamsConfig: []DataSourceConfigField{
+			{
+				Name:         "max_body_size",
+				DisplayName:  "最大请求体大小(MB)",
+				Type:         "number",
+				Required:     false,
+				DefaultValue: float64(10),
+				Description:  "允许的最大请求体大小",
+				Min:          1,
+				Max:          100,
+			},
+			{
+				Name:         DataSourceFieldTimeout,
+				DisplayName:  "请求超时(秒)",
+				Type:         "number",
+				Required:     false,
+				DefaultValue: float64(30),
+				Description:  "处理请求的超时时间",
+				Min:          1,
+				Max:          300,
+			},
+		},
+		Examples: []DataSourceExample{
+			{
+				Name:        "Webhook接收器",
+				Description: "接收第三方系统的webhook数据",
+				ConnectionConfig: map[string]interface{}{
+					DataSourceFieldPort: 8080,
+					"path_prefix":       "/webhook",
+					"auth_required":     true,
+					"auth_token":        "your-secret-token",
+				},
+			},
+		},
+		SupportedFeatures: []string{"real_time_data", "webhook_receiver", "json_payload", "authentication"},
+		Documentation:     "HTTP POST数据源作为服务器接收第三方系统推送的数据",
+		IsActive:          true,
+	}
 
 	// 注册所有类型
 	DataSourceTypes[postgresql.ID] = postgresql
-	DataSourceTypes[mysql.ID] = mysql
-	DataSourceTypes[kafka.ID] = kafka
 	DataSourceTypes[httpNoAuth.ID] = httpNoAuth
 	DataSourceTypes[httpWithAuth.ID] = httpWithAuth
+	DataSourceTypes[mqtt.ID] = mqtt
+	DataSourceTypes[httpPost.ID] = httpPost
 }

@@ -1,0 +1,84 @@
+{
+    "api": {
+        "api_prefix": "/swagger/datahub-service/basic-libraries"
+    },
+    "test_data": {
+        "basic_library": {
+            "name_zh": "端到端测试基础库",
+            "name_en": "e2e_test_basic_library",
+            "description": "用于端到端测试的数据基础库",
+            "status": "active",
+            "category": "test"
+        },
+        "data_source": {
+            "name": "端到端测试数据源",
+            "type": "http_with_auth",
+            "category": "api",
+            "connection_config": {
+                "base_url": "https://httpbin.org",
+                "auth_type": "bearer",
+                "api_key": "test-api-key-123",
+                "username": "testuser",
+                "password": "testpass"
+            },
+            "params_config": {
+                "timeout": 30,
+                "retry_count": 3
+            },
+            "script_enabled": false,
+            "script": "",
+            "status": "active"
+        },
+        "data_interface": {
+            "name": "端到端测试接口",
+            "description": "用于端到端测试的数据接口",
+            "interface_type": "api",
+            "method": "GET",
+            "path": "/get",
+            "interface_config": {
+                "query_params": {
+                    "limit": 10,
+                    "offset": 0
+                }
+            },
+            "status": "active"
+        },
+        "schedule_config": {
+            "schedule_type": "cron",
+            "schedule_config": {
+                "cron_expression": "0 */1 * * *",
+                "timezone": "Asia/Shanghai"
+            },
+            "is_enabled": true
+        }
+    },
+    "test_scenarios": {
+        "workflow_test": {
+            "enabled": true,
+            "steps": [
+                "create_basic_library",
+                "create_data_source",
+                "test_data_source",
+                "create_data_interface",
+                "test_data_interface",
+                "configure_schedule",
+                "cleanup"
+            ]
+        },
+        "individual_api_test": {
+            "enabled": true,
+            "test_all_endpoints": true,
+            "validate_business_fields": true
+        },
+        "performance_test": {
+            "enabled": false,
+            "concurrent_requests": 10,
+            "duration_seconds": 60
+        }
+    },
+    "cleanup": {
+        "auto_cleanup": true,
+        "cleanup_on_failure": true,
+        "preserve_test_data": false
+    }
+}

@@ -44,11 +44,17 @@ func (p *IncrementalSync) Process(ctx context.Context, task *models.SyncTask, pr
 		return nil, fmt.Errorf("获取数据源信息失败: %w", err)
 	}
 
-	// 获取接口信息（如果有）
+	// 获取任务关联的接口信息
+	var taskInterfaces []models.SyncTaskInterface
+	if err := p.db.Where("task_id = ?", task.ID).Find(&taskInterfaces).Error; err != nil {
+		return nil, fmt.Errorf("获取任务接口关联失败: %w", err)
+	}
+
+	// 增量同步通常处理单个接口，如果有多个接口则处理第一个
 	var dataInterface *models.DataInterface
-	if task.InterfaceID != nil && *task.InterfaceID != "" {
+	if len(taskInterfaces) > 0 {
 		dataInterface = &models.DataInterface{}
-		if err := p.db.First(dataInterface, "id = ?", *task.InterfaceID).Error; err != nil {
+		if err := p.db.First(dataInterface, "id = ?", taskInterfaces[0].InterfaceID).Error; err != nil {
 			return nil, fmt.Errorf("获取接口信息失败: %w", err)
 		}
 	}
@@ -59,22 +65,28 @@ func (p *IncrementalSync) Process(ctx context.Context, task *models.SyncTask, pr
 
 // processWithDataSource 使用datasource框架处理增量同步
 func (p *IncrementalSync) processWithDataSource(ctx context.Context, dataSource *models.DataSource, dataInterface *models.DataInterface, task *models.SyncTask, progress *SyncProgress) (*SyncResult, error) {
-	progress.CurrentPhase = "初始化数据源"
+	progress.CurrentPhase = "获取数据源实例"
 	progress.UpdatedAt = time.Now()
 
-	// 注册数据源到管理器
-	err := p.datasourceManager.Register(ctx, dataSource)
+	var dsInstance datasource.DataSourceInterface
+	var err error
+
+	// 首先尝试从管理器获取已注册的数据源实例
+	dsInstance, err = p.datasourceManager.Get(dataSource.ID)
 	if err != nil {
-		return nil, fmt.Errorf("注册数据源失败: %w", err)
+		// 如果数据源未注册，则注册它
+		if err := p.datasourceManager.Register(ctx, dataSource); err != nil {
+			return nil, fmt.Errorf("注册数据源失败: %w", err)
+		}
+
+		// 再次获取数据源实例
+		dsInstance, err = p.datasourceManager.Get(dataSource.ID)
+		if err != nil {
+			return nil, fmt.Errorf("获取数据源实例失败: %w", err)
+		}
 	}
 
-	// 获取数据源实例
-	dsInstance, err := p.datasourceManager.Get(dataSource.ID)
-	if err != nil {
-		return nil, fmt.Errorf("获取数据源实例失败: %w", err)
-	}
-
-	// 启动数据源（如果需要）
+	// 启动数据源（如果需要且未启动）
 	if dsInstance.IsResident() && !dsInstance.IsStarted() {
 		progress.CurrentPhase = "启动数据源"
 		progress.UpdatedAt = time.Now()

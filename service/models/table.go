@@ -11,14 +11,15 @@ type TableSchemaRequest struct {
 
 // TableField 表字段模型
 type TableField struct {
-	NameZh          string `json:"name_zh" gorm:"not null;size:255"`
-	NameEn          string `json:"name_en" gorm:"not null;size:255"`
-	DataType        string `json:"data_type" gorm:"not null;size:50"`
-	IsPrimaryKey    bool   `json:"is_primary_key" gorm:"not null;default:false"`
-	IsUnique        bool   `json:"is_unique" gorm:"not null;default:false"`
-	IsNullable      bool   `json:"is_nullable" gorm:"not null;default:true"`
-	DefaultValue    string `json:"default_value" gorm:"size:255"`
-	Description     string `json:"description" gorm:"size:1000"`
-	OrderNum        int    `json:"order_num" gorm:"not null"`
-	CheckConstraint string `json:"check_constraint" gorm:"size:255"`
+	NameZh           string `json:"name_zh" gorm:"not null;size:255"`
+	NameEn           string `json:"name_en" gorm:"not null;size:255"`
+	DataType         string `json:"data_type" gorm:"not null;size:50"`
+	IsPrimaryKey     bool   `json:"is_primary_key" gorm:"not null;default:false"`
+	IsUnique         bool   `json:"is_unique" gorm:"not null;default:false"`
+	IsNullable       bool   `json:"is_nullable" gorm:"not null;default:true"`
+	DefaultValue     string `json:"default_value" gorm:"size:255"`
+	Description      string `json:"description" gorm:"size:1000"`
+	OrderNum         int    `json:"order_num" gorm:"not null"`
+	CheckConstraint  string `json:"check_constraint" gorm:"size:255"`
+	IsIncrementField bool   `json:"is_increment_field" gorm:"not null;default:false"` // 是否为增量字段，增量更新时根据这个字段判断条件
 }

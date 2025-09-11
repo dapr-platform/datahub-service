@@ -17,6 +17,7 @@ import (
 	"datahub-service/service/models"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"gorm.io/gorm"
@@ -71,7 +72,22 @@ func (s *DatasourceService) CreateDataSource(dataSource *models.DataSource) erro
 		return fmt.Errorf("数据源配置验证失败: %v", validationResult.Errors)
 	}
 
-	return s.db.Create(dataSource).Error
+	// 保存到数据库
+	if err := s.db.Create(dataSource).Error; err != nil {
+		return err
+	}
+
+	// 如果数据源状态为激活，立即注册到管理器
+	if dataSource.Status == "active" {
+		ctx := context.Background()
+		if err := s.datasourceManager.Register(ctx, dataSource); err != nil {
+			log.Printf("警告：数据源 %s 创建成功但注册到管理器失败: %v", dataSource.ID, err)
+		} else {
+			log.Printf("数据源 %s 创建并注册到管理器成功", dataSource.ID)
+		}
+	}
+
+	return nil
 }
 
 // UpdateDataSource 更新数据源
@@ -81,6 +97,9 @@ func (s *DatasourceService) UpdateDataSource(id string, updates map[string]inter
 	if err := s.db.First(&dataSource, "id = ?", id).Error; err != nil {
 		return err
 	}
+
+	// 记录原状态
+	originalStatus := dataSource.Status
 
 	// 如果更新配置，验证配置
 	if connectionConfig, exists := updates["connection_config"]; exists {
@@ -107,8 +126,48 @@ func (s *DatasourceService) UpdateDataSource(id string, updates map[string]inter
 		}
 	}
 
-	return s.db.Model(&dataSource).Updates(updates).Error
+	// 更新数据库
+	if err := s.db.Model(&dataSource).Updates(updates).Error; err != nil {
+		return err
+	}
+
+	// 重新加载更新后的数据源
+	if err := s.db.Preload("BasicLibrary").First(&dataSource, "id = ?", id).Error; err != nil {
+		return err
+	}
+
+	// 处理管理器中的数据源
+	ctx := context.Background()
+	newStatus := dataSource.Status
+
+	// 如果状态从激活变为非激活，从管理器移除
+	if originalStatus == "active" && newStatus != "active" {
+		if err := s.datasourceManager.Remove(id); err != nil {
+			log.Printf("警告：从管理器移除数据源 %s 失败: %v", id, err)
+		} else {
+			log.Printf("数据源 %s 已从管理器移除", id)
+		}
+	} else if newStatus == "active" {
+		// 如果状态为激活，重新注册到管理器（先移除再注册）
+		if originalStatus == "active" {
+			// 先移除现有的
+			if err := s.datasourceManager.Remove(id); err != nil {
+				log.Printf("警告：移除旧数据源实例 %s 失败: %v", id, err)
+			}
+		}
+
+		// 注册新的实例
+		if err := s.datasourceManager.Register(ctx, &dataSource); err != nil {
+			log.Printf("警告：数据源 %s 更新成功但重新注册到管理器失败: %v", id, err)
+		} else {
+			log.Printf("数据源 %s 更新并重新注册到管理器成功", id)
+		}
+	}
+
+	return nil
 }
+
+// DeleteDataSource 删除数据源
 func (s *DatasourceService) DeleteDataSource(dataSource *models.DataSource) error {
 	// 检查是否存在关联的接口
 	var interfaceCount int64
@@ -118,10 +177,23 @@ func (s *DatasourceService) DeleteDataSource(dataSource *models.DataSource) erro
 		return errors.New("无法删除：存在关联的数据接口")
 	}
 
+	// 先从管理器移除数据源
+	if err := s.datasourceManager.Remove(dataSource.ID); err != nil {
+		log.Printf("警告：从管理器移除数据源 %s 失败: %v", dataSource.ID, err)
+	} else {
+		log.Printf("数据源 %s 已从管理器移除", dataSource.ID)
+	}
+
 	// 删除相关的状态记录
 	s.db.Where("data_source_id = ?", dataSource.ID).Delete(&models.DataSourceStatus{})
 
-	return s.db.Delete(&models.DataSource{}, "id = ?", dataSource.ID).Error
+	// 删除数据源记录
+	if err := s.db.Delete(&models.DataSource{}, "id = ?", dataSource.ID).Error; err != nil {
+		return err
+	}
+
+	log.Printf("数据源 %s 删除成功", dataSource.ID)
+	return nil
 }
 
 // TestDataSource 测试数据源连接
@@ -166,28 +238,28 @@ func (s *DatasourceService) testConnection(dataSource *models.DataSource, startT
 	// 使用datasource框架测试连接
 	ctx := context.Background()
 
-	// 注册数据源到管理器
-	err := s.datasourceManager.Register(ctx, dataSource)
+	// 创建测试数据源实例（非常驻模式），不注册到管理器中
+	instance, err := s.datasourceManager.CreateTestInstance(dataSource.Type)
 	if err != nil {
 		result.Success = false
-		result.Message = "注册数据源失败"
+		result.Message = "创建数据源实例失败"
 		result.Duration = time.Since(startTime).Milliseconds()
 		result.Error = err.Error()
 		return result, err
 	}
 
-	// 获取数据源实例
-	dsInstance, err := s.datasourceManager.Get(dataSource.ID)
+	// 初始化数据源
+	err = instance.Init(ctx, dataSource)
 	if err != nil {
 		result.Success = false
-		result.Message = "获取数据源实例失败"
+		result.Message = "初始化数据源失败"
 		result.Duration = time.Since(startTime).Milliseconds()
 		result.Error = err.Error()
 		return result, err
 	}
 
 	// 执行健康检查
-	healthStatus, err := dsInstance.HealthCheck(ctx)
+	healthStatus, err := instance.HealthCheck(ctx)
 	if err != nil {
 		result.Success = false
 		result.Message = "数据源连接测试失败"

@@ -1,0 +1,56 @@
+{
+    "api": {
+        "base_url": "http://localhost:8080",
+        "timeout": 30,
+        "retry_count": 3,
+        "headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+    },
+    "logging": {
+        "level": "INFO",
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        "file": "e2e_test.log"
+    },
+    "validation": {
+        "required_response_fields": {
+            "basic": [
+                "status",
+                "msg"
+            ],
+            "success": [
+                "status",
+                "msg",
+                "data"
+            ],
+            "error": [
+                "status",
+                "msg",
+                "error"
+            ]
+        },
+        "expected_status_codes": {
+            "success": [
+                200,
+                201
+            ],
+            "client_error": [
+                400,
+                401,
+                403,
+                404
+            ],
+            "server_error": [
+                500,
+                502,
+                503
+            ]
+        }
+    },
+    "test_environment": {
+        "cleanup_on_failure": true,
+        "max_test_duration": 300,
+        "parallel_test_limit": 5
+    }
+}

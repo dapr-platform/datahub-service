@@ -17,6 +17,7 @@ import (
 	"datahub-service/service/thematic_library"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -34,6 +35,30 @@ func NewThematicLibraryController() *ThematicLibraryController {
 	}
 }
 
+// ThematicLibraryListResponse 数据主题库列表响应结构
+type ThematicLibraryListResponse struct {
+	List  []models.ThematicLibrary `json:"list"`
+	Total int64                    `json:"total"`
+	Page  int                      `json:"page"`
+	Size  int                      `json:"size"`
+}
+
+// ThematicInterfaceListResponse 主题接口列表响应结构
+type ThematicInterfaceListResponse struct {
+	List  []models.ThematicInterface `json:"list"`
+	Total int64                      `json:"total"`
+	Page  int                        `json:"page"`
+	Size  int                        `json:"size"`
+}
+
+// UpdateThematicInterfaceFieldsRequest 更新主题接口字段配置请求结构
+type UpdateThematicInterfaceFieldsRequest struct {
+	InterfaceID string              `json:"interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Fields      []models.TableField `json:"fields" validate:"required"`
+	UpdateTable bool                `json:"update_table" example:"true"`  // 是否同时更新数据库表结构
+	BackupTable bool                `json:"backup_table" example:"false"` // 是否备份原表
+}
+
 // CreateThematicLibrary 创建数据主题库
 // @Summary 创建数据主题库
 // @Description 创建新的数据主题库
@@ -48,12 +73,12 @@ func NewThematicLibraryController() *ThematicLibraryController {
 func (c *ThematicLibraryController) CreateThematicLibrary(w http.ResponseWriter, r *http.Request) {
 	var req models.ThematicLibrary
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.JSON(w, r, BadRequestResponse( fmt.Sprintf("请求参数格式错误:%s", err.Error()), nil))
+		render.JSON(w, r, BadRequestResponse(fmt.Sprintf("请求参数格式错误:%s", err.Error()), nil))
 		return
 	}
 
 	if err := c.service.CreateThematicLibrary(&req); err != nil {
-		render.JSON(w, r, BadRequestResponse( err.Error(), nil))
+		render.JSON(w, r, BadRequestResponse(err.Error(), nil))
 		return
 	}
 
@@ -73,13 +98,13 @@ func (c *ThematicLibraryController) CreateThematicLibrary(w http.ResponseWriter,
 func (c *ThematicLibraryController) GetThematicLibrary(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		render.JSON(w, r, BadRequestResponse( "ID参数不能为空", nil))
+		render.JSON(w, r, BadRequestResponse("ID参数不能为空", nil))
 		return
 	}
 
 	library, err := c.service.GetThematicLibrary(id)
 	if err != nil {
-		render.JSON(w, r, NotFoundResponse( "数据主题库不存在", nil))
+		render.JSON(w, r, NotFoundResponse("数据主题库不存在", nil))
 		return
 	}
 
@@ -102,18 +127,18 @@ func (c *ThematicLibraryController) GetThematicLibrary(w http.ResponseWriter, r 
 func (c *ThematicLibraryController) UpdateThematicLibrary(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		render.JSON(w, r, BadRequestResponse( "ID参数不能为空", nil))
+		render.JSON(w, r, BadRequestResponse("ID参数不能为空", nil))
 		return
 	}
 
 	var req models.ThematicLibrary
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.JSON(w, r, BadRequestResponse( "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	if err := c.service.UpdateThematicLibrary(id, &req); err != nil {
-		render.JSON(w, r, BadRequestResponse( err.Error(), nil))
+		render.JSON(w, r, BadRequestResponse(err.Error(), nil))
 		return
 	}
 
@@ -134,12 +159,12 @@ func (c *ThematicLibraryController) UpdateThematicLibrary(w http.ResponseWriter,
 func (c *ThematicLibraryController) DeleteThematicLibrary(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		render.JSON(w, r, BadRequestResponse( "ID参数不能为空", nil))
+		render.JSON(w, r, BadRequestResponse("ID参数不能为空", nil))
 		return
 	}
 
 	if err := c.service.DeleteThematicLibrary(id); err != nil {
-		render.JSON(w, r, BadRequestResponse( err.Error(), nil))
+		render.JSON(w, r, BadRequestResponse(err.Error(), nil))
 		return
 	}
 
@@ -160,12 +185,12 @@ func (c *ThematicLibraryController) DeleteThematicLibrary(w http.ResponseWriter,
 func (c *ThematicLibraryController) PublishThematicLibrary(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		render.JSON(w, r, BadRequestResponse( "ID参数不能为空", nil))
+		render.JSON(w, r, BadRequestResponse("ID参数不能为空", nil))
 		return
 	}
 
 	if err := c.service.PublishThematicLibrary(id); err != nil {
-		render.JSON(w, r, BadRequestResponse( err.Error(), nil))
+		render.JSON(w, r, BadRequestResponse(err.Error(), nil))
 		return
 	}
 
@@ -186,12 +211,12 @@ func (c *ThematicLibraryController) PublishThematicLibrary(w http.ResponseWriter
 func (c *ThematicLibraryController) CreateThematicInterface(w http.ResponseWriter, r *http.Request) {
 	var req models.ThematicInterface
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.JSON(w, r, BadRequestResponse( "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	if err := c.service.CreateThematicInterface(&req); err != nil {
-		render.JSON(w, r, BadRequestResponse( err.Error(), nil))
+		render.JSON(w, r, BadRequestResponse(err.Error(), nil))
 		return
 	}
 
@@ -211,13 +236,13 @@ func (c *ThematicLibraryController) CreateThematicInterface(w http.ResponseWrite
 func (c *ThematicLibraryController) GetThematicInterface(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		render.JSON(w, r, BadRequestResponse( "ID参数不能为空", nil))
+		render.JSON(w, r, BadRequestResponse("ID参数不能为空", nil))
 		return
 	}
 
 	thematicInterface, err := c.service.GetThematicInterface(id)
 	if err != nil {
-		render.JSON(w, r, NotFoundResponse( "主题接口不存在", nil))
+		render.JSON(w, r, NotFoundResponse("主题接口不存在", nil))
 		return
 	}
 
@@ -240,22 +265,122 @@ func (c *ThematicLibraryController) GetThematicInterface(w http.ResponseWriter, 
 func (c *ThematicLibraryController) UpdateThematicInterface(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		render.JSON(w, r, BadRequestResponse( "ID参数不能为空", nil))
+		render.JSON(w, r, BadRequestResponse("ID参数不能为空", nil))
 		return
 	}
 
 	var req models.ThematicInterface
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.JSON(w, r, BadRequestResponse( "请求参数格式错误", err))
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	if err := c.service.UpdateThematicInterface(id, &req); err != nil {
-		render.JSON(w, r, BadRequestResponse( err.Error(), nil))
+		render.JSON(w, r, BadRequestResponse(err.Error(), nil))
 		return
 	}
 
 	render.JSON(w, r, SuccessResponse("更新成功", nil))
+}
+
+// GetThematicLibraryList 获取数据主题库列表
+// @Summary 获取数据主题库列表
+// @Description 分页获取数据主题库列表，支持多种过滤条件
+// @Tags 数据主题库
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页大小" default(10)
+// @Param category query string false "主题分类过滤" Enums(business,technical,analysis,report)
+// @Param domain query string false "数据域过滤"
+// @Param status query string false "状态过滤" Enums(draft,published,archived)
+// @Param name query string false "名称搜索（支持中英文）"
+// @Success 200 {object} APIResponse{data=ThematicLibraryListResponse} "获取成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /thematic-libraries [get]
+func (c *ThematicLibraryController) GetThematicLibraryList(w http.ResponseWriter, r *http.Request) {
+	// 解析查询参数
+	page := 1
+	size := 10
+	category := r.URL.Query().Get("category")
+	domain := r.URL.Query().Get("domain")
+	status := r.URL.Query().Get("status")
+	name := r.URL.Query().Get("name")
+
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+	if s, err := strconv.Atoi(r.URL.Query().Get("size")); err == nil && s > 0 && s <= 100 {
+		size = s
+	}
+
+	// 调用服务层方法
+	libraries, total, err := c.service.GetThematicLibraryList(page, size, category, domain, status, name)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取数据主题库列表失败", err))
+		return
+	}
+
+	// 构建响应
+	response := ThematicLibraryListResponse{
+		List:  libraries,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据主题库列表成功", response))
+}
+
+// GetThematicInterfaceList 获取主题接口列表
+// @Summary 获取主题接口列表
+// @Description 分页获取主题接口列表，支持多种过滤条件
+// @Tags 主题接口
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页大小" default(10)
+// @Param library_id query string false "主题库ID过滤"
+// @Param interface_type query string false "接口类型过滤" Enums(realtime,batch)
+// @Param status query string false "状态过滤" Enums(active,inactive)
+// @Param name query string false "名称搜索（支持中英文）"
+// @Success 200 {object} APIResponse{data=ThematicInterfaceListResponse} "获取成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /thematic-interfaces [get]
+func (c *ThematicLibraryController) GetThematicInterfaceList(w http.ResponseWriter, r *http.Request) {
+	// 解析查询参数
+	page := 1
+	size := 10
+	libraryID := r.URL.Query().Get("library_id")
+	interfaceType := r.URL.Query().Get("interface_type")
+	status := r.URL.Query().Get("status")
+	name := r.URL.Query().Get("name")
+
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+	if s, err := strconv.Atoi(r.URL.Query().Get("size")); err == nil && s > 0 && s <= 100 {
+		size = s
+	}
+
+	// 调用服务层方法
+	interfaces, total, err := c.service.GetThematicInterfaceList(page, size, libraryID, interfaceType, status, name)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取主题接口列表失败", err))
+		return
+	}
+
+	// 构建响应
+	response := ThematicInterfaceListResponse{
+		List:  interfaces,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取主题接口列表成功", response))
 }
 
 // DeleteThematicInterface 删除主题接口
@@ -272,14 +397,51 @@ func (c *ThematicLibraryController) UpdateThematicInterface(w http.ResponseWrite
 func (c *ThematicLibraryController) DeleteThematicInterface(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		render.JSON(w, r, BadRequestResponse( "ID参数不能为空", nil))
+		render.JSON(w, r, BadRequestResponse("ID参数不能为空", nil))
 		return
 	}
 
 	if err := c.service.DeleteThematicInterface(id); err != nil {
-		render.JSON(w, r, BadRequestResponse( err.Error(), nil))
+		render.JSON(w, r, BadRequestResponse(err.Error(), nil))
 		return
 	}
 
 	render.JSON(w, r, SuccessResponse("删除成功", nil))
+}
+
+// UpdateThematicInterfaceFields 更新主题接口字段配置
+// @Summary 更新主题接口字段配置
+// @Description 更新主题接口的字段配置，并可选择同时更新数据库表结构
+// @Tags 主题接口
+// @Accept json
+// @Produce json
+// @Param request body UpdateThematicInterfaceFieldsRequest true "更新字段配置请求"
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /thematic-interfaces/update-fields [post]
+func (c *ThematicLibraryController) UpdateThematicInterfaceFields(w http.ResponseWriter, r *http.Request) {
+	var req UpdateThematicInterfaceFieldsRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.InterfaceID == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	if len(req.Fields) == 0 {
+		render.JSON(w, r, BadRequestResponse("字段配置不能为空", nil))
+		return
+	}
+
+	err := c.service.UpdateThematicInterfaceFields(req.InterfaceID, req.Fields, req.UpdateTable)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("更新主题接口字段配置失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("更新主题接口字段配置成功", nil))
 }

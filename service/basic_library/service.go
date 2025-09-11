@@ -13,6 +13,7 @@ package basic_library
 
 import (
 	"datahub-service/service/database"
+	"datahub-service/service/datasource"
 	"datahub-service/service/models"
 	"errors"
 	"fmt"
@@ -23,10 +24,12 @@ import (
 
 // Service 数据基础库服务
 type Service struct {
-	db                *gorm.DB
-	datasourceService *DatasourceService
-	interfaceService  *InterfaceService
-	statusService     *StatusService
+	db                    *gorm.DB
+	datasourceService     *DatasourceService
+	interfaceService      *InterfaceService
+	statusService         *StatusService
+	schemaService         *database.SchemaService
+	datasourceInitService *DatasourceInitService
 }
 
 // NewService 创建数据基础库服务实例
@@ -35,10 +38,15 @@ func NewService(db *gorm.DB, eventListener models.EventListener) *Service {
 		db: db,
 	}
 
+	// 获取全局数据源管理器
+	registry := datasource.GetGlobalRegistry()
+	datasourceManager := registry.GetManager()
+
 	// 初始化子服务
 	serviceInstance.datasourceService = NewDatasourceService(db)
-	serviceInstance.interfaceService = NewInterfaceService(db)
+	serviceInstance.interfaceService = NewInterfaceService(db, datasourceManager)
 	serviceInstance.statusService = NewStatusService(db)
+	serviceInstance.datasourceInitService = NewDatasourceInitService(db)
 
 	// 如果提供了事件处理器，则注册DB事件处理器,不使用事件通知方式。代码保留备查
 	// eventListener.RegisterDBEventProcessor(serviceInstance)
@@ -146,6 +154,112 @@ func (s *Service) GetBasicLibraries(page, pageSize int) ([]models.BasicLibrary, 
 	return libraries, total, err
 }
 
+// GetBasicLibraryList 获取数据基础库列表（支持过滤条件）
+func (s *Service) GetBasicLibraryList(page, pageSize int, name, status, createdBy string) ([]models.BasicLibrary, int64, error) {
+	var libraries []models.BasicLibrary
+	var total int64
+
+	query := s.db.Model(&models.BasicLibrary{})
+
+	// 添加过滤条件
+	if name != "" {
+		query = query.Where("name_zh ILIKE ? OR name_en ILIKE ?", "%"+name+"%", "%"+name+"%")
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if createdBy != "" {
+		query = query.Where("created_by = ?", createdBy)
+	}
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询，预加载关联数据
+	offset := (page - 1) * pageSize
+	err := query.Preload("DataSources").Preload("Interfaces").
+		Order("created_at DESC").
+		Offset(offset).Limit(pageSize).Find(&libraries).Error
+
+	return libraries, total, err
+}
+
+// GetDataSourceList 获取数据源列表
+func (s *Service) GetDataSourceList(page, pageSize int, libraryID, sourceType, status, name string) ([]models.DataSource, int64, error) {
+	var dataSources []models.DataSource
+	var total int64
+
+	query := s.db.Model(&models.DataSource{})
+
+	// 添加过滤条件
+	if libraryID != "" {
+		query = query.Where("library_id = ?", libraryID)
+	}
+	if sourceType != "" {
+		query = query.Where("source_type = ?", sourceType)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if name != "" {
+		query = query.Where("name_zh ILIKE ? OR name_en ILIKE ?", "%"+name+"%", "%"+name+"%")
+	}
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询，预加载基础库信息
+	offset := (page - 1) * pageSize
+	err := query.Preload("BasicLibrary").
+		Order("created_at DESC").
+		Offset(offset).Limit(pageSize).Find(&dataSources).Error
+
+	return dataSources, total, err
+}
+
+// GetDataInterfaceList 获取数据接口列表
+func (s *Service) GetDataInterfaceList(page, pageSize int, libraryID, dataSourceID, interfaceType, status, name string) ([]models.DataInterface, int64, error) {
+	var interfaces []models.DataInterface
+	var total int64
+
+	query := s.db.Model(&models.DataInterface{})
+
+	// 添加过滤条件
+	if libraryID != "" {
+		query = query.Where("library_id = ?", libraryID)
+	}
+	if dataSourceID != "" {
+		query = query.Where("data_source_id = ?", dataSourceID)
+	}
+	if interfaceType != "" {
+		query = query.Where("interface_type = ?", interfaceType)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if name != "" {
+		query = query.Where("name_zh ILIKE ? OR name_en ILIKE ?", "%"+name+"%", "%"+name+"%")
+	}
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询，预加载关联数据
+	offset := (page - 1) * pageSize
+	err := query.Preload("BasicLibrary").Preload("DataSource").
+		Preload("Fields").Preload("CleanRules").
+		Order("created_at DESC").
+		Offset(offset).Limit(pageSize).Find(&interfaces).Error
+
+	return interfaces, total, err
+}
+
 // UpdateBasicLibrary 更新数据基础库
 func (s *Service) UpdateBasicLibrary(id string, updates map[string]interface{}) error {
 	// 检查是否存在
@@ -199,6 +313,11 @@ func (s *Service) DeleteBasicLibrary(library *models.BasicLibrary) error {
 // CreateDataInterface 创建数据接口
 func (s *Service) CreateDataInterface(interfaceData *models.DataInterface) error {
 	return s.interfaceService.CreateDataInterface(interfaceData)
+}
+
+// UpdateDataInterface 更新数据接口
+func (s *Service) UpdateDataInterface(id string, updates map[string]interface{}) error {
+	return s.interfaceService.UpdateDataInterface(id, updates)
 }
 
 // DeleteDataInterface 删除数据接口
@@ -291,4 +410,14 @@ func (s *Service) UpdateDataSource(id string, updates map[string]interface{}) er
 // DeleteDataSource 删除数据源
 func (s *Service) DeleteDataSource(dataSource *models.DataSource) error {
 	return s.datasourceService.DeleteDataSource(dataSource)
+}
+
+// UpdateInterfaceFields 更新接口字段配置
+func (s *Service) UpdateInterfaceFields(interfaceID string, fields []models.TableField, updateTable bool) error {
+	return s.interfaceService.UpdateInterfaceFields(interfaceID, fields, updateTable)
+}
+
+// GetDatasourceInitService 获取数据源初始化服务
+func (s *Service) GetDatasourceInitService() *DatasourceInitService {
+	return s.datasourceInitService
 }
