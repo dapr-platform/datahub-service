@@ -43,35 +43,6 @@ func (SyncConfig) TableName() string {
 	return "sync_configs"
 }
 
-// SyncExecution 同步执行记录模型
-type SyncExecution struct {
-	ID              string     `gorm:"type:varchar(50);primaryKey" json:"id"`
-	SyncConfigID    string     `gorm:"type:varchar(50);not null;index" json:"sync_config_id"`
-	ExecutionType   string     `gorm:"type:varchar(20);not null" json:"execution_type"` // scheduled, manual, retry
-	Status          string     `gorm:"type:varchar(20);not null" json:"status"`         // running, success, failed, cancelled
-	StartTime       time.Time  `json:"start_time"`
-	EndTime         *time.Time `json:"end_time,omitempty"`
-	Duration        int64      `json:"duration"` // 执行时长，毫秒
-	RecordsTotal    int64      `json:"records_total"`
-	RecordsSuccess  int64      `json:"records_success"`
-	RecordsFailed   int64      `json:"records_failed"`
-	RecordsSkipped  int64      `json:"records_skipped"`
-	DataVolume      int64      `json:"data_volume"` // 数据量，字节
-	ErrorMessage    string     `gorm:"type:text" json:"error_message,omitempty"`
-	ExecutionLog    JSONB      `gorm:"type:jsonb" json:"execution_log"`    // 执行日志详情
-	TriggerInfo     JSONB      `gorm:"type:jsonb" json:"trigger_info"`     // 触发信息
-	PerformanceInfo JSONB      `gorm:"type:jsonb" json:"performance_info"` // 性能信息
-	RetryCount      int        `gorm:"default:0" json:"retry_count"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
-	DeletedAt       time.Time  `gorm:"index" json:"deleted_at,omitempty"`
-}
-
-// TableName 指定表名
-func (SyncExecution) TableName() string {
-	return "sync_executions"
-}
-
 // IncrementalState 增量同步状态模型
 type IncrementalState struct {
 	ID              string    `gorm:"type:varchar(50);primaryKey" json:"id"`

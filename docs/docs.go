@@ -11617,12 +11617,6 @@ const docTemplate = `{
                 "created_by": {
                     "type": "string"
                 },
-                "data_source": {
-                    "$ref": "#/definitions/models.DataSource"
-                },
-                "data_source_id": {
-                    "type": "string"
-                },
                 "description": {
                     "type": "string"
                 },
@@ -11711,6 +11705,13 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                },
+                "interfaces": {
+                    "description": "关联关系",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ThematicInterface"
+                    }
                 },
                 "name_en": {
                     "type": "string"

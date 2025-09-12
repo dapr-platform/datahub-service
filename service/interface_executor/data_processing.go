@@ -36,6 +36,11 @@ func NewDataProcessor(executor *InterfaceExecutor) *DataProcessor {
 
 // FetchDataFromSource 从数据源获取数据
 func (dp *DataProcessor) FetchDataFromSource(ctx context.Context, interfaceInfo InterfaceInfo, parameters map[string]interface{}) ([]map[string]interface{}, map[string]string, []string, error) {
+	return dp.FetchDataFromSourceWithExecuteType(ctx, interfaceInfo, parameters, "test")
+}
+
+// FetchDataFromSourceWithExecuteType 从数据源获取数据（支持指定执行类型）
+func (dp *DataProcessor) FetchDataFromSourceWithExecuteType(ctx context.Context, interfaceInfo InterfaceInfo, parameters map[string]interface{}, executeType string) ([]map[string]interface{}, map[string]string, []string, error) {
 	fmt.Printf("[DEBUG] DataProcessor.FetchDataFromSource - 开始从数据源获取数据\n")
 	fmt.Printf("[DEBUG] FetchDataFromSource - 接口ID: %s\n", interfaceInfo.GetID())
 	fmt.Printf("[DEBUG] FetchDataFromSource - 数据源ID: %s\n", interfaceInfo.GetDataSourceID())
@@ -100,8 +105,19 @@ func (dp *DataProcessor) FetchDataFromSource(ctx context.Context, interfaceInfo 
 
 	fmt.Printf("[DEBUG] FetchDataFromSource - 查询构建器创建成功\n")
 
-	// 构建执行请求
-	executeRequest, err := queryBuilder.BuildTestRequest(parameters)
+	// 根据执行类型构建不同的请求
+	var executeRequest *datasource.ExecuteRequest
+	switch executeType {
+	case "test", "preview":
+		executeRequest, err = queryBuilder.BuildTestRequest(parameters)
+	case "sync":
+		executeRequest, err = queryBuilder.BuildSyncRequest("full", parameters)
+	case "incremental_sync":
+		executeRequest, err = queryBuilder.BuildSyncRequest("incremental", parameters)
+	default:
+		executeRequest, err = queryBuilder.BuildTestRequest(parameters)
+	}
+
 	if err != nil {
 		fmt.Printf("[ERROR] FetchDataFromSource - 构建查询请求失败: %v\n", err)
 		return nil, nil, nil, fmt.Errorf("构建查询请求失败: %w", err)

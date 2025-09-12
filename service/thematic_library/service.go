@@ -88,7 +88,7 @@ func (s *Service) GetThematicLibrary(id string) (*models.ThematicLibrary, error)
 	var library models.ThematicLibrary
 	err := s.db.Preload("Interfaces").First(&library, "id = ?", id).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("获取主题库失败: %w", err)
 	}
 	return &library, nil
 }
@@ -154,7 +154,11 @@ func (s *Service) GetThematicLibraryList(page, pageSize int, category, domain, s
 		Order("created_at DESC").
 		Offset(offset).Limit(pageSize).Find(&libraries).Error
 
-	return libraries, total, err
+	if err != nil {
+		return nil, 0, fmt.Errorf("获取主题库列表失败: %w", err)
+	}
+
+	return libraries, total, nil
 }
 
 // GetThematicInterfaceList 获取主题接口列表（支持名称搜索）
@@ -189,7 +193,11 @@ func (s *Service) GetThematicInterfaceList(page, pageSize int, libraryID, interf
 		Order("created_at DESC").
 		Offset(offset).Limit(pageSize).Find(&interfaces).Error
 
-	return interfaces, total, err
+	if err != nil {
+		return nil, 0, fmt.Errorf("获取主题接口列表失败: %w", err)
+	}
+
+	return interfaces, total, nil
 }
 
 // UpdateThematicLibrary 更新数据主题库
@@ -339,7 +347,11 @@ func (s *Service) GetThematicInterfaces(page, pageSize int, libraryID, interface
 	offset := (page - 1) * pageSize
 	err := query.Preload("ThematicLibrary").Offset(offset).Limit(pageSize).Find(&interfaces).Error
 
-	return interfaces, total, err
+	if err != nil {
+		return nil, 0, fmt.Errorf("获取主题接口列表失败: %w", err)
+	}
+
+	return interfaces, total, nil
 }
 
 // UpdateThematicInterface 更新主题接口

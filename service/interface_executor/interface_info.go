@@ -67,7 +67,7 @@ type ThematicLibraryInterfaceInfo struct {
 func (t *ThematicLibraryInterfaceInfo) GetID() string           { return t.ID }
 func (t *ThematicLibraryInterfaceInfo) GetName() string         { return t.NameZh }
 func (t *ThematicLibraryInterfaceInfo) GetType() string         { return t.Type }
-func (t *ThematicLibraryInterfaceInfo) GetDataSourceID() string { return t.DataSourceID }
+func (t *ThematicLibraryInterfaceInfo) GetDataSourceID() string { return "" } // 主题接口不关联数据源
 func (t *ThematicLibraryInterfaceInfo) GetSchemaName() string   { return t.ThematicLibrary.NameEn }
 func (t *ThematicLibraryInterfaceInfo) GetTableName() string    { return t.NameEn }
 func (t *ThematicLibraryInterfaceInfo) GetInterfaceConfig() map[string]interface{} {
@@ -115,7 +115,6 @@ func (p *InterfaceInfoProvider) GetBasicLibraryInterface(interfaceID string) (In
 func (p *InterfaceInfoProvider) GetThematicLibraryInterface(interfaceID string) (InterfaceInfo, error) {
 	var thematicInterface models.ThematicInterface
 	err := p.db.Preload("ThematicLibrary").
-		Preload("DataSource").
 		First(&thematicInterface, "id = ?", interfaceID).Error
 	if err != nil {
 		return nil, err

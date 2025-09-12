@@ -24,6 +24,7 @@ func AutoMigrate(db *gorm.DB) error {
 	log.Println("开始数据库迁移...")
 
 	// 数据基础库相关表
+	log.Println("正在迁移数据基础库相关表...")
 	err := db.AutoMigrate(
 		&models.BasicLibrary{},
 		&models.DataInterface{},
@@ -35,10 +36,14 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.SyncTask{},
 	)
 	if err != nil {
+		log.Printf("数据基础库表迁移失败: %v", err)
 		return err
 	}
+	log.Println("数据基础库表迁移完成")
 
 	// 数据主题库相关表
+	log.Println("正在迁移数据主题库相关表...")
+	log.Printf("迁移表: ThematicLibrary, ThematicInterface, DataFlowGraph, FlowNode")
 	err = db.AutoMigrate(
 		&models.ThematicLibrary{},
 		&models.ThematicInterface{},
@@ -46,12 +51,28 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.FlowNode{},
 	)
 	if err != nil {
+		log.Printf("数据主题库表迁移失败: %v", err)
 		return err
+	}
+	log.Println("数据主题库表迁移完成")
+
+	// 验证主题库表是否创建成功
+	if db.Migrator().HasTable(&models.ThematicLibrary{}) {
+		log.Println("✅ thematic_libraries 表创建成功")
+	} else {
+		log.Println("❌ thematic_libraries 表创建失败")
+	}
+
+	if db.Migrator().HasTable(&models.ThematicInterface{}) {
+		log.Println("✅ thematic_interfaces 表创建成功")
+	} else {
+		log.Println("❌ thematic_interfaces 表创建失败")
 	}
 
 	// 访问控制相关表已移除，改为使用PostgREST RBAC
 
 	// 数据治理相关表
+	log.Println("正在迁移数据治理相关表...")
 	err = db.AutoMigrate(
 		&models.QualityRule{},
 		&models.Metadata{},
@@ -63,10 +84,13 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.SystemConfig{},
 	)
 	if err != nil {
+		log.Printf("数据治理表迁移失败: %v", err)
 		return err
 	}
+	log.Println("数据治理表迁移完成")
 
 	// 数据共享服务相关表
+	log.Println("正在迁移数据共享服务相关表...")
 	err = db.AutoMigrate(
 		&models.ApiApplication{},
 		&models.ApiRateLimit{},
@@ -75,10 +99,13 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.ApiUsageLog{},
 	)
 	if err != nil {
+		log.Printf("数据共享服务表迁移失败: %v", err)
 		return err
 	}
+	log.Println("数据共享服务表迁移完成")
 
 	// 事件管理相关表
+	log.Println("正在迁移事件管理相关表...")
 	err = db.AutoMigrate(
 		&models.SSEEvent{},
 		&models.DBEventListener{},
@@ -86,40 +113,51 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.SSEConnection{},
 	)
 	if err != nil {
+		log.Printf("事件管理表迁移失败: %v", err)
 		return err
 	}
+	log.Println("事件管理表迁移完成")
 
 	// 数据同步相关表
+	log.Println("正在迁移数据同步相关表...")
 	err = db.AutoMigrate(
 		&models.SyncTask{},
+		&models.SyncTaskInterface{},
 		&models.SyncTaskExecution{},
 		&models.SyncConfig{},
-		&models.SyncExecution{},
 		&models.IncrementalState{},
 		&models.SyncStatistics{},
 	)
 	if err != nil {
+		log.Printf("数据同步表迁移失败: %v", err)
 		return err
 	}
+	log.Println("数据同步表迁移完成")
 
 	// 数据质量相关表
+	log.Println("正在迁移数据质量相关表...")
 	err = db.AutoMigrate(
 		&models.QualityCheckExecution{},
 		&models.QualityMetricRecord{},
 		&models.QualityIssueTracker{},
 	)
 	if err != nil {
+		log.Printf("数据质量表迁移失败: %v", err)
 		return err
 	}
+	log.Println("数据质量表迁移完成")
 
 	// 监控和告警相关表
+	log.Println("正在迁移监控和告警相关表...")
 	err = db.AutoMigrate(
 		&models.AlertRule{},
 		&models.MonitoringMetric{},
 	)
 	if err != nil {
+		log.Printf("监控和告警表迁移失败: %v", err)
 		return err
 	}
+	log.Println("监控和告警表迁移完成")
 
 	// 创建同步相关索引
 	if err := CreateSyncIndexes(db); err != nil {

@@ -23,9 +23,9 @@ import (
 
 // SyncTaskInterface 同步任务接口关联表
 type SyncTaskInterface struct {
-	ID            string     `json:"id" gorm:"primaryKey;type:varchar(36)"`
-	TaskID        string     `json:"task_id" gorm:"not null;type:varchar(36);index" example:"550e8400-e29b-41d4-a716-446655440000"`
-	InterfaceID   string     `json:"interface_id" gorm:"not null;type:varchar(36);index" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ID            string     `json:"id" gorm:"primaryKey;type:varchar(36);uniqueIndex"`
+	TaskID        string     `json:"task_id" gorm:"not null;type:varchar(36);index;uniqueIndex:uk_task_interface" example:"550e8400-e29b-41d4-a716-446655440000"`
+	InterfaceID   string     `json:"interface_id" gorm:"not null;type:varchar(36);index;uniqueIndex:uk_task_interface" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Status        string     `json:"status" gorm:"not null;size:20;default:'pending'" example:"pending"` // pending, running, success, failed, cancelled
 	Progress      int        `json:"progress" gorm:"default:0" example:"0"`                              // 进度百分比 0-100
 	ProcessedRows int64      `json:"processed_rows" gorm:"default:0" example:"0"`
@@ -159,9 +159,11 @@ func (st *SyncTask) BeforeCreate(tx *gorm.DB) error {
 
 // BeforeUpdate GORM钩子，更新前验证
 func (st *SyncTask) BeforeUpdate(tx *gorm.DB) error {
-	// 验证库类型
-	if err := st.ValidateLibraryType(); err != nil {
-		return err
+	// 只在库类型字段不为空时验证（避免部分更新时的验证错误）
+	if st.LibraryType != "" {
+		if err := st.ValidateLibraryType(); err != nil {
+			return err
+		}
 	}
 
 	return nil

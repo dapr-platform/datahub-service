@@ -198,11 +198,18 @@ func InitRoute(r *chi.Mux) {
 			r.Post("/{id}/retry", syncTaskController.RetrySyncTask)
 			r.Get("/{id}/status", syncTaskController.GetSyncTaskStatus)
 
+			// 任务执行记录
+			r.Get("/{id}/executions", syncTaskController.GetTaskExecutions)
+
 			// 批量操作
 			r.Post("/batch-delete", syncTaskController.BatchDeleteSyncTasks)
 
 			// 统计信息
 			r.Get("/statistics", syncTaskController.GetSyncTaskStatistics)
+
+			// 执行记录管理
+			r.Get("/executions", syncTaskController.GetSyncTaskExecutions)
+			r.Get("/executions/{id}", syncTaskController.GetSyncTaskExecution)
 		})
 	})
 

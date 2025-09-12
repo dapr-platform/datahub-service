@@ -71,11 +71,18 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 	// 插入新数据
 	var insertedRows int64
 	for i, row := range data {
-		fmt.Printf("[DEBUG] UpdateTableData - 处理第 %d 行数据: %+v\n", i+1, row)
+		// 只对第一行数据输出详细调试信息
+		if i == 0 {
+			fmt.Printf("[DEBUG] UpdateTableData - 处理第 %d 行数据: %+v\n", i+1, row)
+		} else if i%100 == 0 {
+			fmt.Printf("[DEBUG] UpdateTableData - 已处理 %d 行数据...\n", i+1)
+		}
 
 		// 应用parseConfig中的fieldMapping
-		mappedRow := fm.ApplyFieldMapping(row, parseConfig)
-		fmt.Printf("[DEBUG] UpdateTableData - 字段映射后的数据: %+v\n", mappedRow)
+		mappedRow := fm.ApplyFieldMapping(row, parseConfig, i == 0)
+		if i == 0 {
+			fmt.Printf("[DEBUG] UpdateTableData - 字段映射后的数据: %+v\n", mappedRow)
+		}
 
 		// 构建插入SQL
 		columns := make([]string, 0, len(mappedRow))
@@ -96,8 +103,10 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 			strings.Join(columns, ", "),
 			strings.Join(placeholders, ", "))
 
-		fmt.Printf("[DEBUG] UpdateTableData - 插入SQL: %s\n", insertSQL)
-		fmt.Printf("[DEBUG] UpdateTableData - 插入参数: %+v\n", values)
+		if i == 0 {
+			fmt.Printf("[DEBUG] UpdateTableData - 插入SQL: %s\n", insertSQL)
+			fmt.Printf("[DEBUG] UpdateTableData - 插入参数: %+v\n", values)
+		}
 
 		if err := tx.Exec(insertSQL, values...).Error; err != nil {
 			fmt.Printf("[ERROR] UpdateTableData - 插入数据失败: %v\n", err)
@@ -193,24 +202,33 @@ func (fm *FieldMapper) InsertBatchData(ctx context.Context, db *gorm.DB, interfa
 }
 
 // ApplyFieldMapping 应用字段映射配置
-func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig map[string]interface{}) map[string]interface{} {
-	fmt.Printf("[DEBUG] FieldMapper.ApplyFieldMapping - 原始数据: %+v\n", row)
-	fmt.Printf("[DEBUG] ApplyFieldMapping - parseConfig: %+v\n", parseConfig)
+func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig map[string]interface{}, debugLog ...bool) map[string]interface{} {
+	debug := len(debugLog) > 0 && debugLog[0]
+	if debug {
+		fmt.Printf("[DEBUG] FieldMapper.ApplyFieldMapping - 原始数据: %+v\n", row)
+		fmt.Printf("[DEBUG] ApplyFieldMapping - parseConfig: %+v\n", parseConfig)
+	}
 
 	// 如果没有parseConfig，直接返回原始数据
 	if parseConfig == nil {
-		fmt.Printf("[DEBUG] ApplyFieldMapping - parseConfig为空，返回原始数据\n")
+		if debug {
+			fmt.Printf("[DEBUG] ApplyFieldMapping - parseConfig为空，返回原始数据\n")
+		}
 		return row
 	}
 
 	// 获取fieldMapping配置
 	fieldMappingInterface, exists := parseConfig["fieldMapping"]
 	if !exists {
-		fmt.Printf("[DEBUG] ApplyFieldMapping - 没有fieldMapping配置，返回原始数据\n")
+		if debug {
+			fmt.Printf("[DEBUG] ApplyFieldMapping - 没有fieldMapping配置，返回原始数据\n")
+		}
 		return row
 	}
 
-	fmt.Printf("[DEBUG] ApplyFieldMapping - fieldMapping原始配置: %+v\n", fieldMappingInterface)
+	if debug {
+		fmt.Printf("[DEBUG] ApplyFieldMapping - fieldMapping原始配置: %+v\n", fieldMappingInterface)
+	}
 
 	// 支持两种格式：数组格式（新）和对象格式（旧）
 	var fieldMappingArray []interface{}
@@ -221,14 +239,20 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 	if mappingArray, ok := fieldMappingInterface.([]interface{}); ok {
 		fieldMappingArray = mappingArray
 		isArrayFormat = true
-		fmt.Printf("[DEBUG] ApplyFieldMapping - 使用数组格式fieldMapping，条目数: %d\n", len(fieldMappingArray))
+		if debug {
+			fmt.Printf("[DEBUG] ApplyFieldMapping - 使用数组格式fieldMapping，条目数: %d\n", len(fieldMappingArray))
+		}
 	} else if mappingMap, ok := fieldMappingInterface.(map[string]interface{}); ok {
 		// 兼容旧的对象格式
 		fieldMappingMap = mappingMap
 		isArrayFormat = false
-		fmt.Printf("[DEBUG] ApplyFieldMapping - 使用对象格式fieldMapping（兼容模式）\n")
+		if debug {
+			fmt.Printf("[DEBUG] ApplyFieldMapping - 使用对象格式fieldMapping（兼容模式）\n")
+		}
 	} else {
-		fmt.Printf("[DEBUG] ApplyFieldMapping - fieldMapping格式不支持，返回原始数据\n")
+		if debug {
+			fmt.Printf("[DEBUG] ApplyFieldMapping - fieldMapping格式不支持，返回原始数据\n")
+		}
 		return row
 	}
 
@@ -245,7 +269,9 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 				target := cast.ToString(mappingObj["target"])
 				if source != "" && target != "" {
 					sourceToTargetMap[source] = target
-					fmt.Printf("[DEBUG] ApplyFieldMapping - 映射规则: %s -> %s\n", source, target)
+					if debug {
+						fmt.Printf("[DEBUG] ApplyFieldMapping - 映射规则: %s -> %s\n", source, target)
+					}
 				}
 			}
 		}
@@ -263,7 +289,9 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 			}
 
 			mappedRow[targetField] = value
-			fmt.Printf("[DEBUG] ApplyFieldMapping - 字段映射: %s -> %s, 值: %v\n", sourceField, targetField, value)
+			if debug {
+				fmt.Printf("[DEBUG] ApplyFieldMapping - 字段映射: %s -> %s, 值: %v\n", sourceField, targetField, value)
+			}
 		}
 
 	} else {
@@ -285,21 +313,28 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 			}
 
 			mappedRow[targetField] = value
-			fmt.Printf("[DEBUG] ApplyFieldMapping - 字段映射（兼容模式）: %s -> %s, 值: %v\n", sourceField, targetField, value)
+			if debug {
+				fmt.Printf("[DEBUG] ApplyFieldMapping - 字段映射（兼容模式）: %s -> %s, 值: %v\n", sourceField, targetField, value)
+			}
 		}
 	}
 
-	fmt.Printf("[DEBUG] ApplyFieldMapping - 映射后数据: %+v\n", mappedRow)
+	if debug {
+		fmt.Printf("[DEBUG] ApplyFieldMapping - 映射后数据: %+v\n", mappedRow)
+	}
 	return mappedRow
 }
 
 // ProcessValueForDatabase 处理数据库值，特别是时间字段格式转换
-func (fm *FieldMapper) ProcessValueForDatabase(columnName string, value interface{}) interface{} {
+func (fm *FieldMapper) ProcessValueForDatabase(columnName string, value interface{}, debugLog ...bool) interface{} {
 	if value == nil {
 		return value
 	}
 
-	fmt.Printf("[DEBUG] FieldMapper.ProcessValueForDatabase - 处理字段: %s, 原始值: %+v, 类型: %T\n", columnName, value, value)
+	debug := len(debugLog) > 0 && debugLog[0]
+	if debug {
+		fmt.Printf("[DEBUG] FieldMapper.ProcessValueForDatabase - 处理字段: %s, 原始值: %+v, 类型: %T\n", columnName, value, value)
+	}
 
 	// 检查是否是时间相关字段
 	isTimeField := strings.Contains(strings.ToLower(columnName), "time") ||
@@ -313,28 +348,38 @@ func (fm *FieldMapper) ProcessValueForDatabase(columnName string, value interfac
 		case time.Time:
 			// 转换为PostgreSQL兼容的字符串格式
 			formatted := v.Format("2006-01-02 15:04:05.000")
-			fmt.Printf("[DEBUG] ProcessValueForDatabase - 时间字段转换: %s -> %s\n", v.String(), formatted)
+			if debug {
+				fmt.Printf("[DEBUG] ProcessValueForDatabase - 时间字段转换: %s -> %s\n", v.String(), formatted)
+			}
 			return formatted
 		case string:
 			// 尝试解析字符串时间并重新格式化
 			if parsedTime, err := time.Parse(time.RFC3339, v); err == nil {
 				formatted := parsedTime.Format("2006-01-02 15:04:05.000")
-				fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(RFC3339): %s -> %s\n", v, formatted)
+				if debug {
+					fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(RFC3339): %s -> %s\n", v, formatted)
+				}
 				return formatted
 			}
 			if parsedTime, err := time.Parse("2006-01-02 15:04:05", v); err == nil {
 				formatted := parsedTime.Format("2006-01-02 15:04:05.000")
-				fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(标准): %s -> %s\n", v, formatted)
+				if debug {
+					fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(标准): %s -> %s\n", v, formatted)
+				}
 				return formatted
 			}
 			if parsedTime, err := time.Parse("2006-01-02T15:04:05Z", v); err == nil {
 				formatted := parsedTime.Format("2006-01-02 15:04:05.000")
-				fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(ISO): %s -> %s\n", v, formatted)
+				if debug {
+					fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(ISO): %s -> %s\n", v, formatted)
+				}
 				return formatted
 			}
 			if parsedTime, err := time.Parse("2006-01-02T15:04:05.000Z", v); err == nil {
 				formatted := parsedTime.Format("2006-01-02 15:04:05.000")
-				fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(ISO毫秒): %s -> %s\n", v, formatted)
+				if debug {
+					fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(ISO毫秒): %s -> %s\n", v, formatted)
+				}
 				return formatted
 			}
 			// 如果无法解析，返回原值

@@ -83,16 +83,24 @@ func getEnvWithDefault(key, defaultValue string) string {
 
 // runMigrations 运行数据库迁移
 func runMigrations() {
+	log.Println("开始运行数据库迁移...")
+
 	if err := database.AutoMigrate(DB); err != nil {
 		log.Fatalf("数据库迁移失败: %v", err)
 	}
+	log.Println("数据库表结构迁移完成")
 
 	if err := database.InitializeData(DB); err != nil {
 		log.Fatalf("基础数据初始化失败: %v", err)
 	}
+	log.Println("基础数据初始化完成")
+
 	if err := database.AutoMigrateView(DB); err != nil {
 		log.Fatalf("视图迁移失败: %v", err)
 	}
+	log.Println("视图迁移完成")
+
+	log.Println("所有数据库迁移任务完成")
 }
 
 // initServices 初始化服务

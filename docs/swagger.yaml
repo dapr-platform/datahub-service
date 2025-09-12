@@ -2466,10 +2466,6 @@ definitions:
         type: string
       created_by:
         type: string
-      data_source:
-        $ref: '#/definitions/models.DataSource'
-      data_source_id:
-        type: string
       description:
         type: string
       id:
@@ -2529,6 +2525,11 @@ definitions:
         type: string
       id:
         type: string
+      interfaces:
+        description: 关联关系
+        items:
+          $ref: '#/definitions/models.ThematicInterface'
+        type: array
       name_en:
         type: string
       name_zh:

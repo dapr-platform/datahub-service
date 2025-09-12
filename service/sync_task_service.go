@@ -14,6 +14,8 @@ package service
 import (
 	"context"
 	"datahub-service/service/basic_library"
+	"datahub-service/service/datasource"
+	"datahub-service/service/interface_executor"
 	"datahub-service/service/meta"
 	"datahub-service/service/models"
 	"datahub-service/service/sync_engine"
@@ -219,17 +221,24 @@ func (h *ThematicLibraryHandler) GetLibraryInterfaces(libraryID string) ([]model
 
 // SyncTaskService 通用同步任务服务
 type SyncTaskService struct {
-	db         *gorm.DB
-	handlers   map[string]LibraryHandler
-	syncEngine *sync_engine.SyncEngine
+	db                *gorm.DB
+	handlers          map[string]LibraryHandler
+	syncEngine        *sync_engine.SyncEngine
+	interfaceExecutor *interface_executor.InterfaceExecutor
+	datasourceManager datasource.DataSourceManager
 }
 
 // NewSyncTaskService 创建同步任务服务
 func NewSyncTaskService(db *gorm.DB, basicLibService *basic_library.Service, thematicLibService *thematic_library.Service, syncEngine *sync_engine.SyncEngine) *SyncTaskService {
+	// 初始化数据源管理器
+	datasourceManager := datasource.GetGlobalRegistry().GetManager()
+
 	service := &SyncTaskService{
-		db:         db,
-		handlers:   make(map[string]LibraryHandler),
-		syncEngine: syncEngine,
+		db:                db,
+		handlers:          make(map[string]LibraryHandler),
+		syncEngine:        syncEngine,
+		interfaceExecutor: interface_executor.NewInterfaceExecutor(db, datasourceManager),
+		datasourceManager: datasourceManager,
 	}
 
 	// 注册库类型处理器
@@ -716,9 +725,9 @@ func (s *SyncTaskService) DeleteSyncTask(ctx context.Context, taskID string) err
 func (s *SyncTaskService) StartSyncTask(ctx context.Context, taskID string) error {
 	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 开始启动任务: %s\n", taskID)
 
-	// 获取任务
+	// 获取任务详细信息
 	var task models.SyncTask
-	if err := s.db.First(&task, "id = ?", taskID).Error; err != nil {
+	if err := s.db.Preload("TaskInterfaces").First(&task, "id = ?", taskID).Error; err != nil {
 		fmt.Printf("[ERROR] SyncTaskService.StartSyncTask - 任务不存在: %s, 错误: %v\n", taskID, err)
 		return fmt.Errorf("任务不存在: %w", err)
 	}
@@ -726,48 +735,193 @@ func (s *SyncTaskService) StartSyncTask(ctx context.Context, taskID string) erro
 	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 找到任务: %s, 当前状态: %s, 类型: %s\n", task.ID, task.Status, task.TaskType)
 
 	// 检查任务状态
-	if task.Status != meta.SyncTaskStatusPending && task.Status != meta.SyncTaskStatusFailed {
+	if task.Status != meta.SyncTaskStatusPending && task.Status != meta.SyncTaskStatusFailed && task.Status != meta.SyncTaskStatusCancelled {
 		fmt.Printf("[ERROR] SyncTaskService.StartSyncTask - 任务状态不允许启动: %s, 当前状态: %s\n", taskID, task.Status)
 		return fmt.Errorf("只有待执行状态或失败状态的任务可以启动，当前状态: %s", task.Status)
 	}
 
+	// 更新任务状态为运行中
+	if err := s.db.Model(&task).Updates(map[string]interface{}{
+		"status":     meta.SyncTaskStatusRunning,
+		"start_time": time.Now(),
+		"updated_at": time.Now(),
+	}).Error; err != nil {
+		return fmt.Errorf("更新任务状态失败: %w", err)
+	}
+
+	// 创建独立的context用于任务执行，避免HTTP请求context被取消影响任务执行
+	taskCtx := context.Background()
+
+	// 如果有指定接口，使用InterfaceExecutor执行
+	if len(task.TaskInterfaces) > 0 {
+		go s.executeTaskWithInterfaces(taskCtx, &task)
+	} else {
+		// 没有指定接口，使用原有的同步引擎
+		go s.executeTaskWithSyncEngine(taskCtx, &task)
+	}
+
+	return nil
+}
+
+// executeTaskWithInterfaces 使用InterfaceExecutor执行任务
+func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *models.SyncTask) {
+	fmt.Printf("[DEBUG] SyncTaskService.executeTaskWithInterfaces - 开始执行任务: %s\n", task.ID)
+
+	// 创建执行记录
+	execution, err := s.CreateSyncTaskExecution(ctx, task.ID, "interface_executor")
+	if err != nil {
+		fmt.Printf("[ERROR] 创建执行记录失败: %v\n", err)
+		s.updateTaskStatus(task.ID, meta.SyncTaskStatusFailed, err.Error())
+		return
+	}
+
+	var totalProcessed int64
+	var hasError bool
+	var errorMessages []string
+
+	// 执行每个接口
+	for _, taskInterface := range task.TaskInterfaces {
+		fmt.Printf("[DEBUG] 执行接口: %s\n", taskInterface.InterfaceID)
+
+		// 准备执行请求
+		// 映射库类型到接口类型
+		var interfaceType string
+		switch task.LibraryType {
+		case meta.LibraryTypeBasic:
+			interfaceType = "basic_library"
+		case meta.LibraryTypeThematic:
+			interfaceType = "thematic_library"
+		default:
+			// 如果是旧格式，直接使用
+			interfaceType = task.LibraryType
+		}
+
+		executeRequest := &interface_executor.ExecuteRequest{
+			InterfaceID:   taskInterface.InterfaceID,
+			InterfaceType: interfaceType,
+			ExecuteType:   meta.GetExecuteTypeFromTaskType(task.TaskType),
+			SyncStrategy:  meta.GetSyncStrategyFromTaskType(task.TaskType),
+			Parameters:    taskInterface.Config,
+		}
+
+		// 执行接口
+		response, err := s.interfaceExecutor.Execute(ctx, executeRequest)
+		if err != nil {
+			hasError = true
+			errorMsg := fmt.Sprintf("接口 %s 执行失败: %v", taskInterface.InterfaceID, err)
+			errorMessages = append(errorMessages, errorMsg)
+			fmt.Printf("[ERROR] %s\n", errorMsg)
+			continue
+		}
+
+		if !response.Success {
+			hasError = true
+			errorMsg := fmt.Sprintf("接口 %s 执行失败: %s", taskInterface.InterfaceID, response.Error)
+			errorMessages = append(errorMessages, errorMsg)
+			fmt.Printf("[ERROR] %s\n", errorMsg)
+			continue
+		}
+
+		totalProcessed += response.UpdatedRows
+		fmt.Printf("[DEBUG] 接口 %s 执行成功，更新行数: %d\n", taskInterface.InterfaceID, response.UpdatedRows)
+	}
+
+	// 更新任务状态
+	var finalStatus string
+	var errorMessage string
+
+	if hasError {
+		if totalProcessed > 0 {
+			finalStatus = meta.SyncTaskStatusSuccess // 部分成功
+			errorMessage = fmt.Sprintf("部分接口执行失败: %v", errorMessages)
+		} else {
+			finalStatus = meta.SyncTaskStatusFailed
+			errorMessage = fmt.Sprintf("所有接口执行失败: %v", errorMessages)
+		}
+	} else {
+		finalStatus = meta.SyncTaskStatusSuccess
+	}
+
+	// 更新任务
+	updates := map[string]interface{}{
+		"status":         finalStatus,
+		"end_time":       time.Now(),
+		"processed_rows": totalProcessed,
+		"progress":       100,
+		"updated_at":     time.Now(),
+	}
+
+	if errorMessage != "" {
+		updates["error_message"] = errorMessage
+	}
+
+	if err := s.db.Model(&models.SyncTask{}).Where("id = ?", task.ID).Updates(updates).Error; err != nil {
+		fmt.Printf("[ERROR] 更新任务状态失败: %v\n", err)
+	} else {
+		fmt.Printf("[DEBUG] 任务状态更新成功: %s -> %s\n", task.ID, finalStatus)
+	}
+
+	// 更新执行记录
+	result := map[string]interface{}{
+		"processed_rows":  totalProcessed,
+		"interface_count": len(task.TaskInterfaces),
+		"success_count":   len(task.TaskInterfaces) - len(errorMessages),
+		"failed_count":    len(errorMessages),
+	}
+
+	if err := s.UpdateSyncTaskExecution(ctx, execution.ID, finalStatus, result, errorMessage); err != nil {
+		fmt.Printf("[ERROR] 更新执行记录失败: %v\n", err)
+	} else {
+		fmt.Printf("[DEBUG] 执行记录更新成功: %s -> %s\n", execution.ID, finalStatus)
+	}
+
+	fmt.Printf("[DEBUG] 任务 %s 执行完成，状态: %s，处理行数: %d\n", task.ID, finalStatus, totalProcessed)
+}
+
+// executeTaskWithSyncEngine 使用原有的同步引擎执行任务
+func (s *SyncTaskService) executeTaskWithSyncEngine(ctx context.Context, task *models.SyncTask) {
+	fmt.Printf("[DEBUG] SyncTaskService.executeTaskWithSyncEngine - 使用同步引擎执行任务: %s\n", task.ID)
+
 	// 创建同步引擎请求
 	syncRequest := &sync_engine.SyncTaskRequest{
-		TaskID:       task.ID, // 传递任务ID，用于手动执行
+		TaskID:       task.ID,
 		LibraryType:  task.LibraryType,
 		LibraryID:    task.LibraryID,
 		DataSourceID: task.DataSourceID,
 		SyncType:     sync_engine.SyncType(task.TaskType),
 		Config:       map[string]interface{}(task.Config),
-		Priority:     1, // 默认优先级
+		Priority:     1,
 		ScheduledBy:  "manual",
 	}
-
-	// 加载任务接口关联
-	if err := s.db.Preload("TaskInterfaces").First(&task, "id = ?", taskID).Error; err != nil {
-		return fmt.Errorf("加载任务接口信息失败: %w", err)
-	}
-
-	// 设置接口ID列表
-	var interfaceIDs []string
-	for _, taskInterface := range task.TaskInterfaces {
-		interfaceIDs = append(interfaceIDs, taskInterface.InterfaceID)
-	}
-	syncRequest.InterfaceIDs = interfaceIDs
-
-
-	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 准备提交任务到同步引擎: %+v\n", syncRequest)
 
 	// 提交任务到同步引擎
 	syncTask, err := s.syncEngine.SubmitSyncTask(syncRequest)
 	if err != nil {
-		fmt.Printf("[ERROR] SyncTaskService.StartSyncTask - 提交任务到引擎失败: %v\n", err)
-		return fmt.Errorf("提交同步任务到引擎失败: %w", err)
+		fmt.Printf("[ERROR] 提交任务到引擎失败: %v\n", err)
+		s.updateTaskStatus(task.ID, meta.SyncTaskStatusFailed, err.Error())
+		return
 	}
 
-	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 任务已提交到同步引擎，返回任务ID: %s\n", syncTask.ID)
+	fmt.Printf("[DEBUG] 任务已提交到同步引擎，返回任务ID: %s\n", syncTask.ID)
+}
 
-	return nil
+// updateTaskStatus 更新任务状态的辅助方法
+func (s *SyncTaskService) updateTaskStatus(taskID, status, errorMessage string) {
+	updates := map[string]interface{}{
+		"status":     status,
+		"end_time":   time.Now(),
+		"updated_at": time.Now(),
+	}
+
+	if errorMessage != "" {
+		updates["error_message"] = errorMessage
+	}
+
+	if err := s.db.Model(&models.SyncTask{}).Where("id = ?", taskID).Updates(updates).Error; err != nil {
+		fmt.Printf("[ERROR] 更新任务状态失败: %v\n", err)
+	} else {
+		fmt.Printf("[DEBUG] 任务状态更新成功: %s -> %s\n", taskID, status)
+	}
 }
 
 // StopSyncTask 停止同步任务

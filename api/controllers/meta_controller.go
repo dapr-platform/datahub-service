@@ -49,6 +49,8 @@ func (c *MetaController) GetSyncTaskMeta(w http.ResponseWriter, r *http.Request)
 		"task_statuses":    meta.SyncTaskMetas["sync_task_statuses"],
 		"schedule_types":   meta.SyncTaskMetas["sync_task_schedule_types"],
 		"event_types":      meta.SyncTaskMetas["sync_event_types"],
+		"execute_types":    meta.SyncTaskMetas["sync_execute_types"],
+		"sync_strategies":  meta.SyncTaskMetas["sync_strategies"],
 		"schedule_configs": meta.SyncTaskScheduleDefinitions,
 	}
 	render.JSON(w, r, SuccessResponse("获取同步任务元数据成功", syncTaskMeta))

@@ -39,7 +39,7 @@ func (ops *ExecuteOperations) ExecutePreview(ctx context.Context, interfaceInfo 
 
 	// 执行数据获取
 	dataProcessor := NewDataProcessor(ops.executor)
-	data, dataTypes, warnings, err := dataProcessor.FetchDataFromSource(ctx, interfaceInfo, request.Parameters)
+	data, dataTypes, warnings, err := dataProcessor.FetchDataFromSourceWithExecuteType(ctx, interfaceInfo, request.Parameters, request.ExecuteType)
 	if err != nil {
 		return &ExecuteResponse{
 			Success:     false,
@@ -86,7 +86,7 @@ func (ops *ExecuteOperations) ExecuteTest(ctx context.Context, interfaceInfo Int
 
 	// 执行数据获取
 	dataProcessor := NewDataProcessor(ops.executor)
-	data, dataTypes, warnings, err := dataProcessor.FetchDataFromSource(ctx, interfaceInfo, request.Parameters)
+	data, dataTypes, warnings, err := dataProcessor.FetchDataFromSourceWithExecuteType(ctx, interfaceInfo, request.Parameters, request.ExecuteType)
 	if err != nil {
 		return &ExecuteResponse{
 			Success:     false,
@@ -170,7 +170,7 @@ func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo Int
 
 	// 执行单次数据获取（传统方式）
 	dataProcessor := NewDataProcessor(ops.executor)
-	data, dataTypes, warnings, err := dataProcessor.FetchDataFromSource(ctx, interfaceInfo, request.Parameters)
+	data, dataTypes, warnings, err := dataProcessor.FetchDataFromSourceWithExecuteType(ctx, interfaceInfo, request.Parameters, request.ExecuteType)
 	if err != nil {
 		return &ExecuteResponse{
 			Success:     false,

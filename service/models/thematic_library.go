@@ -40,6 +40,9 @@ type ThematicLibrary struct {
 	UpdatedAt       time.Time  `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
 	UpdatedBy       string     `json:"updated_by" gorm:"not null;default:'system';size:100"`
 	Status          string     `json:"status" gorm:"not null;default:'active';size:20"`
+
+	// 关联关系
+	Interfaces []ThematicInterface `json:"interfaces,omitempty" gorm:"foreignKey:LibraryID"`
 }
 
 type ThematicInterface struct {
@@ -49,7 +52,6 @@ type ThematicInterface struct {
 	NameEn            string    `json:"name_en" gorm:"not null;size:255"`
 	Type              string    `json:"type" gorm:"not null;size:20"` // realtime, batch
 	Description       string    `json:"description" gorm:"size:1000"`
-	DataSourceID      string    `json:"data_source_id" gorm:"type:varchar(36)"`
 	CreatedAt         time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
 	CreatedBy         string    `json:"created_by" gorm:"not null;default:'system';size:100"`
 	UpdatedAt         time.Time `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
@@ -61,7 +63,6 @@ type ThematicInterface struct {
 	TableFieldsConfig JSONB     `json:"table_fields_config" gorm:"type:jsonb"`
 	// 关联关系
 	ThematicLibrary ThematicLibrary `json:"thematic_library,omitempty" gorm:"foreignKey:LibraryID"`
-	DataSource      DataSource      `json:"data_source,omitempty" gorm:"foreignKey:DataSourceID"`
 }
 
 // DataFlowGraph 数据流程图模型

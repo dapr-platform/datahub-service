@@ -213,6 +213,76 @@ const (
 	ComplexityHigh   = "high"
 )
 
+// 执行类型常量（对应InterfaceExecutor中的ExecuteType）
+const (
+	SyncExecuteTypePreview         = "preview"          // 预览执行
+	SyncExecuteTypeTest            = "test"             // 测试执行
+	SyncExecuteTypeSync            = "sync"             // 全量同步执行
+	SyncExecuteTypeIncrementalSync = "incremental_sync" // 增量同步执行
+)
+
+var SyncExecuteTypes = []MetaField{
+	{
+		Name:         "preview",
+		DisplayName:  "预览",
+		Type:         "string",
+		Required:     true,
+		DefaultValue: "",
+	},
+	{
+		Name:         "test",
+		DisplayName:  "测试",
+		Type:         "string",
+		Required:     true,
+		DefaultValue: "",
+	},
+	{
+		Name:         "sync",
+		DisplayName:  "同步",
+		Type:         "string",
+		Required:     true,
+		DefaultValue: "",
+	},
+	{
+		Name:         "incremental_sync",
+		DisplayName:  "增量同步",
+		Type:         "string",
+		Required:     true,
+		DefaultValue: "",
+	},
+}
+
+// 同步策略常量（对应InterfaceExecutor中的SyncStrategy）
+const (
+	SyncStrategyFull        = "full"        // 全量同步策略
+	SyncStrategyIncremental = "incremental" // 增量同步策略
+	SyncStrategyRealtime    = "realtime"    // 实时同步策略
+)
+
+var SyncStrategies = []MetaField{
+	{
+		Name:         "full",
+		DisplayName:  "全量同步",
+		Type:         "string",
+		Required:     true,
+		DefaultValue: "",
+	},
+	{
+		Name:         "incremental",
+		DisplayName:  "增量同步",
+		Type:         "string",
+		Required:     true,
+		DefaultValue: "",
+	},
+	{
+		Name:         "realtime",
+		DisplayName:  "实时同步",
+		Type:         "string",
+		Required:     true,
+		DefaultValue: "",
+	},
+}
+
 // 调度配置字段常量
 const (
 	SyncTaskScheduleFieldRetryTimes        = "retry_times"
@@ -289,6 +359,55 @@ func IsValidProcessorType(processorType string) bool {
 		ProcessorTypeIncremental:     true,
 	}
 	return validTypes[processorType]
+}
+
+// 执行类型验证函数
+func IsValidExecuteType(executeType string) bool {
+	validTypes := map[string]bool{
+		SyncExecuteTypePreview:         true,
+		SyncExecuteTypeTest:            true,
+		SyncExecuteTypeSync:            true,
+		SyncExecuteTypeIncrementalSync: true,
+	}
+	return validTypes[executeType]
+}
+
+// 同步策略验证函数
+func IsValidSyncStrategy(strategy string) bool {
+	validStrategies := map[string]bool{
+		SyncStrategyFull:        true,
+		SyncStrategyIncremental: true,
+		SyncStrategyRealtime:    true,
+	}
+	return validStrategies[strategy]
+}
+
+// 同步任务类型到执行类型的映射
+func GetExecuteTypeFromTaskType(taskType string) string {
+	switch taskType {
+	case SyncTaskTypeFullSync:
+		return SyncExecuteTypeSync
+	case SyncTaskTypeIncrementalSync:
+		return SyncExecuteTypeIncrementalSync
+	case SyncTaskTypeRealtimeSync:
+		return SyncExecuteTypeSync // 实时同步也使用sync执行类型，但策略不同
+	default:
+		return SyncExecuteTypeSync
+	}
+}
+
+// 同步任务类型到同步策略的映射
+func GetSyncStrategyFromTaskType(taskType string) string {
+	switch taskType {
+	case SyncTaskTypeFullSync:
+		return SyncStrategyFull
+	case SyncTaskTypeIncrementalSync:
+		return SyncStrategyIncremental
+	case SyncTaskTypeRealtimeSync:
+		return SyncStrategyRealtime
+	default:
+		return SyncStrategyFull
+	}
 }
 
 // 获取可删除的任务状态
@@ -377,6 +496,8 @@ func initSyncTaskMetas() {
 	SyncTaskMetas["sync_task_statuses"] = SyncTaskStatuses
 	SyncTaskMetas["sync_task_schedule_types"] = SyncTaskScheduleTypes
 	SyncTaskMetas["sync_event_types"] = SyncEventTypes
+	SyncTaskMetas["sync_execute_types"] = SyncExecuteTypes
+	SyncTaskMetas["sync_strategies"] = SyncStrategies
 }
 
 func initSyncTaskScheduleDefinitions() {
