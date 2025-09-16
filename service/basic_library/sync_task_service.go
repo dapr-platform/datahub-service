@@ -1,63 +1,37 @@
 /*
- * @module service/sync_task_service
- * @description 通用同步任务服务，支持基础库和主题库的统一同步任务管理
+ * @module service/basic_library/sync_task_service
+ * @description 基础库同步任务服务，专门处理基础库数据同步任务管理
  * @architecture 分层架构 - 服务层
  * @documentReference ai_docs/refactor_sync_task.md
- * @stateFlow 服务初始化 -> 库类型处理器注册 -> 任务CRUD操作 -> 任务执行管理
- * @rules 通过策略模式支持不同库类型的特定业务逻辑，保持接口统一
- * @dependencies gorm.io/gorm, service/models, service/meta, service/basic_library, service/thematic_library
- * @refs api/controllers/sync_task_controller.go, service/sync_engine
+ * @stateFlow 服务初始化 -> 任务CRUD操作 -> 任务执行管理
+ * @rules 专门支持基础库同步任务，移除主题库相关逻辑
+ * @dependencies gorm.io/gorm, service/models, service/meta, service/basic_library
+ * @refs api/controllers/sync_task_controller.go, service/basic_library/basic_sync
  */
 
-package service
+package basic_library
 
 import (
 	"context"
-	"datahub-service/service/basic_library"
+	"datahub-service/service/basic_library/basic_sync"
 	"datahub-service/service/datasource"
 	"datahub-service/service/interface_executor"
 	"datahub-service/service/meta"
 	"datahub-service/service/models"
-	"datahub-service/service/sync_engine"
-	"datahub-service/service/thematic_library"
 	"fmt"
 	"time"
 
 	"gorm.io/gorm"
 )
 
-// LibraryHandler 库类型处理器接口
-type LibraryHandler interface {
-	// ValidateLibrary 验证库是否存在
-	ValidateLibrary(libraryID string) error
-
-	// ValidateDataSource 验证数据源是否属于该库
-	ValidateDataSource(libraryID, dataSourceID string) error
-
-	// ValidateInterface 验证接口是否属于该库
-	ValidateInterface(libraryID, interfaceID string) error
-
-	// GetLibraryInfo 获取库信息
-	GetLibraryInfo(libraryID string) (interface{}, error)
-
-	// PrepareTaskConfig 准备任务配置
-	PrepareTaskConfig(libraryID string, config map[string]interface{}) (map[string]interface{}, error)
-
-	// GetLibraryDataSources 获取库的数据源列表
-	GetLibraryDataSources(libraryID string) ([]models.DataSource, error)
-
-	// GetLibraryInterfaces 获取库的接口列表
-	GetLibraryInterfaces(libraryID string) ([]models.DataInterface, error)
-}
-
 // BasicLibraryHandler 基础库处理器
 type BasicLibraryHandler struct {
 	db      *gorm.DB
-	service *basic_library.Service
+	service *Service
 }
 
 // NewBasicLibraryHandler 创建基础库处理器
-func NewBasicLibraryHandler(db *gorm.DB, service *basic_library.Service) *BasicLibraryHandler {
+func NewBasicLibraryHandler(db *gorm.DB, service *Service) *BasicLibraryHandler {
 	return &BasicLibraryHandler{
 		db:      db,
 		service: service,
@@ -135,148 +109,45 @@ func (h *BasicLibraryHandler) GetLibraryInterfaces(libraryID string) ([]models.D
 	return interfaces, err
 }
 
-// ThematicLibraryHandler 主题库处理器
-type ThematicLibraryHandler struct {
-	db      *gorm.DB
-	service *thematic_library.Service
-}
-
-// NewThematicLibraryHandler 创建主题库处理器
-func NewThematicLibraryHandler(db *gorm.DB, service *thematic_library.Service) *ThematicLibraryHandler {
-	return &ThematicLibraryHandler{
-		db:      db,
-		service: service,
-	}
-}
-
-// ValidateLibrary 验证主题库是否存在
-func (h *ThematicLibraryHandler) ValidateLibrary(libraryID string) error {
-	// 暂时通过查询主题库表来验证
-	var thematicLibrary models.ThematicLibrary
-	err := h.db.Where("id = ?", libraryID).First(&thematicLibrary).Error
-	if err != nil {
-		return fmt.Errorf("主题库不存在: %w", err)
-	}
-	return nil
-}
-
-// ValidateDataSource 验证数据源是否属于主题库
-func (h *ThematicLibraryHandler) ValidateDataSource(libraryID, dataSourceID string) error {
-	// 主题库的数据源验证逻辑（待实现）
-	// 目前返回成功，实际项目中需要根据主题库的数据源关系进行验证
-	return nil
-}
-
-// ValidateInterface 验证接口是否属于主题库
-func (h *ThematicLibraryHandler) ValidateInterface(libraryID, interfaceID string) error {
-	// 主题库的接口验证逻辑（待实现）
-	// 目前返回成功，实际项目中需要根据主题库的接口关系进行验证
-	return nil
-}
-
-// GetLibraryInfo 获取主题库信息
-func (h *ThematicLibraryHandler) GetLibraryInfo(libraryID string) (interface{}, error) {
-	var thematicLibrary models.ThematicLibrary
-	err := h.db.Where("id = ?", libraryID).First(&thematicLibrary).Error
-	if err != nil {
-		return nil, err
-	}
-	return &thematicLibrary, nil
-}
-
-// PrepareTaskConfig 准备主题库任务配置
-func (h *ThematicLibraryHandler) PrepareTaskConfig(libraryID string, config map[string]interface{}) (map[string]interface{}, error) {
-	// 为主题库添加特定的配置项
-	if config == nil {
-		config = make(map[string]interface{})
-	}
-
-	config["library_type"] = meta.LibraryTypeThematic
-	config["library_id"] = libraryID
-
-	// 添加主题库特定的默认配置
-	if _, exists := config["batch_size"]; !exists {
-		config["batch_size"] = 2000 // 主题库可能需要更大的批处理
-	}
-	if _, exists := config["timeout"]; !exists {
-		config["timeout"] = "60m" // 主题库可能需要更长的超时时间
-	}
-
-	return config, nil
-}
-
-// GetLibraryDataSources 获取主题库的数据源列表
-func (h *ThematicLibraryHandler) GetLibraryDataSources(libraryID string) ([]models.DataSource, error) {
-	// 主题库的数据源获取逻辑（待实现）
-	// 目前返回空列表，实际项目中需要根据主题库的数据源关系进行查询
-	return []models.DataSource{}, nil
-}
-
-// GetLibraryInterfaces 获取主题库的接口列表
-func (h *ThematicLibraryHandler) GetLibraryInterfaces(libraryID string) ([]models.DataInterface, error) {
-	// 主题库的接口获取逻辑（待实现）
-	// 目前返回空列表，实际项目中需要根据主题库的接口关系进行查询
-	return []models.DataInterface{}, nil
-}
-
-// SyncTaskService 通用同步任务服务
+// SyncTaskService 基础库同步任务服务
 type SyncTaskService struct {
 	db                *gorm.DB
-	handlers          map[string]LibraryHandler
-	syncEngine        *sync_engine.SyncEngine
+	handler           *BasicLibraryHandler
+	syncEngine        *basic_sync.SyncEngine
 	interfaceExecutor *interface_executor.InterfaceExecutor
 	datasourceManager datasource.DataSourceManager
 }
 
-// NewSyncTaskService 创建同步任务服务
-func NewSyncTaskService(db *gorm.DB, basicLibService *basic_library.Service, thematicLibService *thematic_library.Service, syncEngine *sync_engine.SyncEngine) *SyncTaskService {
+// SetSyncEngine 设置同步引擎
+func (s *SyncTaskService) SetSyncEngine(syncEngine *basic_sync.SyncEngine) {
+	s.syncEngine = syncEngine
+}
+
+// NewSyncTaskService 创建基础库同步任务服务
+func NewSyncTaskService(db *gorm.DB, basicLibService *Service, syncEngine *basic_sync.SyncEngine) *SyncTaskService {
 	// 初始化数据源管理器
 	datasourceManager := datasource.GetGlobalRegistry().GetManager()
 
 	service := &SyncTaskService{
 		db:                db,
-		handlers:          make(map[string]LibraryHandler),
+		handler:           NewBasicLibraryHandler(db, basicLibService),
 		syncEngine:        syncEngine,
 		interfaceExecutor: interface_executor.NewInterfaceExecutor(db, datasourceManager),
 		datasourceManager: datasourceManager,
 	}
 
-	// 注册库类型处理器
-	service.handlers[meta.LibraryTypeBasic] = NewBasicLibraryHandler(db, basicLibService)
-	service.handlers[meta.LibraryTypeThematic] = NewThematicLibraryHandler(db, thematicLibService)
-
 	return service
 }
 
-// getHandler 获取库类型处理器
-func (s *SyncTaskService) getHandler(libraryType string) (LibraryHandler, error) {
-	handler, exists := s.handlers[libraryType]
-	if !exists {
-		return nil, fmt.Errorf("不支持的库类型: %s", libraryType)
-	}
-	return handler, nil
-}
-
-// CreateSyncTask 创建同步任务
+// CreateSyncTask 创建基础库同步任务
 func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTaskRequest) (*models.SyncTask, error) {
-	// 验证库类型
-	if !meta.IsValidLibraryType(req.LibraryType) {
-		return nil, fmt.Errorf("无效的库类型: %s", req.LibraryType)
-	}
-
-	// 获取处理器
-	handler, err := s.getHandler(req.LibraryType)
-	if err != nil {
-		return nil, err
-	}
-
 	// 验证库存在
-	if err := handler.ValidateLibrary(req.LibraryID); err != nil {
+	if err := s.handler.ValidateLibrary(req.LibraryID); err != nil {
 		return nil, err
 	}
 
 	// 验证数据源
-	if err := handler.ValidateDataSource(req.LibraryID, req.DataSourceID); err != nil {
+	if err := s.handler.ValidateDataSource(req.LibraryID, req.DataSourceID); err != nil {
 		return nil, err
 	}
 
@@ -286,13 +157,13 @@ func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTas
 	}
 
 	for _, interfaceID := range req.InterfaceIDs {
-		if err := handler.ValidateInterface(req.LibraryID, interfaceID); err != nil {
+		if err := s.handler.ValidateInterface(req.LibraryID, interfaceID); err != nil {
 			return nil, fmt.Errorf("验证接口 %s 失败: %w", interfaceID, err)
 		}
 	}
 
 	// 准备任务配置
-	config, err := handler.PrepareTaskConfig(req.LibraryID, req.Config)
+	config, err := s.handler.PrepareTaskConfig(req.LibraryID, req.Config)
 	if err != nil {
 		return nil, fmt.Errorf("准备任务配置失败: %w", err)
 	}
@@ -307,7 +178,7 @@ func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTas
 
 	// 创建任务
 	task := &models.SyncTask{
-		LibraryType:     req.LibraryType,
+		LibraryType:     meta.LibraryTypeBasic, // 固定为基础库类型
 		LibraryID:       req.LibraryID,
 		DataSourceID:    req.DataSourceID,
 		TaskType:        req.TaskType,
@@ -365,7 +236,7 @@ func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTas
 	return task, nil
 }
 
-// GetSyncTaskByID 根据ID获取同步任务
+// GetSyncTaskByID 根据ID获取基础库同步任务
 func (s *SyncTaskService) GetSyncTaskByID(ctx context.Context, taskID string) (*models.SyncTask, error) {
 	var task models.SyncTask
 	if err := s.db.Preload("DataSource").
@@ -376,7 +247,7 @@ func (s *SyncTaskService) GetSyncTaskByID(ctx context.Context, taskID string) (*
 		return nil, fmt.Errorf("获取同步任务失败: %w", err)
 	}
 
-	// 加载库信息
+	// 加载基础库信息
 	if err := s.loadLibraryInfo(&task); err != nil {
 		return nil, fmt.Errorf("加载库信息失败: %w", err)
 	}
@@ -384,28 +255,16 @@ func (s *SyncTaskService) GetSyncTaskByID(ctx context.Context, taskID string) (*
 	return &task, nil
 }
 
-// loadLibraryInfo 加载库信息
+// loadLibraryInfo 加载基础库信息
 func (s *SyncTaskService) loadLibraryInfo(task *models.SyncTask) error {
-	handler, err := s.getHandler(task.LibraryType)
+	libraryInfo, err := s.handler.GetLibraryInfo(task.LibraryID)
 	if err != nil {
 		return err
 	}
 
-	libraryInfo, err := handler.GetLibraryInfo(task.LibraryID)
-	if err != nil {
-		return err
-	}
-
-	// 根据库类型设置对应的库信息
-	switch task.LibraryType {
-	case meta.LibraryTypeBasic:
-		if basicLib, ok := libraryInfo.(*models.BasicLibrary); ok {
-			task.BasicLibrary = basicLib
-		}
-	case meta.LibraryTypeThematic:
-		if thematicLib, ok := libraryInfo.(*models.ThematicLibrary); ok {
-			task.ThematicLibrary = thematicLib
-		}
+	// 设置基础库信息
+	if basicLib, ok := libraryInfo.(*models.BasicLibrary); ok {
+		task.BasicLibrary = basicLib
 	}
 
 	return nil
@@ -417,7 +276,7 @@ type SyncTaskInterfaceConfig struct {
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 
-// CreateSyncTaskRequest 创建同步任务请求
+// CreateSyncTaskRequest 创建基础库同步任务请求
 type CreateSyncTaskRequest struct {
 	LibraryType      string                    `json:"library_type" binding:"required"`
 	LibraryID        string                    `json:"library_id" binding:"required"`
@@ -433,7 +292,7 @@ type CreateSyncTaskRequest struct {
 	CreatedBy        string                    `json:"created_by"`
 }
 
-// UpdateSyncTaskRequest 更新同步任务请求
+// UpdateSyncTaskRequest 更新基础库同步任务请求
 type UpdateSyncTaskRequest struct {
 	TriggerType      string                    `json:"trigger_type,omitempty"`
 	CronExpression   string                    `json:"cron_expression,omitempty"`
@@ -444,7 +303,7 @@ type UpdateSyncTaskRequest struct {
 	UpdatedBy        string                    `json:"updated_by"`
 }
 
-// GetSyncTaskListRequest 获取同步任务列表请求
+// GetSyncTaskListRequest 获取基础库同步任务列表请求
 type GetSyncTaskListRequest struct {
 	Page         int    `json:"page"`
 	Size         int    `json:"size"`
@@ -455,7 +314,7 @@ type GetSyncTaskListRequest struct {
 	TaskType     string `json:"task_type,omitempty"`
 }
 
-// SyncTaskListResponse 同步任务列表响应
+// SyncTaskListResponse 基础库同步任务列表响应
 type SyncTaskListResponse struct {
 	Tasks      []models.SyncTask `json:"tasks"`
 	Pagination PaginationInfo    `json:"pagination"`
@@ -469,7 +328,7 @@ type PaginationInfo struct {
 	TotalPages int64 `json:"total_pages"`
 }
 
-// SyncTaskStatusResponse 同步任务状态响应
+// SyncTaskStatusResponse 基础库同步任务状态响应
 type SyncTaskStatusResponse struct {
 	Task      *models.SyncTask     `json:"task"`
 	StartTime *time.Time           `json:"start_time,omitempty"`
@@ -480,7 +339,7 @@ type SyncTaskStatusResponse struct {
 	Processor string               `json:"processor,omitempty"`
 }
 
-// GetSyncTaskExecutionListRequest 获取同步任务执行记录列表请求
+// GetSyncTaskExecutionListRequest 获取基础库同步任务执行记录列表请求
 type GetSyncTaskExecutionListRequest struct {
 	Page          int    `json:"page"`
 	Size          int    `json:"size"`
@@ -489,7 +348,7 @@ type GetSyncTaskExecutionListRequest struct {
 	ExecutionType string `json:"execution_type,omitempty"`
 }
 
-// SyncTaskExecutionListResponse 同步任务执行记录列表响应
+// SyncTaskExecutionListResponse 基础库同步任务执行记录列表响应
 type SyncTaskExecutionListResponse struct {
 	Executions []models.SyncTaskExecution `json:"executions"`
 	Pagination PaginationInfo             `json:"pagination"`
@@ -502,7 +361,7 @@ type BatchDeleteResponse struct {
 	Errors       []string `json:"errors,omitempty"`
 }
 
-// SyncTaskStatistics 同步任务统计信息
+// SyncTaskStatistics 基础库同步任务统计信息
 type SyncTaskStatistics struct {
 	TotalTasks     int64   `json:"total_tasks"`
 	PendingTasks   int64   `json:"pending_tasks"`
@@ -513,14 +372,11 @@ type SyncTaskStatistics struct {
 	SuccessRate    float64 `json:"success_rate"`
 }
 
-// GetSyncTaskList 获取同步任务列表
+// GetSyncTaskList 获取基础库同步任务列表
 func (s *SyncTaskService) GetSyncTaskList(ctx context.Context, req *GetSyncTaskListRequest) (*SyncTaskListResponse, error) {
-	query := s.db.Model(&models.SyncTask{})
+	query := s.db.Model(&models.SyncTask{}).Where("library_type = ?", meta.LibraryTypeBasic)
 
 	// 应用过滤条件
-	if req.LibraryType != "" {
-		query = query.Where("library_type = ?", req.LibraryType)
-	}
 	if req.LibraryID != "" {
 		query = query.Where("library_id = ?", req.LibraryID)
 	}
@@ -575,7 +431,7 @@ func (s *SyncTaskService) GetSyncTaskList(ctx context.Context, req *GetSyncTaskL
 	}, nil
 }
 
-// UpdateSyncTask 更新同步任务
+// UpdateSyncTask 更新基础库同步任务
 func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req *UpdateSyncTaskRequest) (*models.SyncTask, error) {
 	// 获取任务
 	var task models.SyncTask
@@ -625,16 +481,9 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 
 	// 更新接口配置（如果提供）
 	if len(req.InterfaceIDs) > 0 {
-		// 获取处理器以验证接口
-		handler, err := s.getHandler(task.LibraryType)
-		if err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-
 		// 验证所有新接口
 		for _, interfaceID := range req.InterfaceIDs {
-			if err := handler.ValidateInterface(task.LibraryID, interfaceID); err != nil {
+			if err := s.handler.ValidateInterface(task.LibraryID, interfaceID); err != nil {
 				tx.Rollback()
 				return nil, fmt.Errorf("验证接口 %s 失败: %w", interfaceID, err)
 			}
@@ -700,7 +549,7 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 	return &task, nil
 }
 
-// DeleteSyncTask 删除同步任务
+// DeleteSyncTask 删除基础库同步任务
 func (s *SyncTaskService) DeleteSyncTask(ctx context.Context, taskID string) error {
 	// 获取任务
 	var task models.SyncTask
@@ -721,7 +570,7 @@ func (s *SyncTaskService) DeleteSyncTask(ctx context.Context, taskID string) err
 	return nil
 }
 
-// StartSyncTask 启动同步任务
+// StartSyncTask 启动基础库同步任务
 func (s *SyncTaskService) StartSyncTask(ctx context.Context, taskID string) error {
 	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 开始启动任务: %s\n", taskID)
 
@@ -784,21 +633,9 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 		fmt.Printf("[DEBUG] 执行接口: %s\n", taskInterface.InterfaceID)
 
 		// 准备执行请求
-		// 映射库类型到接口类型
-		var interfaceType string
-		switch task.LibraryType {
-		case meta.LibraryTypeBasic:
-			interfaceType = "basic_library"
-		case meta.LibraryTypeThematic:
-			interfaceType = "thematic_library"
-		default:
-			// 如果是旧格式，直接使用
-			interfaceType = task.LibraryType
-		}
-
 		executeRequest := &interface_executor.ExecuteRequest{
 			InterfaceID:   taskInterface.InterfaceID,
-			InterfaceType: interfaceType,
+			InterfaceType: "basic_library", // 固定为基础库
 			ExecuteType:   meta.GetExecuteTypeFromTaskType(task.TaskType),
 			SyncStrategy:  meta.GetSyncStrategyFromTaskType(task.TaskType),
 			Parameters:    taskInterface.Config,
@@ -883,12 +720,12 @@ func (s *SyncTaskService) executeTaskWithSyncEngine(ctx context.Context, task *m
 	fmt.Printf("[DEBUG] SyncTaskService.executeTaskWithSyncEngine - 使用同步引擎执行任务: %s\n", task.ID)
 
 	// 创建同步引擎请求
-	syncRequest := &sync_engine.SyncTaskRequest{
+	syncRequest := &basic_sync.SyncTaskRequest{
 		TaskID:       task.ID,
 		LibraryType:  task.LibraryType,
 		LibraryID:    task.LibraryID,
 		DataSourceID: task.DataSourceID,
-		SyncType:     sync_engine.SyncType(task.TaskType),
+		SyncType:     basic_sync.SyncType(task.TaskType),
 		Config:       map[string]interface{}(task.Config),
 		Priority:     1,
 		ScheduledBy:  "manual",
@@ -924,7 +761,7 @@ func (s *SyncTaskService) updateTaskStatus(taskID, status, errorMessage string) 
 	}
 }
 
-// StopSyncTask 停止同步任务
+// StopSyncTask 停止基础库同步任务
 func (s *SyncTaskService) StopSyncTask(ctx context.Context, taskID string) error {
 	// 获取任务
 	var task models.SyncTask
@@ -952,7 +789,7 @@ func (s *SyncTaskService) StopSyncTask(ctx context.Context, taskID string) error
 	return nil
 }
 
-// CancelSyncTask 取消同步任务
+// CancelSyncTask 取消基础库同步任务
 func (s *SyncTaskService) CancelSyncTask(ctx context.Context, taskID string) error {
 	// 获取任务
 	var task models.SyncTask
@@ -988,7 +825,7 @@ func (s *SyncTaskService) CancelSyncTask(ctx context.Context, taskID string) err
 	return nil
 }
 
-// RetrySyncTask 重试同步任务
+// RetrySyncTask 重试基础库同步任务
 func (s *SyncTaskService) RetrySyncTask(ctx context.Context, taskID string) (*models.SyncTask, error) {
 	// 获取原任务及其接口关联
 	var originalTask models.SyncTask
@@ -1062,7 +899,7 @@ func (s *SyncTaskService) RetrySyncTask(ctx context.Context, taskID string) (*mo
 	return newTask, nil
 }
 
-// GetSyncTaskStatus 获取同步任务状态
+// GetSyncTaskStatus 获取基础库同步任务状态
 func (s *SyncTaskService) GetSyncTaskStatus(ctx context.Context, taskID string) (*SyncTaskStatusResponse, error) {
 	// 获取任务
 	var task models.SyncTask
@@ -1097,7 +934,7 @@ func (s *SyncTaskService) GetSyncTaskStatus(ctx context.Context, taskID string) 
 	return response, nil
 }
 
-// BatchDeleteSyncTasks 批量删除同步任务
+// BatchDeleteSyncTasks 批量删除基础库同步任务
 func (s *SyncTaskService) BatchDeleteSyncTasks(ctx context.Context, taskIDs []string) (*BatchDeleteResponse, error) {
 	response := &BatchDeleteResponse{
 		FailedIDs: make([]string, 0),
@@ -1116,14 +953,11 @@ func (s *SyncTaskService) BatchDeleteSyncTasks(ctx context.Context, taskIDs []st
 	return response, nil
 }
 
-// GetSyncTaskStatistics 获取同步任务统计信息
+// GetSyncTaskStatistics 获取基础库同步任务统计信息
 func (s *SyncTaskService) GetSyncTaskStatistics(ctx context.Context, libraryType, libraryID, dataSourceID string) (*SyncTaskStatistics, error) {
-	query := s.db.Model(&models.SyncTask{})
+	query := s.db.Model(&models.SyncTask{}).Where("library_type = ?", meta.LibraryTypeBasic)
 
 	// 应用过滤条件
-	if libraryType != "" {
-		query = query.Where("library_type = ?", libraryType)
-	}
 	if libraryID != "" {
 		query = query.Where("library_id = ?", libraryID)
 	}
@@ -1153,7 +987,7 @@ func (s *SyncTaskService) GetSyncTaskStatistics(ctx context.Context, libraryType
 	return stats, nil
 }
 
-// GetSyncTaskExecutionList 获取同步任务执行记录列表
+// GetSyncTaskExecutionList 获取基础库同步任务执行记录列表
 func (s *SyncTaskService) GetSyncTaskExecutionList(ctx context.Context, req *GetSyncTaskExecutionListRequest) (*SyncTaskExecutionListResponse, error) {
 	if req.Page <= 0 {
 		req.Page = 1
@@ -1201,7 +1035,7 @@ func (s *SyncTaskService) GetSyncTaskExecutionList(ctx context.Context, req *Get
 	}, nil
 }
 
-// GetSyncTaskExecutionByID 根据ID获取同步任务执行记录
+// GetSyncTaskExecutionByID 根据ID获取基础库同步任务执行记录
 func (s *SyncTaskService) GetSyncTaskExecutionByID(ctx context.Context, executionID string) (*models.SyncTaskExecution, error) {
 	var execution models.SyncTaskExecution
 	if err := s.db.Preload("Task").Where("id = ?", executionID).First(&execution).Error; err != nil {
@@ -1214,7 +1048,7 @@ func (s *SyncTaskService) GetSyncTaskExecutionByID(ctx context.Context, executio
 	return &execution, nil
 }
 
-// CreateSyncTaskExecution 创建同步任务执行记录
+// CreateSyncTaskExecution 创建基础库同步任务执行记录
 func (s *SyncTaskService) CreateSyncTaskExecution(ctx context.Context, taskID, executionType string) (*models.SyncTaskExecution, error) {
 	execution := &models.SyncTaskExecution{
 		TaskID:        taskID,
@@ -1230,7 +1064,7 @@ func (s *SyncTaskService) CreateSyncTaskExecution(ctx context.Context, taskID, e
 	return execution, nil
 }
 
-// UpdateSyncTaskExecution 更新同步任务执行记录
+// UpdateSyncTaskExecution 更新基础库同步任务执行记录
 func (s *SyncTaskService) UpdateSyncTaskExecution(ctx context.Context, executionID string, status string, result map[string]interface{}, errorMessage string) error {
 	updates := map[string]interface{}{
 		"status":     status,
@@ -1288,9 +1122,9 @@ func (s *SyncTaskService) GetScheduledTasks(ctx context.Context) ([]models.SyncT
 	var tasks []models.SyncTask
 	now := time.Now()
 
-	// 查找状态为pending且下次执行时间已到的任务
-	err := s.db.Where("status = ? AND next_run_time IS NOT NULL AND next_run_time <= ?",
-		meta.SyncTaskStatusPending, now).Find(&tasks).Error
+	// 查找状态为pending且下次执行时间已到的基础库任务
+	err := s.db.Where("library_type = ? AND status = ? AND next_run_time IS NOT NULL AND next_run_time <= ?",
+		meta.LibraryTypeBasic, meta.SyncTaskStatusPending, now).Find(&tasks).Error
 	if err != nil {
 		return nil, fmt.Errorf("获取调度任务失败: %w", err)
 	}

@@ -14,8 +14,12 @@ package service
 import (
 	"context"
 	"datahub-service/service/basic_library"
+	"datahub-service/service/basic_library/basic_sync"
 	"datahub-service/service/database"
-	"datahub-service/service/sync_engine"
+	"datahub-service/service/event"
+	"datahub-service/service/governance"
+	"datahub-service/service/scheduler"
+	"datahub-service/service/sharing"
 	"datahub-service/service/thematic_library"
 	"fmt"
 	"log"
@@ -28,13 +32,16 @@ import (
 
 var (
 	DB                           *gorm.DB
-	GlobalEventService           *EventService
+	GlobalEventService           *event.EventService
 	GlobalBasicLibraryService    *basic_library.Service
 	GlobalThematicLibraryService *thematic_library.Service
-	GlobalSyncEngine             *sync_engine.SyncEngine
+	GlobalThematicSyncService    *thematic_library.ThematicSyncService
+	GlobalSyncEngine             *basic_sync.SyncEngine
 	GlobalSchemaService          *database.SchemaService
-	GlobalSyncTaskService        *SyncTaskService
-	GlobalSchedulerService       *SchedulerService
+	GlobalSyncTaskService        *basic_library.SyncTaskService
+	GlobalSchedulerService       *scheduler.SchedulerService
+	GlobalGovernanceService      *governance.GovernanceService
+	GlobalSharingService         *sharing.SharingService
 )
 
 func init() {
@@ -106,17 +113,21 @@ func runMigrations() {
 // initServices 初始化服务
 func initServices() {
 	// 初始化事件服务
-	GlobalEventService = NewEventService(DB)
+	GlobalEventService = event.NewEventService(DB)
 	// 将事件服务作为参数传递给BasicLibraryService
 	GlobalBasicLibraryService = basic_library.NewService(DB, GlobalEventService)
 	GlobalThematicLibraryService = thematic_library.NewService(DB)
 	GlobalSchemaService = database.NewSchemaService(DB)
-	GlobalSyncTaskService = NewSyncTaskService(DB, GlobalBasicLibraryService, GlobalThematicLibraryService, nil)
-	GlobalSyncEngine = sync_engine.NewSyncEngine(DB, 10, GlobalSyncTaskService)
+	GlobalSyncTaskService = basic_library.NewSyncTaskService(DB, GlobalBasicLibraryService, nil)
+	GlobalSyncEngine = basic_sync.NewSyncEngine(DB, 10, GlobalSyncTaskService)
 	// 更新SyncTaskService中的SyncEngine引用
-	GlobalSyncTaskService.syncEngine = GlobalSyncEngine
+	GlobalSyncTaskService.SetSyncEngine(GlobalSyncEngine)
+	// 初始化主题同步服务
+	// GlobalThematicSyncService = NewThematicSyncService(DB, GlobalBasicLibraryService, GlobalThematicLibraryService)
 	// 初始化调度器服务
-	GlobalSchedulerService = NewSchedulerService(DB, GlobalSyncTaskService, GlobalSyncEngine)
+	GlobalSchedulerService = scheduler.NewSchedulerService(DB, GlobalSyncTaskService, GlobalSyncEngine)
+	GlobalGovernanceService = governance.NewGovernanceService(DB)
+	GlobalSharingService = sharing.NewSharingService(DB)
 
 	// 初始化数据源
 	initializeDataSources()

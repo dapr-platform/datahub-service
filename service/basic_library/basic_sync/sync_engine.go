@@ -9,7 +9,7 @@
  * @refs service/basic_library, service/scheduler
  */
 
-package sync_engine
+package basic_sync
 
 import (
 	"context"

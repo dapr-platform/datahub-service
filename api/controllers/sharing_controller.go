@@ -12,8 +12,8 @@
 package controllers
 
 import (
-	"datahub-service/service"
 	"datahub-service/service/models"
+	"datahub-service/service/sharing"
 	"net/http"
 	"strconv"
 	"time"
@@ -24,11 +24,11 @@ import (
 
 // SharingController 数据共享服务控制器
 type SharingController struct {
-	sharingService *service.SharingService
+	sharingService *sharing.SharingService
 }
 
 // NewSharingController 创建数据共享服务控制器实例
-func NewSharingController(sharingService *service.SharingService) *SharingController {
+func NewSharingController(sharingService *sharing.SharingService) *SharingController {
 	return &SharingController{
 		sharingService: sharingService,
 	}

@@ -9,7 +9,7 @@
  * @refs ai_docs/requirements.md
  */
 
-package service
+package event
 
 import (
 	"context"
@@ -25,6 +25,14 @@ import (
 	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
+
+// getEnvWithDefault 获取环境变量，如果不存在则返回默认值
+func getEnvWithDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
 
 // EventService 事件管理服务
 type EventService struct {

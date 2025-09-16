@@ -1,5 +1,81 @@
 basePath: /swagger/datahub-service
 definitions:
+  basic_library.BatchDeleteResponse:
+    properties:
+      deleted_count:
+        type: integer
+      errors:
+        items:
+          type: string
+        type: array
+      failed_ids:
+        items:
+          type: string
+        type: array
+    type: object
+  basic_library.PaginationInfo:
+    properties:
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  basic_library.SyncTaskExecutionListResponse:
+    properties:
+      executions:
+        items:
+          $ref: '#/definitions/models.SyncTaskExecution'
+        type: array
+      pagination:
+        $ref: '#/definitions/basic_library.PaginationInfo'
+    type: object
+  basic_library.SyncTaskListResponse:
+    properties:
+      pagination:
+        $ref: '#/definitions/basic_library.PaginationInfo'
+      tasks:
+        items:
+          $ref: '#/definitions/models.SyncTask'
+        type: array
+    type: object
+  basic_library.SyncTaskStatistics:
+    properties:
+      cancelled_tasks:
+        type: integer
+      failed_tasks:
+        type: integer
+      pending_tasks:
+        type: integer
+      running_tasks:
+        type: integer
+      success_rate:
+        type: number
+      success_tasks:
+        type: integer
+      total_tasks:
+        type: integer
+    type: object
+  basic_library.SyncTaskStatusResponse:
+    properties:
+      error:
+        type: string
+      processor:
+        type: string
+      progress:
+        $ref: '#/definitions/models.SyncProgress'
+      result:
+        $ref: '#/definitions/models.SyncResult'
+      start_time:
+        type: string
+      status:
+        type: string
+      task:
+        $ref: '#/definitions/models.SyncTask'
+    type: object
   controllers.APIResponse:
     properties:
       data: {}
@@ -90,6 +166,50 @@ definitions:
     - contact_person
     - name
     type: object
+  controllers.CreateSyncTaskRequest:
+    properties:
+      aggregation_config:
+        $ref: '#/definitions/thematic_library.AggregationConfig'
+      cleansing_rules:
+        $ref: '#/definitions/thematic_library.CleansingRules'
+      created_by:
+        example: admin
+        type: string
+      description:
+        example: 从基础库同步用户数据到主题库
+        type: string
+      field_mapping_rules:
+        $ref: '#/definitions/thematic_library.FieldMappingRules'
+      key_matching_rules:
+        $ref: '#/definitions/thematic_library.KeyMatchingRules'
+      privacy_rules:
+        $ref: '#/definitions/thematic_library.PrivacyRules'
+      quality_rules:
+        $ref: '#/definitions/thematic_library.QualityRules'
+      schedule_config:
+        $ref: '#/definitions/thematic_library.ScheduleConfig'
+      source_libraries:
+        items:
+          $ref: '#/definitions/thematic_library.SourceLibraryConfig'
+        minItems: 1
+        type: array
+      task_name:
+        example: 用户数据同步任务
+        type: string
+      thematic_interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440002
+        type: string
+      thematic_library_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    required:
+    - created_by
+    - schedule_config
+    - source_libraries
+    - task_name
+    - thematic_interface_id
+    - thematic_library_id
+    type: object
   controllers.DataInterfaceListResponse:
     properties:
       list:
@@ -179,6 +299,22 @@ definitions:
         type: integer
       total:
         type: integer
+    type: object
+  controllers.ExecuteSyncTaskRequest:
+    properties:
+      executed_by:
+        example: admin
+        type: string
+      execution_type:
+        description: manual, auto
+        example: manual
+        type: string
+      options:
+        allOf:
+        - $ref: '#/definitions/thematic_library.SyncExecutionOptions'
+        description: 执行选项
+    required:
+    - executed_by
     type: object
   controllers.HealthResponse:
     properties:
@@ -354,6 +490,18 @@ definitions:
         example: admin
         type: string
     type: object
+  controllers.SyncExecutionListResponse:
+    properties:
+      list:
+        items: {}
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+    type: object
   controllers.SyncTaskCreateRequest:
     properties:
       config:
@@ -391,9 +539,6 @@ definitions:
       library_id:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
-      library_type:
-        example: basic_library
-        type: string
       scheduled_time:
         example: "2024-01-01T00:00:00Z"
         type: string
@@ -407,7 +552,6 @@ definitions:
     - data_source_id
     - interface_ids
     - library_id
-    - library_type
     - task_type
     - trigger_type
     type: object
@@ -422,6 +566,18 @@ definitions:
         type: string
     required:
     - interface_id
+    type: object
+  controllers.SyncTaskListResponse:
+    properties:
+      list:
+        items: {}
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
     type: object
   controllers.SyncTaskUpdateRequest:
     properties:
@@ -611,6 +767,38 @@ definitions:
     required:
     - fields
     - interface_id
+    type: object
+  controllers.UpdateSyncTaskRequest:
+    properties:
+      aggregation_config:
+        $ref: '#/definitions/thematic_library.AggregationConfig'
+      cleansing_rules:
+        $ref: '#/definitions/thematic_library.CleansingRules'
+      description:
+        example: 更新后的描述
+        type: string
+      field_mapping_rules:
+        $ref: '#/definitions/thematic_library.FieldMappingRules'
+      key_matching_rules:
+        $ref: '#/definitions/thematic_library.KeyMatchingRules'
+      privacy_rules:
+        $ref: '#/definitions/thematic_library.PrivacyRules'
+      quality_rules:
+        $ref: '#/definitions/thematic_library.QualityRules'
+      schedule_config:
+        $ref: '#/definitions/thematic_library.ScheduleConfig'
+      status:
+        description: active, inactive, paused
+        example: active
+        type: string
+      task_name:
+        example: 更新后的用户数据同步任务
+        type: string
+      updated_by:
+        example: admin
+        type: string
+    required:
+    - updated_by
     type: object
   controllers.UpdateThematicInterfaceFieldsRequest:
     properties:
@@ -874,6 +1062,65 @@ definitions:
       id:
         type: string
       name:
+        type: string
+    type: object
+  meta.ThematicSyncConfigDefinition:
+    properties:
+      category:
+        description: aggregation, key_matching, cleansing, privacy, quality
+        type: string
+      description:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/meta.ThematicSyncConfigField'
+        type: array
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  meta.ThematicSyncConfigField:
+    properties:
+      default_value: {}
+      dependencies:
+        description: 字段依赖关系
+        items:
+          $ref: '#/definitions/meta.FieldDependency'
+        type: array
+      description:
+        type: string
+      display_name:
+        type: string
+      group:
+        description: 字段分组
+        type: string
+      help_text:
+        description: 帮助文本
+        type: string
+      max:
+        description: 用于number类型
+        type: number
+      min:
+        description: 用于number类型
+        type: number
+      name:
+        type: string
+      options:
+        description: 用于enum类型
+        items:
+          type: string
+        type: array
+      pattern:
+        description: 用于string类型的正则验证
+        type: string
+      placeholder:
+        description: 前端显示的占位符
+        type: string
+      required:
+        type: boolean
+      type:
+        description: string, number, boolean, array, object, enum
         type: string
     type: object
   models.Alert:
@@ -2559,81 +2806,955 @@ definitions:
       version:
         type: string
     type: object
-  service.BatchDeleteResponse:
+  thematic_library.AggregateField:
     properties:
-      deleted_count:
-        type: integer
-      errors:
+      condition:
+        description: 聚合条件
+        type: string
+      function:
+        enum:
+        - count
+        - sum
+        - avg
+        - max
+        - min
+        type: string
+      source_field:
+        type: string
+      target_field:
+        type: string
+    required:
+    - function
+    - source_field
+    - target_field
+    type: object
+  thematic_library.AggregationConfig:
+    properties:
+      aggregate_fields:
+        items:
+          $ref: '#/definitions/thematic_library.AggregateField'
+        type: array
+      conflict_policy:
+        enum:
+        - first
+        - last
+        - priority
+        - custom
+        type: string
+      custom_rules:
+        items:
+          $ref: '#/definitions/thematic_library.CustomAggregateRule'
+        type: array
+      group_by_fields:
         items:
           type: string
         type: array
-      failed_ids:
+      merge_rules:
+        items:
+          $ref: '#/definitions/thematic_library.MergeRule'
+        type: array
+      strategy:
+        enum:
+        - merge
+        - union
+        - intersect
+        type: string
+      validation:
+        $ref: '#/definitions/thematic_library.AggregationValidation'
+    required:
+    - conflict_policy
+    - strategy
+    type: object
+  thematic_library.AggregationValidation:
+    properties:
+      max_records:
+        type: integer
+      min_records:
+        type: integer
+      required_fields:
         items:
           type: string
         type: array
-    type: object
-  service.PaginationInfo:
-    properties:
-      page:
-        type: integer
-      size:
-        type: integer
-      total:
-        type: integer
-      total_pages:
-        type: integer
-    type: object
-  service.SyncTaskExecutionListResponse:
-    properties:
-      executions:
+      unique_fields:
         items:
-          $ref: '#/definitions/models.SyncTaskExecution'
+          type: string
         type: array
-      pagination:
-        $ref: '#/definitions/service.PaginationInfo'
+      validate_integrity:
+        default: true
+        type: boolean
     type: object
-  service.SyncTaskListResponse:
+  thematic_library.CleansingRule:
     properties:
-      pagination:
-        $ref: '#/definitions/service.PaginationInfo'
-      tasks:
+      condition:
+        type: string
+      description:
+        type: string
+      enabled:
+        default: true
+        type: boolean
+      fields:
         items:
-          $ref: '#/definitions/models.SyncTask'
+          type: string
         type: array
+      id:
+        type: string
+      name:
+        type: string
+      parameters:
+        additionalProperties: true
+        type: object
+      priority:
+        default: 1
+        type: integer
+      type:
+        enum:
+        - remove_duplicates
+        - trim
+        - standardize
+        - validate
+        - replace
+        type: string
+    required:
+    - id
+    - name
+    - type
     type: object
-  service.SyncTaskStatistics:
+  thematic_library.CleansingRules:
     properties:
-      cancelled_tasks:
-        type: integer
-      failed_tasks:
-        type: integer
-      pending_tasks:
-        type: integer
-      running_tasks:
-        type: integer
-      success_rate:
+      on_error:
+        default: skip
+        description: skip, abort, continue
+        type: string
+      order:
+        items:
+          type: string
+        type: array
+      parallel:
+        default: false
+        type: boolean
+      rules:
+        items:
+          $ref: '#/definitions/thematic_library.CleansingRule'
+        minItems: 1
+        type: array
+      validation:
+        $ref: '#/definitions/thematic_library.CleansingValidation'
+    required:
+    - rules
+    type: object
+  thematic_library.CleansingValidation:
+    properties:
+      quality_threshold:
+        default: 0.8
         type: number
-      success_tasks:
-        type: integer
-      total_tasks:
-        type: integer
+      required_fields:
+        items:
+          type: string
+        type: array
+      validate_after_clean:
+        default: true
+        type: boolean
+      validate_before_clean:
+        default: true
+        type: boolean
     type: object
-  service.SyncTaskStatusResponse:
+  thematic_library.ConditionalRule:
     properties:
-      error:
+      condition:
         type: string
-      processor:
+      transform:
         type: string
-      progress:
-        $ref: '#/definitions/models.SyncProgress'
-      result:
-        $ref: '#/definitions/models.SyncResult'
+      value: {}
+    required:
+    - condition
+    type: object
+  thematic_library.ConversionRule:
+    properties:
+      from_type:
+        type: string
+      rule:
+        type: string
+      to_type:
+        type: string
+    required:
+    - from_type
+    - rule
+    - to_type
+    type: object
+  thematic_library.CustomAggregateRule:
+    properties:
+      description:
+        type: string
+      expression:
+        type: string
+      name:
+        type: string
+      parameters:
+        additionalProperties:
+          type: string
+        type: object
+      priority:
+        default: 1
+        type: integer
+    required:
+    - expression
+    - name
+    type: object
+  thematic_library.DataFilterRule:
+    properties:
+      field:
+        type: string
+      logic_op:
+        default: AND
+        enum:
+        - AND
+        - OR
+        type: string
+      operator:
+        enum:
+        - eq
+        - ne
+        - gt
+        - lt
+        - ge
+        - le
+        - in
+        - nin
+        - like
+        type: string
+      value: {}
+    required:
+    - field
+    - operator
+    - value
+    type: object
+  thematic_library.ExecutionDataRange:
+    properties:
+      conditions:
+        items:
+          type: string
+        type: array
+      date_field:
+        type: string
+      end_time:
+        type: string
+      partition_key:
+        type: string
       start_time:
         type: string
-      status:
+    type: object
+  thematic_library.ExecutionFilter:
+    properties:
+      field:
         type: string
-      task:
-        $ref: '#/definitions/models.SyncTask'
+      logic_op:
+        default: AND
+        enum:
+        - AND
+        - OR
+        type: string
+      operator:
+        enum:
+        - eq
+        - ne
+        - gt
+        - lt
+        - ge
+        - le
+        - in
+        - nin
+        - like
+        type: string
+      value: {}
+    required:
+    - field
+    - operator
+    - value
+    type: object
+  thematic_library.ExecutionOutput:
+    properties:
+      detailed_log:
+        default: false
+        type: boolean
+      exclude_fields:
+        items:
+          type: string
+        type: array
+      export_format:
+        default: json
+        description: json, csv, excel
+        type: string
+      export_path:
+        type: string
+      export_results:
+        default: false
+        type: boolean
+      include_fields:
+        items:
+          type: string
+        type: array
+      log_level:
+        default: INFO
+        type: string
+      progress_report:
+        default: true
+        type: boolean
+      report_interval:
+        default: 1000
+        description: 每处理多少条记录报告一次
+        type: integer
+      save_metrics:
+        default: true
+        type: boolean
+    type: object
+  thematic_library.ExecutionWindow:
+    properties:
+      days:
+        description: 允许执行的星期几 (1-7)
+        items:
+          type: integer
+        type: array
+      end_time:
+        description: 结束时间 HH:MM
+        example: "18:00"
+        type: string
+      holidays:
+        default: false
+        description: 是否在节假日执行
+        type: boolean
+      start_time:
+        description: 开始时间 HH:MM
+        example: "09:00"
+        type: string
+    type: object
+  thematic_library.FieldMapping:
+    properties:
+      default_value: {}
+      required:
+        default: false
+        type: boolean
+      source_field:
+        type: string
+      target_field:
+        type: string
+      transform:
+        description: 转换函数
+        type: string
+    required:
+    - source_field
+    - target_field
+    type: object
+  thematic_library.FieldMappingRule:
+    properties:
+      data_type:
+        type: string
+      default_value: {}
+      nullable:
+        default: true
+        type: boolean
+      required:
+        default: false
+        type: boolean
+      source_field:
+        type: string
+      target_field:
+        type: string
+      transform:
+        $ref: '#/definitions/thematic_library.FieldTransform'
+      validation:
+        $ref: '#/definitions/thematic_library.FieldValidationRule'
+    required:
+    - source_field
+    - target_field
+    type: object
+  thematic_library.FieldMappingRules:
+    properties:
+      case_sensitive:
+        default: true
+        type: boolean
+      default_policy:
+        default: ignore
+        description: ignore, error, null
+        type: string
+      mappings:
+        items:
+          $ref: '#/definitions/thematic_library.FieldMappingRule'
+        minItems: 1
+        type: array
+      type_conversion:
+        $ref: '#/definitions/thematic_library.TypeConversionConfig'
+      validation:
+        $ref: '#/definitions/thematic_library.MappingValidation'
+    required:
+    - mappings
+    type: object
+  thematic_library.FieldTransform:
+    properties:
+      conditional:
+        items:
+          $ref: '#/definitions/thematic_library.ConditionalRule'
+        type: array
+      expression:
+        type: string
+      parameters:
+        additionalProperties:
+          type: string
+        type: object
+      type:
+        type: string
+    required:
+    - type
+    type: object
+  thematic_library.FieldValidationRule:
+    properties:
+      allowed_values:
+        items: {}
+        type: array
+      custom_rules:
+        items:
+          type: string
+        type: array
+      max_length:
+        type: integer
+      max_value: {}
+      min_length:
+        type: integer
+      min_value: {}
+      pattern:
+        type: string
+    type: object
+  thematic_library.FuzzyMatchConfig:
+    properties:
+      algorithm:
+        default: levenshtein
+        description: levenshtein, jaro, soundex
+        type: string
+      case_ignore:
+        default: true
+        type: boolean
+      enabled:
+        default: false
+        type: boolean
+      fields:
+        items:
+          type: string
+        type: array
+      preprocessing:
+        items:
+          $ref: '#/definitions/thematic_library.PreprocessRule'
+        type: array
+      threshold:
+        default: 0.8
+        type: number
+    type: object
+  thematic_library.KeyMatchingRules:
+    properties:
+      case_sensitive:
+        default: true
+        type: boolean
+      conflict_policy:
+        enum:
+        - first
+        - last
+        - merge
+        - error
+        type: string
+      fuzzy_matching:
+        $ref: '#/definitions/thematic_library.FuzzyMatchConfig'
+      match_threshold:
+        default: 0.8
+        type: number
+      primary_keys:
+        items:
+          $ref: '#/definitions/thematic_library.PrimaryKeyRule'
+        minItems: 1
+        type: array
+    required:
+    - conflict_policy
+    - primary_keys
+    type: object
+  thematic_library.KeyTransform:
+    properties:
+      parameters:
+        additionalProperties:
+          type: string
+        type: object
+      type:
+        enum:
+        - trim
+        - upper
+        - lower
+        - hash
+        - normalize
+        type: string
+    required:
+    - type
+    type: object
+  thematic_library.KeyValidation:
+    properties:
+      allow_empty:
+        default: false
+        type: boolean
+      max_length:
+        type: integer
+      min_length:
+        type: integer
+      pattern:
+        description: 正则表达式
+        type: string
+      required:
+        default: true
+        type: boolean
+    type: object
+  thematic_library.MappingValidation:
+    properties:
+      allow_unmapped:
+        default: true
+        type: boolean
+      check_duplicates:
+        default: true
+        type: boolean
+      required_fields:
+        items:
+          type: string
+        type: array
+      validate_types:
+        default: true
+        type: boolean
+    type: object
+  thematic_library.MergeRule:
+    properties:
+      field:
+        type: string
+      merge_type:
+        enum:
+        - first
+        - last
+        - max
+        - min
+        - sum
+        - avg
+        - concat
+        type: string
+      null_policy:
+        default: ignore
+        description: ignore, include, error
+        type: string
+      separator:
+        default: ','
+        description: 用于concat类型
+        type: string
+      unique_only:
+        default: false
+        description: 是否去重
+        type: boolean
+    required:
+    - field
+    - merge_type
+    type: object
+  thematic_library.PreprocessRule:
+    properties:
+      parameters:
+        type: string
+      type:
+        enum:
+        - trim
+        - normalize
+        - remove_special
+        type: string
+    required:
+    - type
+    type: object
+  thematic_library.PrimaryKeyRule:
+    properties:
+      fields:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      transform:
+        items:
+          $ref: '#/definitions/thematic_library.KeyTransform'
+        type: array
+      validation:
+        $ref: '#/definitions/thematic_library.KeyValidation'
+      weight:
+        default: 1
+        type: number
+    required:
+    - fields
+    type: object
+  thematic_library.PrivacyRule:
+    properties:
+      condition:
+        type: string
+      description:
+        type: string
+      enabled:
+        default: true
+        type: boolean
+      fields:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      id:
+        type: string
+      masking_type:
+        enum:
+        - mask
+        - hash
+        - encrypt
+        - tokenize
+        - anonymize
+        type: string
+      name:
+        type: string
+      parameters:
+        additionalProperties: true
+        type: object
+      priority:
+        default: 1
+        type: integer
+      reversible:
+        default: false
+        type: boolean
+    required:
+    - fields
+    - id
+    - masking_type
+    - name
+    type: object
+  thematic_library.PrivacyRules:
+    properties:
+      audit_log:
+        default: true
+        type: boolean
+      global_mode:
+        default: field
+        description: field, record, table
+        type: string
+      rules:
+        items:
+          $ref: '#/definitions/thematic_library.PrivacyRule'
+        minItems: 1
+        type: array
+      validation:
+        $ref: '#/definitions/thematic_library.PrivacyValidation'
+    required:
+    - rules
+    type: object
+  thematic_library.PrivacyValidation:
+    properties:
+      audit_requirements:
+        default: true
+        type: boolean
+      compliance_rules:
+        items:
+          type: string
+        type: array
+      sensitive_fields:
+        items:
+          type: string
+        type: array
+      validate_patterns:
+        default: true
+        type: boolean
+    type: object
+  thematic_library.QualityMetric:
+    properties:
+      critical:
+        type: number
+      description:
+        type: string
+      name:
+        type: string
+      target:
+        type: number
+      type:
+        enum:
+        - count
+        - rate
+        - percentage
+        - score
+        type: string
+      warning:
+        type: number
+    required:
+    - name
+    - type
+    type: object
+  thematic_library.QualityRule:
+    properties:
+      description:
+        type: string
+      enabled:
+        default: true
+        type: boolean
+      expression:
+        type: string
+      fields:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      name:
+        type: string
+      parameters:
+        additionalProperties: true
+        type: object
+      threshold:
+        default: 0.8
+        type: number
+      type:
+        enum:
+        - completeness
+        - accuracy
+        - consistency
+        - validity
+        - uniqueness
+        - timeliness
+        type: string
+      weight:
+        default: 1
+        type: number
+    required:
+    - id
+    - name
+    - type
+    type: object
+  thematic_library.QualityRules:
+    properties:
+      metrics:
+        items:
+          $ref: '#/definitions/thematic_library.QualityMetric'
+        type: array
+      on_failure:
+        default: warn
+        description: warn, error, skip
+        type: string
+      rules:
+        items:
+          $ref: '#/definitions/thematic_library.QualityRule'
+        minItems: 1
+        type: array
+      threshold:
+        default: 0.8
+        type: number
+      validation:
+        $ref: '#/definitions/thematic_library.QualityValidation'
+    required:
+    - rules
+    type: object
+  thematic_library.QualityValidation:
+    properties:
+      business_rules:
+        items:
+          type: string
+        type: array
+      critical_fields:
+        items:
+          type: string
+        type: array
+      enable_post_check:
+        default: true
+        type: boolean
+      enable_pre_check:
+        default: true
+        type: boolean
+      statistical_check:
+        default: true
+        type: boolean
+    type: object
+  thematic_library.ScheduleConfig:
+    properties:
+      cron_expression:
+        description: Cron表达式
+        type: string
+      enabled:
+        default: true
+        description: 是否启用
+        type: boolean
+      end_date:
+        description: 结束日期
+        type: string
+      execution_window:
+        allOf:
+        - $ref: '#/definitions/thematic_library.ExecutionWindow'
+        description: 执行时间窗口
+      interval_seconds:
+        description: 间隔秒数
+        type: integer
+      max_retries:
+        default: 3
+        description: 最大重试次数
+        type: integer
+      retry_interval:
+        default: 300
+        description: 重试间隔(秒)
+        type: integer
+      scheduled_time:
+        description: 计划执行时间
+        type: string
+      start_date:
+        description: 开始日期
+        type: string
+      timezone:
+        default: Asia/Shanghai
+        description: 时区
+        type: string
+      type:
+        description: manual, one_time, interval, cron
+        enum:
+        - manual
+        - one_time
+        - interval
+        - cron
+        type: string
+    required:
+    - type
+    type: object
+  thematic_library.SortField:
+    properties:
+      field:
+        type: string
+      order:
+        default: ASC
+        enum:
+        - ASC
+        - DESC
+        type: string
+    required:
+    - field
+    type: object
+  thematic_library.SourceInterfaceConfig:
+    properties:
+      batch_size:
+        default: 1000
+        type: integer
+      field_mapping:
+        items:
+          $ref: '#/definitions/thematic_library.FieldMapping'
+        type: array
+      filter_condition:
+        description: SQL WHERE 条件
+        type: string
+      interface_id:
+        type: string
+      parameters:
+        additionalProperties:
+          type: string
+        description: 接口参数
+        type: object
+      sort_order:
+        items:
+          $ref: '#/definitions/thematic_library.SortField'
+        type: array
+    required:
+    - interface_id
+    type: object
+  thematic_library.SourceLibraryConfig:
+    properties:
+      enabled:
+        default: true
+        description: 是否启用
+        type: boolean
+      filter_rules:
+        items:
+          $ref: '#/definitions/thematic_library.DataFilterRule'
+        type: array
+      interfaces:
+        items:
+          $ref: '#/definitions/thematic_library.SourceInterfaceConfig'
+        minItems: 1
+        type: array
+      library_id:
+        type: string
+      priority:
+        default: 1
+        description: 优先级，数字越小优先级越高
+        type: integer
+      sync_mode:
+        default: full
+        description: full, incremental, realtime
+        type: string
+    required:
+    - interfaces
+    - library_id
+    type: object
+  thematic_library.SyncExecutionOptions:
+    properties:
+      batch_size:
+        default: 1000
+        type: integer
+      custom_parameters:
+        additionalProperties:
+          type: string
+        type: object
+      data_range:
+        $ref: '#/definitions/thematic_library.ExecutionDataRange'
+      debug_mode:
+        default: false
+        type: boolean
+      dry_run:
+        default: false
+        type: boolean
+      filter_conditions:
+        items:
+          $ref: '#/definitions/thematic_library.ExecutionFilter'
+        type: array
+      force_refresh:
+        default: false
+        type: boolean
+      ignore_errors:
+        default: false
+        type: boolean
+      max_records:
+        type: integer
+      mode:
+        enum:
+        - full
+        - incremental
+        - realtime
+        - test
+        type: string
+      output_settings:
+        $ref: '#/definitions/thematic_library.ExecutionOutput'
+      parallel_workers:
+        default: 1
+        type: integer
+      skip_validation:
+        default: false
+        type: boolean
+      timeout:
+        default: 3600
+        description: 超时时间(秒)
+        type: integer
+    required:
+    - mode
+    type: object
+  thematic_library.TypeConversionConfig:
+    properties:
+      auto_convert:
+        default: true
+        type: boolean
+      boolean_map:
+        additionalProperties:
+          type: boolean
+        type: object
+      custom_rules:
+        items:
+          $ref: '#/definitions/thematic_library.ConversionRule'
+        type: array
+      date_format:
+        default: "2006-01-02 15:04:05"
+        type: string
+      number_format:
+        type: string
+      strict_mode:
+        default: false
+        type: boolean
     type: object
 info:
   contact: {}
@@ -5882,6 +7003,53 @@ paths:
       summary: 获取所有数据主题库域元数据
       tags:
       - 元数据
+  /meta/thematic-sync-configs:
+    get:
+      description: 获取主题库同步各种配置的字段定义，用于前端动态生成配置表单
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  additionalProperties:
+                    $ref: '#/definitions/meta.ThematicSyncConfigDefinition'
+                  type: object
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取主题库同步配置定义
+      tags:
+      - 元数据
+  /meta/thematic-sync-tasks:
+    get:
+      description: 获取所有主题库同步任务相关元数据，包括任务状态、触发类型、执行状态等
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取所有主题库同步任务元数据
+      tags:
+      - 元数据
   /ready:
     get:
       description: 检查服务是否就绪
@@ -6629,13 +7797,12 @@ paths:
       consumes:
       - application/json
       description: |-
-        分页获取同步任务列表，支持多种过滤条件
+        分页获取基础库同步任务列表，支持多种过滤条件
 
         **查询参数说明:**
         - page: 页码，默认1
         - size: 每页大小，默认10，最大100
-        - library_type: 库类型过滤
-        - library_id: 库ID过滤
+        - library_id: 基础库ID过滤
         - data_source_id: 数据源ID过滤
         - status: 任务状态过滤
         - task_type: 任务类型过滤
@@ -6650,11 +7817,7 @@ paths:
         in: query
         name: size
         type: integer
-      - description: 库类型
-        in: query
-        name: library_type
-        type: string
-      - description: 库ID
+      - description: 基础库ID
         in: query
         name: library_id
         type: string
@@ -6680,7 +7843,7 @@ paths:
             - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/service.SyncTaskListResponse'
+                  $ref: '#/definitions/basic_library.SyncTaskListResponse'
               type: object
         "400":
           description: 请求参数错误
@@ -6690,18 +7853,14 @@ paths:
           description: 服务器内部错误
           schema:
             $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取同步任务列表
+      summary: 获取基础库同步任务列表
       tags:
-      - 同步任务管理
+      - 基础库同步任务
     post:
       consumes:
       - application/json
       description: |-
-        创建新的数据同步任务，支持基础库和主题库
-
-        **支持的库类型:**
-        - basic_library: 基础库
-        - thematic_library: 主题库
+        创建新的基础库数据同步任务，专门处理基础库数据同步
 
         **支持的任务类型:**
         - full_sync: 全量同步
@@ -6710,8 +7869,10 @@ paths:
 
         **任务状态流转:**
         pending → running → success/failed/cancelled
+
+        **注意:** 此接口仅支持基础库同步任务，不支持主题库同步
       parameters:
-      - description: 同步任务创建信息
+      - description: 基础库同步任务创建信息
         in: body
         name: task
         required: true
@@ -6737,9 +7898,9 @@ paths:
           description: 服务器内部错误
           schema:
             $ref: '#/definitions/controllers.APIResponse'
-      summary: 创建同步任务
+      summary: 创建基础库同步任务
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /sync/tasks/{id}:
     delete:
       consumes:
@@ -6776,7 +7937,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 删除同步任务
       tags:
-      - 同步任务管理
+      - 基础库同步任务
     get:
       consumes:
       - application/json
@@ -6813,7 +7974,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取同步任务详情
       tags:
-      - 同步任务管理
+      - 基础库同步任务
     put:
       consumes:
       - application/json
@@ -6860,7 +8021,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 更新同步任务
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /sync/tasks/{id}/cancel:
     post:
       consumes:
@@ -6897,7 +8058,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 取消同步任务
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /sync/tasks/{id}/executions:
     get:
       consumes:
@@ -6929,7 +8090,7 @@ paths:
             - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/service.SyncTaskExecutionListResponse'
+                  $ref: '#/definitions/basic_library.SyncTaskExecutionListResponse'
               type: object
         "400":
           description: 请求参数错误
@@ -6941,7 +8102,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取指定任务的执行记录
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /sync/tasks/{id}/retry:
     post:
       consumes:
@@ -6983,7 +8144,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 重试同步任务
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /sync/tasks/{id}/start:
     post:
       consumes:
@@ -7020,7 +8181,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 启动同步任务
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /sync/tasks/{id}/status:
     get:
       consumes:
@@ -7042,7 +8203,7 @@ paths:
             - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/service.SyncTaskStatusResponse'
+                  $ref: '#/definitions/basic_library.SyncTaskStatusResponse'
               type: object
         "400":
           description: 请求参数错误
@@ -7058,7 +8219,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取同步任务状态
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /sync/tasks/{id}/stop:
     post:
       consumes:
@@ -7095,7 +8256,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 停止同步任务
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /sync/tasks/batch-delete:
     post:
       consumes:
@@ -7118,7 +8279,7 @@ paths:
             - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/service.BatchDeleteResponse'
+                  $ref: '#/definitions/basic_library.BatchDeleteResponse'
               type: object
         "400":
           description: 请求参数错误
@@ -7130,7 +8291,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 批量删除同步任务
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /sync/tasks/executions:
     get:
       consumes:
@@ -7169,7 +8330,7 @@ paths:
             - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/service.SyncTaskExecutionListResponse'
+                  $ref: '#/definitions/basic_library.SyncTaskExecutionListResponse'
               type: object
         "400":
           description: 请求参数错误
@@ -7181,7 +8342,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取同步任务执行记录列表
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /sync/tasks/executions/{id}:
     get:
       consumes:
@@ -7219,18 +8380,14 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取同步任务执行记录详情
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /sync/tasks/statistics:
     get:
       consumes:
       - application/json
       description: 获取同步任务的统计数据，包括各状态任务数量、成功率等
       parameters:
-      - description: 库类型过滤
-        in: query
-        name: library_type
-        type: string
-      - description: 库ID过滤
+      - description: 基础库ID过滤
         in: query
         name: library_id
         type: string
@@ -7248,7 +8405,7 @@ paths:
             - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/service.SyncTaskStatistics'
+                  $ref: '#/definitions/basic_library.SyncTaskStatistics'
               type: object
         "500":
           description: 服务器内部错误
@@ -7256,7 +8413,7 @@ paths:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取同步任务统计信息
       tags:
-      - 同步任务管理
+      - 基础库同步任务
   /tables/manage-schema:
     post:
       consumes:
@@ -7741,4 +8898,403 @@ paths:
       summary: 发布数据主题库
       tags:
       - 数据主题库
+  /thematic-sync/executions/{id}:
+    get:
+      description: 获取指定执行记录的详细信息
+      parameters:
+      - description: 执行记录ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取同步执行记录详情
+      tags:
+      - 主题同步
+  /thematic-sync/tasks:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取主题同步任务列表，支持多种过滤条件
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小
+        in: query
+        name: size
+        type: integer
+      - description: 任务名称搜索
+        in: query
+        name: name
+        type: string
+      - description: 状态过滤
+        enum:
+        - active
+        - inactive
+        - paused
+        in: query
+        name: status
+        type: string
+      - description: 同步模式过滤
+        enum:
+        - manual
+        - one_time
+        - timed
+        - cron
+        in: query
+        name: sync_mode
+        type: string
+      - description: 主题库ID过滤
+        in: query
+        name: thematic_library_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.SyncTaskListResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取同步任务列表
+      tags:
+      - 主题同步
+    post:
+      consumes:
+      - application/json
+      description: 创建主题数据同步任务
+      parameters:
+      - description: 创建同步任务请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateSyncTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建同步任务
+      tags:
+      - 主题同步
+  /thematic-sync/tasks/{id}:
+    delete:
+      description: 删除指定ID的同步任务
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除同步任务
+      tags:
+      - 主题同步
+    get:
+      description: 获取指定ID的同步任务详细信息
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取同步任务详情
+      tags:
+      - 主题同步
+    put:
+      consumes:
+      - application/json
+      description: 更新指定ID的同步任务信息
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新同步任务请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateSyncTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新同步任务
+      tags:
+      - 主题同步
+  /thematic-sync/tasks/{id}/execute:
+    post:
+      consumes:
+      - application/json
+      description: 立即执行指定的同步任务
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 执行同步任务请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ExecuteSyncTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 执行同步任务
+      tags:
+      - 主题同步
+  /thematic-sync/tasks/{id}/executions:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取指定任务的同步执行记录列表
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小
+        in: query
+        name: size
+        type: integer
+      - description: 执行状态过滤
+        enum:
+        - running
+        - completed
+        - failed
+        - cancelled
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.SyncExecutionListResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取同步执行记录列表
+      tags:
+      - 主题同步
+  /thematic-sync/tasks/{id}/status:
+    get:
+      description: 获取指定同步任务的当前状态信息
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取同步任务状态
+      tags:
+      - 主题同步
+  /thematic-sync/tasks/{id}/stop:
+    post:
+      description: 停止正在执行的同步任务
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 停止同步任务
+      tags:
+      - 主题同步
+  /thematic-sync/tasks/statistics:
+    get:
+      description: 获取主题同步任务的统计信息，包括总数、状态分布等
+      parameters:
+      - description: 主题库ID过滤
+        in: query
+        name: thematic_library_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取同步任务统计信息
+      tags:
+      - 主题同步
 swagger: "2.0"

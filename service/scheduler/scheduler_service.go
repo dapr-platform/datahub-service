@@ -9,7 +9,7 @@
  * @refs ../models/sync_task.go, ./sync_engine/sync_engine.go
  */
 
-package service
+package scheduler
 
 import (
 	"context"
@@ -20,15 +20,16 @@ import (
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 
+	"datahub-service/service/basic_library"
+	"datahub-service/service/basic_library/basic_sync"
 	"datahub-service/service/models"
-	"datahub-service/service/sync_engine"
 )
 
 // SchedulerService 调度器服务
 type SchedulerService struct {
 	db              *gorm.DB
-	syncTaskService *SyncTaskService
-	syncEngine      *sync_engine.SyncEngine
+	syncTaskService *basic_library.SyncTaskService
+	syncEngine      *basic_sync.SyncEngine
 	cron            *cron.Cron
 	intervalTicker  *time.Ticker
 	ctx             context.Context
@@ -36,7 +37,7 @@ type SchedulerService struct {
 }
 
 // NewSchedulerService 创建调度器服务
-func NewSchedulerService(db *gorm.DB, syncTaskService *SyncTaskService, syncEngine *sync_engine.SyncEngine) *SchedulerService {
+func NewSchedulerService(db *gorm.DB, syncTaskService *basic_library.SyncTaskService, syncEngine *basic_sync.SyncEngine) *SchedulerService {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// 创建带时区的cron调度器

@@ -9,7 +9,7 @@
  * @refs service/sync_engine, service/interface_executor
  */
 
-package sync_engine
+package basic_sync
 
 import (
 	"context"

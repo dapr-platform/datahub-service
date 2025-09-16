@@ -13,6 +13,7 @@ package controllers
 
 import (
 	"datahub-service/service"
+	"datahub-service/service/event"
 	"datahub-service/service/models"
 	"encoding/json"
 	"fmt"
@@ -27,7 +28,7 @@ import (
 
 // EventController 事件管理控制器
 type EventController struct {
-	eventService *service.EventService
+	eventService *event.EventService
 }
 
 // NewEventController 创建事件控制器实例

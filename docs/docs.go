@@ -5105,6 +5105,86 @@ const docTemplate = `{
                 }
             }
         },
+        "/meta/thematic-sync-configs": {
+            "get": {
+                "description": "获取主题库同步各种配置的字段定义，用于前端动态生成配置表单",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取主题库同步配置定义",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "$ref": "#/definitions/meta.ThematicSyncConfigDefinition"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/thematic-sync-tasks": {
+            "get": {
+                "description": "获取所有主题库同步任务相关元数据，包括任务状态、触发类型、执行状态等",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取所有主题库同步任务元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/ready": {
             "get": {
                 "description": "检查服务是否就绪",
@@ -6278,7 +6358,7 @@ const docTemplate = `{
         },
         "/sync/tasks": {
             "get": {
-                "description": "分页获取同步任务列表，支持多种过滤条件\n\n**查询参数说明:**\n- page: 页码，默认1\n- size: 每页大小，默认10，最大100\n- library_type: 库类型过滤\n- library_id: 库ID过滤\n- data_source_id: 数据源ID过滤\n- status: 任务状态过滤\n- task_type: 任务类型过滤",
+                "description": "分页获取基础库同步任务列表，支持多种过滤条件\n\n**查询参数说明:**\n- page: 页码，默认1\n- size: 每页大小，默认10，最大100\n- library_id: 基础库ID过滤\n- data_source_id: 数据源ID过滤\n- status: 任务状态过滤\n- task_type: 任务类型过滤",
                 "consumes": [
                     "application/json"
                 ],
@@ -6286,9 +6366,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
-                "summary": "获取同步任务列表",
+                "summary": "获取基础库同步任务列表",
                 "parameters": [
                     {
                         "type": "integer",
@@ -6306,13 +6386,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "库类型",
-                        "name": "library_type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "库ID",
+                        "description": "基础库ID",
                         "name": "library_id",
                         "in": "query"
                     },
@@ -6347,7 +6421,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/service.SyncTaskListResponse"
+                                            "$ref": "#/definitions/basic_library.SyncTaskListResponse"
                                         }
                                     }
                                 }
@@ -6369,7 +6443,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "创建新的数据同步任务，支持基础库和主题库\n\n**支持的库类型:**\n- basic_library: 基础库\n- thematic_library: 主题库\n\n**支持的任务类型:**\n- full_sync: 全量同步\n- incremental_sync: 增量同步\n- realtime_sync: 实时同步\n\n**任务状态流转:**\npending → running → success/failed/cancelled",
+                "description": "创建新的基础库数据同步任务，专门处理基础库数据同步\n\n**支持的任务类型:**\n- full_sync: 全量同步\n- incremental_sync: 增量同步\n- realtime_sync: 实时同步\n\n**任务状态流转:**\npending → running → success/failed/cancelled\n\n**注意:** 此接口仅支持基础库同步任务，不支持主题库同步",
                 "consumes": [
                     "application/json"
                 ],
@@ -6377,12 +6451,12 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
-                "summary": "创建同步任务",
+                "summary": "创建基础库同步任务",
                 "parameters": [
                     {
-                        "description": "同步任务创建信息",
+                        "description": "基础库同步任务创建信息",
                         "name": "task",
                         "in": "body",
                         "required": true,
@@ -6435,7 +6509,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "批量删除同步任务",
                 "parameters": [
@@ -6461,7 +6535,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/service.BatchDeleteResponse"
+                                            "$ref": "#/definitions/basic_library.BatchDeleteResponse"
                                         }
                                     }
                                 }
@@ -6493,7 +6567,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "获取同步任务执行记录列表",
                 "parameters": [
@@ -6542,7 +6616,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/service.SyncTaskExecutionListResponse"
+                                            "$ref": "#/definitions/basic_library.SyncTaskExecutionListResponse"
                                         }
                                     }
                                 }
@@ -6574,7 +6648,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "获取同步任务执行记录详情",
                 "parameters": [
@@ -6636,19 +6710,13 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "获取同步任务统计信息",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "库类型过滤",
-                        "name": "library_type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "库ID过滤",
+                        "description": "基础库ID过滤",
                         "name": "library_id",
                         "in": "query"
                     },
@@ -6671,7 +6739,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/service.SyncTaskStatistics"
+                                            "$ref": "#/definitions/basic_library.SyncTaskStatistics"
                                         }
                                     }
                                 }
@@ -6697,7 +6765,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "获取同步任务详情",
                 "parameters": [
@@ -6757,7 +6825,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "更新同步任务",
                 "parameters": [
@@ -6832,7 +6900,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "删除同步任务",
                 "parameters": [
@@ -6888,7 +6956,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "取消同步任务",
                 "parameters": [
@@ -6944,7 +7012,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "获取指定任务的执行记录",
                 "parameters": [
@@ -6982,7 +7050,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/service.SyncTaskExecutionListResponse"
+                                            "$ref": "#/definitions/basic_library.SyncTaskExecutionListResponse"
                                         }
                                     }
                                 }
@@ -7014,7 +7082,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "重试同步任务",
                 "parameters": [
@@ -7082,7 +7150,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "启动同步任务",
                 "parameters": [
@@ -7138,7 +7206,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "获取同步任务状态",
                 "parameters": [
@@ -7162,7 +7230,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/service.SyncTaskStatusResponse"
+                                            "$ref": "#/definitions/basic_library.SyncTaskStatusResponse"
                                         }
                                     }
                                 }
@@ -7200,7 +7268,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "同步任务管理"
+                    "基础库同步任务"
                 ],
                 "summary": "停止同步任务",
                 "parameters": [
@@ -7999,9 +8067,733 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/thematic-sync/executions/{id}": {
+            "get": {
+                "description": "获取指定执行记录的详细信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "获取同步执行记录详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "执行记录ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-sync/tasks": {
+            "get": {
+                "description": "分页获取主题同步任务列表，支持多种过滤条件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "获取同步任务列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "任务名称搜索",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "active",
+                            "inactive",
+                            "paused"
+                        ],
+                        "type": "string",
+                        "description": "状态过滤",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "manual",
+                            "one_time",
+                            "timed",
+                            "cron"
+                        ],
+                        "type": "string",
+                        "description": "同步模式过滤",
+                        "name": "sync_mode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "主题库ID过滤",
+                        "name": "thematic_library_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.SyncTaskListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建主题数据同步任务",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "创建同步任务",
+                "parameters": [
+                    {
+                        "description": "创建同步任务请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.CreateSyncTaskRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-sync/tasks/statistics": {
+            "get": {
+                "description": "获取主题同步任务的统计信息，包括总数、状态分布等",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "获取同步任务统计信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "主题库ID过滤",
+                        "name": "thematic_library_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-sync/tasks/{id}": {
+            "get": {
+                "description": "获取指定ID的同步任务详细信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "获取同步任务详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新指定ID的同步任务信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "更新同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新同步任务请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateSyncTaskRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除指定ID的同步任务",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "删除同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-sync/tasks/{id}/execute": {
+            "post": {
+                "description": "立即执行指定的同步任务",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "执行同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "执行同步任务请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ExecuteSyncTaskRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-sync/tasks/{id}/executions": {
+            "get": {
+                "description": "分页获取指定任务的同步执行记录列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "获取同步执行记录列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页大小",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "running",
+                            "completed",
+                            "failed",
+                            "cancelled"
+                        ],
+                        "type": "string",
+                        "description": "执行状态过滤",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.SyncExecutionListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-sync/tasks/{id}/status": {
+            "get": {
+                "description": "获取指定同步任务的当前状态信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "获取同步任务状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-sync/tasks/{id}/stop": {
+            "post": {
+                "description": "停止正在执行的同步任务",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "停止同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "basic_library.BatchDeleteResponse": {
+            "type": "object",
+            "properties": {
+                "deleted_count": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "failed_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "basic_library.PaginationInfo": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "basic_library.SyncTaskExecutionListResponse": {
+            "type": "object",
+            "properties": {
+                "executions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SyncTaskExecution"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/basic_library.PaginationInfo"
+                }
+            }
+        },
+        "basic_library.SyncTaskListResponse": {
+            "type": "object",
+            "properties": {
+                "pagination": {
+                    "$ref": "#/definitions/basic_library.PaginationInfo"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SyncTask"
+                    }
+                }
+            }
+        },
+        "basic_library.SyncTaskStatistics": {
+            "type": "object",
+            "properties": {
+                "cancelled_tasks": {
+                    "type": "integer"
+                },
+                "failed_tasks": {
+                    "type": "integer"
+                },
+                "pending_tasks": {
+                    "type": "integer"
+                },
+                "running_tasks": {
+                    "type": "integer"
+                },
+                "success_rate": {
+                    "type": "number"
+                },
+                "success_tasks": {
+                    "type": "integer"
+                },
+                "total_tasks": {
+                    "type": "integer"
+                }
+            }
+        },
+        "basic_library.SyncTaskStatusResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "processor": {
+                    "type": "string"
+                },
+                "progress": {
+                    "$ref": "#/definitions/models.SyncProgress"
+                },
+                "result": {
+                    "$ref": "#/definitions/models.SyncResult"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "task": {
+                    "$ref": "#/definitions/models.SyncTask"
+                }
+            }
+        },
         "controllers.APIResponse": {
             "type": "object",
             "properties": {
@@ -8136,6 +8928,67 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.CreateSyncTaskRequest": {
+            "type": "object",
+            "required": [
+                "created_by",
+                "schedule_config",
+                "source_libraries",
+                "task_name",
+                "thematic_interface_id",
+                "thematic_library_id"
+            ],
+            "properties": {
+                "aggregation_config": {
+                    "$ref": "#/definitions/thematic_library.AggregationConfig"
+                },
+                "cleansing_rules": {
+                    "$ref": "#/definitions/thematic_library.CleansingRules"
+                },
+                "created_by": {
+                    "type": "string",
+                    "example": "admin"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "从基础库同步用户数据到主题库"
+                },
+                "field_mapping_rules": {
+                    "$ref": "#/definitions/thematic_library.FieldMappingRules"
+                },
+                "key_matching_rules": {
+                    "$ref": "#/definitions/thematic_library.KeyMatchingRules"
+                },
+                "privacy_rules": {
+                    "$ref": "#/definitions/thematic_library.PrivacyRules"
+                },
+                "quality_rules": {
+                    "$ref": "#/definitions/thematic_library.QualityRules"
+                },
+                "schedule_config": {
+                    "$ref": "#/definitions/thematic_library.ScheduleConfig"
+                },
+                "source_libraries": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.SourceLibraryConfig"
+                    }
+                },
+                "task_name": {
+                    "type": "string",
+                    "example": "用户数据同步任务"
+                },
+                "thematic_interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440002"
+                },
+                "thematic_library_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                }
+            }
+        },
         "controllers.DataInterfaceListResponse": {
             "type": "object",
             "properties": {
@@ -8262,6 +9115,31 @@ const docTemplate = `{
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "controllers.ExecuteSyncTaskRequest": {
+            "type": "object",
+            "required": [
+                "executed_by"
+            ],
+            "properties": {
+                "executed_by": {
+                    "type": "string",
+                    "example": "admin"
+                },
+                "execution_type": {
+                    "description": "manual, auto",
+                    "type": "string",
+                    "example": "manual"
+                },
+                "options": {
+                    "description": "执行选项",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/thematic_library.SyncExecutionOptions"
+                        }
+                    ]
                 }
             }
         },
@@ -8511,13 +9389,30 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.SyncExecutionListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {}
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.SyncTaskCreateRequest": {
             "type": "object",
             "required": [
                 "data_source_id",
                 "interface_ids",
                 "library_id",
-                "library_type",
                 "task_type",
                 "trigger_type"
             ],
@@ -8569,10 +9464,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
-                "library_type": {
-                    "type": "string",
-                    "example": "basic_library"
-                },
                 "scheduled_time": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
@@ -8601,6 +9492,24 @@ const docTemplate = `{
                 "interface_id": {
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
+                }
+            }
+        },
+        "controllers.SyncTaskListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {}
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -8870,6 +9779,52 @@ const docTemplate = `{
                     "description": "是否同时更新数据库表结构",
                     "type": "boolean",
                     "example": true
+                }
+            }
+        },
+        "controllers.UpdateSyncTaskRequest": {
+            "type": "object",
+            "required": [
+                "updated_by"
+            ],
+            "properties": {
+                "aggregation_config": {
+                    "$ref": "#/definitions/thematic_library.AggregationConfig"
+                },
+                "cleansing_rules": {
+                    "$ref": "#/definitions/thematic_library.CleansingRules"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "更新后的描述"
+                },
+                "field_mapping_rules": {
+                    "$ref": "#/definitions/thematic_library.FieldMappingRules"
+                },
+                "key_matching_rules": {
+                    "$ref": "#/definitions/thematic_library.KeyMatchingRules"
+                },
+                "privacy_rules": {
+                    "$ref": "#/definitions/thematic_library.PrivacyRules"
+                },
+                "quality_rules": {
+                    "$ref": "#/definitions/thematic_library.QualityRules"
+                },
+                "schedule_config": {
+                    "$ref": "#/definitions/thematic_library.ScheduleConfig"
+                },
+                "status": {
+                    "description": "active, inactive, paused",
+                    "type": "string",
+                    "example": "active"
+                },
+                "task_name": {
+                    "type": "string",
+                    "example": "更新后的用户数据同步任务"
+                },
+                "updated_by": {
+                    "type": "string",
+                    "example": "admin"
                 }
             }
         },
@@ -9248,6 +10203,90 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "meta.ThematicSyncConfigDefinition": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "description": "aggregation, key_matching, cleansing, privacy, quality",
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.ThematicSyncConfigField"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "meta.ThematicSyncConfigField": {
+            "type": "object",
+            "properties": {
+                "default_value": {},
+                "dependencies": {
+                    "description": "字段依赖关系",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.FieldDependency"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "group": {
+                    "description": "字段分组",
+                    "type": "string"
+                },
+                "help_text": {
+                    "description": "帮助文本",
+                    "type": "string"
+                },
+                "max": {
+                    "description": "用于number类型",
+                    "type": "number"
+                },
+                "min": {
+                    "description": "用于number类型",
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "description": "用于enum类型",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "pattern": {
+                    "description": "用于string类型的正则验证",
+                    "type": "string"
+                },
+                "placeholder": {
+                    "description": "前端显示的占位符",
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "description": "string, number, boolean, array, object, enum",
                     "type": "string"
                 }
             }
@@ -11756,120 +12795,1342 @@ const docTemplate = `{
                 }
             }
         },
-        "service.BatchDeleteResponse": {
+        "thematic_library.AggregateField": {
             "type": "object",
+            "required": [
+                "function",
+                "source_field",
+                "target_field"
+            ],
             "properties": {
-                "deleted_count": {
-                    "type": "integer"
+                "condition": {
+                    "description": "聚合条件",
+                    "type": "string"
                 },
-                "errors": {
+                "function": {
+                    "type": "string",
+                    "enum": [
+                        "count",
+                        "sum",
+                        "avg",
+                        "max",
+                        "min"
+                    ]
+                },
+                "source_field": {
+                    "type": "string"
+                },
+                "target_field": {
+                    "type": "string"
+                }
+            }
+        },
+        "thematic_library.AggregationConfig": {
+            "type": "object",
+            "required": [
+                "conflict_policy",
+                "strategy"
+            ],
+            "properties": {
+                "aggregate_fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.AggregateField"
+                    }
+                },
+                "conflict_policy": {
+                    "type": "string",
+                    "enum": [
+                        "first",
+                        "last",
+                        "priority",
+                        "custom"
+                    ]
+                },
+                "custom_rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.CustomAggregateRule"
+                    }
+                },
+                "group_by_fields": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "failed_ids": {
+                "merge_rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.MergeRule"
+                    }
+                },
+                "strategy": {
+                    "type": "string",
+                    "enum": [
+                        "merge",
+                        "union",
+                        "intersect"
+                    ]
+                },
+                "validation": {
+                    "$ref": "#/definitions/thematic_library.AggregationValidation"
+                }
+            }
+        },
+        "thematic_library.AggregationValidation": {
+            "type": "object",
+            "properties": {
+                "max_records": {
+                    "type": "integer"
+                },
+                "min_records": {
+                    "type": "integer"
+                },
+                "required_fields": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
-                }
-            }
-        },
-        "service.PaginationInfo": {
-            "type": "object",
-            "properties": {
-                "page": {
-                    "type": "integer"
                 },
-                "size": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                },
-                "total_pages": {
-                    "type": "integer"
-                }
-            }
-        },
-        "service.SyncTaskExecutionListResponse": {
-            "type": "object",
-            "properties": {
-                "executions": {
+                "unique_fields": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.SyncTaskExecution"
+                        "type": "string"
                     }
                 },
-                "pagination": {
-                    "$ref": "#/definitions/service.PaginationInfo"
+                "validate_integrity": {
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
-        "service.SyncTaskListResponse": {
+        "thematic_library.CleansingRule": {
             "type": "object",
+            "required": [
+                "id",
+                "name",
+                "type"
+            ],
             "properties": {
-                "pagination": {
-                    "$ref": "#/definitions/service.PaginationInfo"
+                "condition": {
+                    "type": "string"
                 },
-                "tasks": {
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "fields": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.SyncTask"
+                        "type": "string"
                     }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "priority": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "remove_duplicates",
+                        "trim",
+                        "standardize",
+                        "validate",
+                        "replace"
+                    ]
                 }
             }
         },
-        "service.SyncTaskStatistics": {
+        "thematic_library.CleansingRules": {
             "type": "object",
+            "required": [
+                "rules"
+            ],
             "properties": {
-                "cancelled_tasks": {
-                    "type": "integer"
+                "on_error": {
+                    "description": "skip, abort, continue",
+                    "type": "string",
+                    "default": "skip"
                 },
-                "failed_tasks": {
-                    "type": "integer"
+                "order": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
-                "pending_tasks": {
-                    "type": "integer"
+                "parallel": {
+                    "type": "boolean",
+                    "default": false
                 },
-                "running_tasks": {
-                    "type": "integer"
+                "rules": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.CleansingRule"
+                    }
                 },
-                "success_rate": {
-                    "type": "number"
-                },
-                "success_tasks": {
-                    "type": "integer"
-                },
-                "total_tasks": {
-                    "type": "integer"
+                "validation": {
+                    "$ref": "#/definitions/thematic_library.CleansingValidation"
                 }
             }
         },
-        "service.SyncTaskStatusResponse": {
+        "thematic_library.CleansingValidation": {
             "type": "object",
             "properties": {
-                "error": {
+                "quality_threshold": {
+                    "type": "number",
+                    "default": 0.8
+                },
+                "required_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "validate_after_clean": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "validate_before_clean": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "thematic_library.ConditionalRule": {
+            "type": "object",
+            "required": [
+                "condition"
+            ],
+            "properties": {
+                "condition": {
                     "type": "string"
                 },
-                "processor": {
+                "transform": {
                     "type": "string"
                 },
-                "progress": {
-                    "$ref": "#/definitions/models.SyncProgress"
+                "value": {}
+            }
+        },
+        "thematic_library.ConversionRule": {
+            "type": "object",
+            "required": [
+                "from_type",
+                "rule",
+                "to_type"
+            ],
+            "properties": {
+                "from_type": {
+                    "type": "string"
                 },
-                "result": {
-                    "$ref": "#/definitions/models.SyncResult"
+                "rule": {
+                    "type": "string"
+                },
+                "to_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "thematic_library.CustomAggregateRule": {
+            "type": "object",
+            "required": [
+                "expression",
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "expression": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "priority": {
+                    "type": "integer",
+                    "default": 1
+                }
+            }
+        },
+        "thematic_library.DataFilterRule": {
+            "type": "object",
+            "required": [
+                "field",
+                "operator",
+                "value"
+            ],
+            "properties": {
+                "field": {
+                    "type": "string"
+                },
+                "logic_op": {
+                    "type": "string",
+                    "default": "AND",
+                    "enum": [
+                        "AND",
+                        "OR"
+                    ]
+                },
+                "operator": {
+                    "type": "string",
+                    "enum": [
+                        "eq",
+                        "ne",
+                        "gt",
+                        "lt",
+                        "ge",
+                        "le",
+                        "in",
+                        "nin",
+                        "like"
+                    ]
+                },
+                "value": {}
+            }
+        },
+        "thematic_library.ExecutionDataRange": {
+            "type": "object",
+            "properties": {
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "date_field": {
+                    "type": "string"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "partition_key": {
+                    "type": "string"
                 },
                 "start_time": {
                     "type": "string"
-                },
-                "status": {
+                }
+            }
+        },
+        "thematic_library.ExecutionFilter": {
+            "type": "object",
+            "required": [
+                "field",
+                "operator",
+                "value"
+            ],
+            "properties": {
+                "field": {
                     "type": "string"
                 },
-                "task": {
-                    "$ref": "#/definitions/models.SyncTask"
+                "logic_op": {
+                    "type": "string",
+                    "default": "AND",
+                    "enum": [
+                        "AND",
+                        "OR"
+                    ]
+                },
+                "operator": {
+                    "type": "string",
+                    "enum": [
+                        "eq",
+                        "ne",
+                        "gt",
+                        "lt",
+                        "ge",
+                        "le",
+                        "in",
+                        "nin",
+                        "like"
+                    ]
+                },
+                "value": {}
+            }
+        },
+        "thematic_library.ExecutionOutput": {
+            "type": "object",
+            "properties": {
+                "detailed_log": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "exclude_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "export_format": {
+                    "description": "json, csv, excel",
+                    "type": "string",
+                    "default": "json"
+                },
+                "export_path": {
+                    "type": "string"
+                },
+                "export_results": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "include_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "log_level": {
+                    "type": "string",
+                    "default": "INFO"
+                },
+                "progress_report": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "report_interval": {
+                    "description": "每处理多少条记录报告一次",
+                    "type": "integer",
+                    "default": 1000
+                },
+                "save_metrics": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "thematic_library.ExecutionWindow": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "description": "允许执行的星期几 (1-7)",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "end_time": {
+                    "description": "结束时间 HH:MM",
+                    "type": "string",
+                    "example": "18:00"
+                },
+                "holidays": {
+                    "description": "是否在节假日执行",
+                    "type": "boolean",
+                    "default": false
+                },
+                "start_time": {
+                    "description": "开始时间 HH:MM",
+                    "type": "string",
+                    "example": "09:00"
+                }
+            }
+        },
+        "thematic_library.FieldMapping": {
+            "type": "object",
+            "required": [
+                "source_field",
+                "target_field"
+            ],
+            "properties": {
+                "default_value": {},
+                "required": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "source_field": {
+                    "type": "string"
+                },
+                "target_field": {
+                    "type": "string"
+                },
+                "transform": {
+                    "description": "转换函数",
+                    "type": "string"
+                }
+            }
+        },
+        "thematic_library.FieldMappingRule": {
+            "type": "object",
+            "required": [
+                "source_field",
+                "target_field"
+            ],
+            "properties": {
+                "data_type": {
+                    "type": "string"
+                },
+                "default_value": {},
+                "nullable": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "required": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "source_field": {
+                    "type": "string"
+                },
+                "target_field": {
+                    "type": "string"
+                },
+                "transform": {
+                    "$ref": "#/definitions/thematic_library.FieldTransform"
+                },
+                "validation": {
+                    "$ref": "#/definitions/thematic_library.FieldValidationRule"
+                }
+            }
+        },
+        "thematic_library.FieldMappingRules": {
+            "type": "object",
+            "required": [
+                "mappings"
+            ],
+            "properties": {
+                "case_sensitive": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "default_policy": {
+                    "description": "ignore, error, null",
+                    "type": "string",
+                    "default": "ignore"
+                },
+                "mappings": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.FieldMappingRule"
+                    }
+                },
+                "type_conversion": {
+                    "$ref": "#/definitions/thematic_library.TypeConversionConfig"
+                },
+                "validation": {
+                    "$ref": "#/definitions/thematic_library.MappingValidation"
+                }
+            }
+        },
+        "thematic_library.FieldTransform": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "conditional": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.ConditionalRule"
+                    }
+                },
+                "expression": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "thematic_library.FieldValidationRule": {
+            "type": "object",
+            "properties": {
+                "allowed_values": {
+                    "type": "array",
+                    "items": {}
+                },
+                "custom_rules": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "max_length": {
+                    "type": "integer"
+                },
+                "max_value": {},
+                "min_length": {
+                    "type": "integer"
+                },
+                "min_value": {},
+                "pattern": {
+                    "type": "string"
+                }
+            }
+        },
+        "thematic_library.FuzzyMatchConfig": {
+            "type": "object",
+            "properties": {
+                "algorithm": {
+                    "description": "levenshtein, jaro, soundex",
+                    "type": "string",
+                    "default": "levenshtein"
+                },
+                "case_ignore": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "preprocessing": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.PreprocessRule"
+                    }
+                },
+                "threshold": {
+                    "type": "number",
+                    "default": 0.8
+                }
+            }
+        },
+        "thematic_library.KeyMatchingRules": {
+            "type": "object",
+            "required": [
+                "conflict_policy",
+                "primary_keys"
+            ],
+            "properties": {
+                "case_sensitive": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "conflict_policy": {
+                    "type": "string",
+                    "enum": [
+                        "first",
+                        "last",
+                        "merge",
+                        "error"
+                    ]
+                },
+                "fuzzy_matching": {
+                    "$ref": "#/definitions/thematic_library.FuzzyMatchConfig"
+                },
+                "match_threshold": {
+                    "type": "number",
+                    "default": 0.8
+                },
+                "primary_keys": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.PrimaryKeyRule"
+                    }
+                }
+            }
+        },
+        "thematic_library.KeyTransform": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "trim",
+                        "upper",
+                        "lower",
+                        "hash",
+                        "normalize"
+                    ]
+                }
+            }
+        },
+        "thematic_library.KeyValidation": {
+            "type": "object",
+            "properties": {
+                "allow_empty": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "max_length": {
+                    "type": "integer"
+                },
+                "min_length": {
+                    "type": "integer"
+                },
+                "pattern": {
+                    "description": "正则表达式",
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "thematic_library.MappingValidation": {
+            "type": "object",
+            "properties": {
+                "allow_unmapped": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "check_duplicates": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "required_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "validate_types": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "thematic_library.MergeRule": {
+            "type": "object",
+            "required": [
+                "field",
+                "merge_type"
+            ],
+            "properties": {
+                "field": {
+                    "type": "string"
+                },
+                "merge_type": {
+                    "type": "string",
+                    "enum": [
+                        "first",
+                        "last",
+                        "max",
+                        "min",
+                        "sum",
+                        "avg",
+                        "concat"
+                    ]
+                },
+                "null_policy": {
+                    "description": "ignore, include, error",
+                    "type": "string",
+                    "default": "ignore"
+                },
+                "separator": {
+                    "description": "用于concat类型",
+                    "type": "string",
+                    "default": ","
+                },
+                "unique_only": {
+                    "description": "是否去重",
+                    "type": "boolean",
+                    "default": false
+                }
+            }
+        },
+        "thematic_library.PreprocessRule": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "parameters": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "trim",
+                        "normalize",
+                        "remove_special"
+                    ]
+                }
+            }
+        },
+        "thematic_library.PrimaryKeyRule": {
+            "type": "object",
+            "required": [
+                "fields"
+            ],
+            "properties": {
+                "fields": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "transform": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.KeyTransform"
+                    }
+                },
+                "validation": {
+                    "$ref": "#/definitions/thematic_library.KeyValidation"
+                },
+                "weight": {
+                    "type": "number",
+                    "default": 1
+                }
+            }
+        },
+        "thematic_library.PrivacyRule": {
+            "type": "object",
+            "required": [
+                "fields",
+                "id",
+                "masking_type",
+                "name"
+            ],
+            "properties": {
+                "condition": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "fields": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "masking_type": {
+                    "type": "string",
+                    "enum": [
+                        "mask",
+                        "hash",
+                        "encrypt",
+                        "tokenize",
+                        "anonymize"
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "priority": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "reversible": {
+                    "type": "boolean",
+                    "default": false
+                }
+            }
+        },
+        "thematic_library.PrivacyRules": {
+            "type": "object",
+            "required": [
+                "rules"
+            ],
+            "properties": {
+                "audit_log": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "global_mode": {
+                    "description": "field, record, table",
+                    "type": "string",
+                    "default": "field"
+                },
+                "rules": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.PrivacyRule"
+                    }
+                },
+                "validation": {
+                    "$ref": "#/definitions/thematic_library.PrivacyValidation"
+                }
+            }
+        },
+        "thematic_library.PrivacyValidation": {
+            "type": "object",
+            "properties": {
+                "audit_requirements": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "compliance_rules": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "sensitive_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "validate_patterns": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "thematic_library.QualityMetric": {
+            "type": "object",
+            "required": [
+                "name",
+                "type"
+            ],
+            "properties": {
+                "critical": {
+                    "type": "number"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "number"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "count",
+                        "rate",
+                        "percentage",
+                        "score"
+                    ]
+                },
+                "warning": {
+                    "type": "number"
+                }
+            }
+        },
+        "thematic_library.QualityRule": {
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "type"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "expression": {
+                    "type": "string"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "threshold": {
+                    "type": "number",
+                    "default": 0.8
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "completeness",
+                        "accuracy",
+                        "consistency",
+                        "validity",
+                        "uniqueness",
+                        "timeliness"
+                    ]
+                },
+                "weight": {
+                    "type": "number",
+                    "default": 1
+                }
+            }
+        },
+        "thematic_library.QualityRules": {
+            "type": "object",
+            "required": [
+                "rules"
+            ],
+            "properties": {
+                "metrics": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.QualityMetric"
+                    }
+                },
+                "on_failure": {
+                    "description": "warn, error, skip",
+                    "type": "string",
+                    "default": "warn"
+                },
+                "rules": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.QualityRule"
+                    }
+                },
+                "threshold": {
+                    "type": "number",
+                    "default": 0.8
+                },
+                "validation": {
+                    "$ref": "#/definitions/thematic_library.QualityValidation"
+                }
+            }
+        },
+        "thematic_library.QualityValidation": {
+            "type": "object",
+            "properties": {
+                "business_rules": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "critical_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "enable_post_check": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "enable_pre_check": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "statistical_check": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "thematic_library.ScheduleConfig": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "cron_expression": {
+                    "description": "Cron表达式",
+                    "type": "string"
+                },
+                "enabled": {
+                    "description": "是否启用",
+                    "type": "boolean",
+                    "default": true
+                },
+                "end_date": {
+                    "description": "结束日期",
+                    "type": "string"
+                },
+                "execution_window": {
+                    "description": "执行时间窗口",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/thematic_library.ExecutionWindow"
+                        }
+                    ]
+                },
+                "interval_seconds": {
+                    "description": "间隔秒数",
+                    "type": "integer"
+                },
+                "max_retries": {
+                    "description": "最大重试次数",
+                    "type": "integer",
+                    "default": 3
+                },
+                "retry_interval": {
+                    "description": "重试间隔(秒)",
+                    "type": "integer",
+                    "default": 300
+                },
+                "scheduled_time": {
+                    "description": "计划执行时间",
+                    "type": "string"
+                },
+                "start_date": {
+                    "description": "开始日期",
+                    "type": "string"
+                },
+                "timezone": {
+                    "description": "时区",
+                    "type": "string",
+                    "default": "Asia/Shanghai"
+                },
+                "type": {
+                    "description": "manual, one_time, interval, cron",
+                    "type": "string",
+                    "enum": [
+                        "manual",
+                        "one_time",
+                        "interval",
+                        "cron"
+                    ]
+                }
+            }
+        },
+        "thematic_library.SortField": {
+            "type": "object",
+            "required": [
+                "field"
+            ],
+            "properties": {
+                "field": {
+                    "type": "string"
+                },
+                "order": {
+                    "type": "string",
+                    "default": "ASC",
+                    "enum": [
+                        "ASC",
+                        "DESC"
+                    ]
+                }
+            }
+        },
+        "thematic_library.SourceInterfaceConfig": {
+            "type": "object",
+            "required": [
+                "interface_id"
+            ],
+            "properties": {
+                "batch_size": {
+                    "type": "integer",
+                    "default": 1000
+                },
+                "field_mapping": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.FieldMapping"
+                    }
+                },
+                "filter_condition": {
+                    "description": "SQL WHERE 条件",
+                    "type": "string"
+                },
+                "interface_id": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "description": "接口参数",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "sort_order": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.SortField"
+                    }
+                }
+            }
+        },
+        "thematic_library.SourceLibraryConfig": {
+            "type": "object",
+            "required": [
+                "interfaces",
+                "library_id"
+            ],
+            "properties": {
+                "enabled": {
+                    "description": "是否启用",
+                    "type": "boolean",
+                    "default": true
+                },
+                "filter_rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.DataFilterRule"
+                    }
+                },
+                "interfaces": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.SourceInterfaceConfig"
+                    }
+                },
+                "library_id": {
+                    "type": "string"
+                },
+                "priority": {
+                    "description": "优先级，数字越小优先级越高",
+                    "type": "integer",
+                    "default": 1
+                },
+                "sync_mode": {
+                    "description": "full, incremental, realtime",
+                    "type": "string",
+                    "default": "full"
+                }
+            }
+        },
+        "thematic_library.SyncExecutionOptions": {
+            "type": "object",
+            "required": [
+                "mode"
+            ],
+            "properties": {
+                "batch_size": {
+                    "type": "integer",
+                    "default": 1000
+                },
+                "custom_parameters": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "data_range": {
+                    "$ref": "#/definitions/thematic_library.ExecutionDataRange"
+                },
+                "debug_mode": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "filter_conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.ExecutionFilter"
+                    }
+                },
+                "force_refresh": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "ignore_errors": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "max_records": {
+                    "type": "integer"
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "full",
+                        "incremental",
+                        "realtime",
+                        "test"
+                    ]
+                },
+                "output_settings": {
+                    "$ref": "#/definitions/thematic_library.ExecutionOutput"
+                },
+                "parallel_workers": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "skip_validation": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "timeout": {
+                    "description": "超时时间(秒)",
+                    "type": "integer",
+                    "default": 3600
+                }
+            }
+        },
+        "thematic_library.TypeConversionConfig": {
+            "type": "object",
+            "properties": {
+                "auto_convert": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "boolean_map": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "boolean"
+                    }
+                },
+                "custom_rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.ConversionRule"
+                    }
+                },
+                "date_format": {
+                    "type": "string",
+                    "default": "2006-01-02 15:04:05"
+                },
+                "number_format": {
+                    "type": "string"
+                },
+                "strict_mode": {
+                    "type": "boolean",
+                    "default": false
                 }
             }
         }

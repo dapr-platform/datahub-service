@@ -9,7 +9,7 @@
  * @refs ai_docs/model.md
  */
 
-package service
+package governance
 
 import (
 	"datahub-service/service/models"

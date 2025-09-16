@@ -88,3 +88,25 @@ func (c *MetaController) GetThematicLibraryDomains(w http.ResponseWriter, r *htt
 func (c *MetaController) GetThematicLibraryAccessLevels(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, SuccessResponse("获取数据主题库访问级别元数据成功", meta.ThematicLibraryAccessLevels))
 }
+
+// @Summary 获取所有主题库同步任务元数据
+// @Description 获取所有主题库同步任务相关元数据，包括任务状态、触发类型、执行状态等
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=map[string]interface{}}
+// @Failure 500 {object} APIResponse
+// @Router /meta/thematic-sync-tasks [get]
+func (c *MetaController) GetThematicSyncTaskMeta(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取主题库同步任务元数据成功", meta.ThematicSyncMetas))
+}
+
+// @Summary 获取主题库同步配置定义
+// @Description 获取主题库同步各种配置的字段定义，用于前端动态生成配置表单
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=map[string]meta.ThematicSyncConfigDefinition}
+// @Failure 500 {object} APIResponse
+// @Router /meta/thematic-sync-configs [get]
+func (c *MetaController) GetThematicSyncConfigDefinitions(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取主题库同步配置定义成功", meta.ThematicSyncConfigDefinitions))
+}

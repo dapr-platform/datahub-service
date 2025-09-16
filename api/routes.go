@@ -14,6 +14,8 @@ package api
 import (
 	"datahub-service/api/controllers"
 	"datahub-service/service"
+	"datahub-service/service/governance"
+	"datahub-service/service/sharing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -83,6 +85,10 @@ func InitRoute(r *chi.Mux) {
 			r.Get("/domains", metaController.GetThematicLibraryDomains)
 			r.Get("/access-levels", metaController.GetThematicLibraryAccessLevels)
 		})
+
+		// 主题库同步相关元数据
+		r.Get("/thematic-sync-tasks", metaController.GetThematicSyncTaskMeta)
+		r.Get("/thematic-sync-configs", metaController.GetThematicSyncConfigDefinitions)
 	})
 
 	// 基础库管理（保留现有功能接口）
@@ -259,7 +265,7 @@ func InitRoute(r *chi.Mux) {
 
 	// 数据治理
 	r.Route("/governance", func(r chi.Router) {
-		governanceController := controllers.NewGovernanceController(service.NewGovernanceService(service.DB))
+		governanceController := controllers.NewGovernanceController(governance.NewGovernanceService(service.DB))
 
 		// 数据质量规则管理
 		r.Route("/quality-rules", func(r chi.Router) {
@@ -303,7 +309,7 @@ func InitRoute(r *chi.Mux) {
 
 	// 数据共享服务
 	r.Route("/sharing", func(r chi.Router) {
-		sharingController := controllers.NewSharingController(service.NewSharingService(service.DB))
+		sharingController := controllers.NewSharingController(sharing.NewSharingService(service.DB))
 
 		// API应用管理
 		r.Route("/api-applications", func(r chi.Router) {
@@ -383,6 +389,37 @@ func InitRoute(r *chi.Mux) {
 
 		// 性能报告
 		r.Get("/performance-report", monitoringController.GeneratePerformanceReport)
+	})
+
+	// 主题同步管理
+	r.Route("/thematic-sync", func(r chi.Router) {
+		thematicSyncController := controllers.NewThematicSyncController()
+
+		// 同步任务管理
+		r.Route("/tasks", func(r chi.Router) {
+			// 基础CRUD操作
+			r.Post("/", thematicSyncController.CreateSyncTask)
+			r.Get("/", thematicSyncController.GetSyncTaskList)
+			r.Get("/{id}", thematicSyncController.GetSyncTask)
+			r.Put("/{id}", thematicSyncController.UpdateSyncTask)
+			r.Delete("/{id}", thematicSyncController.DeleteSyncTask)
+
+			// 任务控制操作
+			r.Post("/{id}/execute", thematicSyncController.ExecuteSyncTask)
+			r.Post("/{id}/stop", thematicSyncController.StopSyncTask)
+			r.Get("/{id}/status", thematicSyncController.GetSyncTaskStatus)
+
+			// 任务执行记录
+			r.Get("/{id}/executions", thematicSyncController.GetSyncTaskExecutions)
+
+			// 统计信息
+			r.Get("/statistics", thematicSyncController.GetSyncTaskStatistics)
+		})
+
+		// 执行记录管理
+		r.Route("/executions", func(r chi.Router) {
+			r.Get("/{id}", thematicSyncController.GetSyncExecution)
+		})
 	})
 
 	// 数据查看路由

@@ -9,7 +9,7 @@
  * @refs ai_docs/model.md
  */
 
-package service
+package sharing
 
 import (
 	"crypto/rand"
