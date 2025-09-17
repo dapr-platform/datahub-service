@@ -401,6 +401,11 @@ type SyncTaskExecution struct {
 	Task SyncTask `json:"task,omitempty" gorm:"foreignKey:TaskID"`
 }
 
+// TableName 指定表名
+func (SyncTaskExecution) TableName() string {
+	return "sync_task_executions"
+}
+
 // BeforeCreate GORM钩子，创建前生成UUID
 func (ste *SyncTaskExecution) BeforeCreate(tx *gorm.DB) error {
 	if ste.ID == "" {

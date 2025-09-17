@@ -282,12 +282,12 @@ func createSyncConfigurationIndexes(db *gorm.DB) error {
 // createSyncExecutionIndexes 创建同步执行表索引
 func createSyncExecutionIndexes(db *gorm.DB) error {
 	indexQueries := []string{
-		"CREATE INDEX IF NOT EXISTS idx_sync_exec_config_id ON sync_executions(sync_config_id)",
-		"CREATE INDEX IF NOT EXISTS idx_sync_exec_status ON sync_executions(status)",
-		"CREATE INDEX IF NOT EXISTS idx_sync_exec_start_time ON sync_executions(start_time)",
-		"CREATE INDEX IF NOT EXISTS idx_sync_exec_end_time ON sync_executions(end_time)",
-		"CREATE INDEX IF NOT EXISTS idx_sync_exec_execution_type ON sync_executions(execution_type)",
-		"CREATE INDEX IF NOT EXISTS idx_sync_exec_records_total ON sync_executions(records_total)",
+		"CREATE INDEX IF NOT EXISTS idx_sync_task_exec_task_id ON sync_task_executions(task_id)",
+		"CREATE INDEX IF NOT EXISTS idx_sync_task_exec_status ON sync_task_executions(status)",
+		"CREATE INDEX IF NOT EXISTS idx_sync_task_exec_start_time ON sync_task_executions(start_time)",
+		"CREATE INDEX IF NOT EXISTS idx_sync_task_exec_end_time ON sync_task_executions(end_time)",
+		"CREATE INDEX IF NOT EXISTS idx_sync_task_exec_execution_type ON sync_task_executions(execution_type)",
+		"CREATE INDEX IF NOT EXISTS idx_sync_task_exec_created_at ON sync_task_executions(created_at)",
 	}
 
 	for _, query := range indexQueries {
@@ -312,48 +312,6 @@ func createIncrementalStateIndexes(db *gorm.DB) error {
 	for _, query := range indexQueries {
 		if err := db.Exec(query).Error; err != nil {
 			log.Printf("创建增量状态表索引失败: %v", err)
-			return err
-		}
-	}
-
-	return nil
-}
-
-// createErrorLogIndexes 创建错误日志表索引
-func createErrorLogIndexes(db *gorm.DB) error {
-	indexQueries := []string{
-		"CREATE INDEX IF NOT EXISTS idx_error_log_execution_id ON sync_error_logs(execution_id)",
-		"CREATE INDEX IF NOT EXISTS idx_error_log_error_type ON sync_error_logs(error_type)",
-		"CREATE INDEX IF NOT EXISTS idx_error_log_occurred_at ON sync_error_logs(occurred_at)",
-		"CREATE INDEX IF NOT EXISTS idx_error_log_resolved ON sync_error_logs(resolved)",
-	}
-
-	for _, query := range indexQueries {
-		if err := db.Exec(query).Error; err != nil {
-			log.Printf("创建错误日志表索引失败: %v", err)
-			return err
-		}
-	}
-
-	return nil
-}
-
-// createScheduledTaskIndexes 创建调度任务表索引
-func createScheduledTaskIndexes(db *gorm.DB) error {
-	indexQueries := []string{
-		"CREATE INDEX IF NOT EXISTS idx_scheduled_task_type ON scheduled_tasks(task_type)",
-		"CREATE INDEX IF NOT EXISTS idx_scheduled_task_status ON scheduled_tasks(status)",
-		"CREATE INDEX IF NOT EXISTS idx_scheduled_task_enabled ON scheduled_tasks(enabled)",
-		"CREATE INDEX IF NOT EXISTS idx_scheduled_task_next_run ON scheduled_tasks(next_run_time)",
-		"CREATE INDEX IF NOT EXISTS idx_scheduled_task_created_at ON scheduled_tasks(created_at)",
-		"CREATE INDEX IF NOT EXISTS idx_task_exec_task_id ON task_executions(task_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_exec_status ON task_executions(status)",
-		"CREATE INDEX IF NOT EXISTS idx_task_exec_started_at ON task_executions(started_at)",
-	}
-
-	for _, query := range indexQueries {
-		if err := db.Exec(query).Error; err != nil {
-			log.Printf("创建调度任务表索引失败: %v", err)
 			return err
 		}
 	}

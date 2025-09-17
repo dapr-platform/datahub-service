@@ -12,12 +12,13 @@
 package controllers
 
 import (
-	"bytes"
+	"datahub-service/client"
 	"datahub-service/service/models"
 	"datahub-service/service/sharing"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -27,15 +28,41 @@ import (
 
 // DataProxyController 数据访问代理控制器
 type DataProxyController struct {
-	sharingService *sharing.SharingService
-	postgrestURL   string
+	sharingService  *sharing.SharingService
+	postgrestClient *client.PostgRESTClient
+	postgrestURL    string
 }
 
 // NewDataProxyController 创建数据访问代理控制器实例
 func NewDataProxyController(sharingService *sharing.SharingService) *DataProxyController {
+	postgrestURL := os.Getenv("POSTGREST_URL")
+	if postgrestURL == "" {
+		postgrestURL = "http://postgrest:3000"
+	}
+
+	// 创建PostgREST客户端配置
+	config := &client.PostgRESTConfig{
+		BaseURL:         postgrestURL,
+		Username:        os.Getenv("DB_USER"),
+		Password:        os.Getenv("DB_PASSWORD"),
+		Timeout:         30 * time.Second,
+		RefreshInterval: 55 * time.Minute, // 55分钟刷新一次Token
+		MaxRetries:      3,
+	}
+
+	// 创建PostgREST客户端
+	postgrestClient := client.NewPostgRESTClient(config)
+
+	// 初始化连接并获取Token
+	if err := postgrestClient.Connect(); err != nil {
+		// 记录错误但不中断初始化，让运行时重试
+		fmt.Printf("PostgREST客户端初始化失败: %v\n", err)
+	}
+
 	return &DataProxyController{
-		sharingService: sharingService,
-		postgrestURL:   "http://postgrest-service:3000", // TODO: 从配置文件读取
+		sharingService:  sharingService,
+		postgrestClient: postgrestClient,
+		postgrestURL:    postgrestURL,
 	}
 }
 
@@ -149,10 +176,7 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// 9. 构造对PostgREST的请求
-	targetURL := fmt.Sprintf("%s/%s", c.postgrestURL, tableName)
-
-	// 复制请求体
+	// 9. 读取请求体
 	var bodyBytes []byte
 	if r.Body != nil {
 		bodyBytes, err = io.ReadAll(r.Body)
@@ -166,40 +190,29 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	// 创建新的请求
-	proxyReq, err := http.NewRequest(r.Method, targetURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "创建代理请求失败")
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "创建代理请求失败",
-		})
-		return
-	}
+	// 10. 准备额外的请求头
+	additionalHeaders := make(map[string]string)
 
-	// 10. 复制查询参数
-	proxyReq.URL.RawQuery = r.URL.RawQuery
-
-	// 11. 复制大部分请求头，排除一些敏感头
+	// 复制大部分请求头，排除一些敏感头
 	for key, values := range r.Header {
-		if key == "Authorization" || key == "Host" {
+		if key == "Authorization" || key == "Host" ||
+			key == "Accept-Profile" || key == "Content-Profile" {
 			continue
 		}
-		for _, value := range values {
-			proxyReq.Header.Add(key, value)
+		if len(values) > 0 {
+			additionalHeaders[key] = values[0]
 		}
 	}
 
-	// 12. 添加关键的PostgREST头
+	// 设置schema头
 	if r.Method == "GET" || r.Method == "HEAD" {
-		proxyReq.Header.Set("Accept-Profile", schema)
+		additionalHeaders["Accept-Profile"] = schema
 	} else {
-		proxyReq.Header.Set("Content-Profile", schema)
+		additionalHeaders["Content-Profile"] = schema
 	}
 
-	// 13. 发送请求到PostgREST
-	client := &http.Client{Timeout: 30 * time.Second}
-	proxyResp, err := client.Do(proxyReq)
+	// 11. 使用PostgREST客户端发送请求
+	proxyResp, err := c.postgrestClient.ProxyRequest(r.Method, tableName, r.URL.RawQuery, bodyBytes, additionalHeaders)
 	if err != nil {
 		c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "代理请求失败: "+err.Error())
 		render.JSON(w, r, APIResponse{
@@ -210,17 +223,17 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 	}
 	defer proxyResp.Body.Close()
 
-	// 14. 复制响应头
+	// 12. 复制响应头
 	for key, values := range proxyResp.Header {
 		for _, value := range values {
 			w.Header().Add(key, value)
 		}
 	}
 
-	// 15. 设置响应状态码
+	// 13. 设置响应状态码
 	w.WriteHeader(proxyResp.StatusCode)
 
-	// 16. 流式返回响应体
+	// 14. 流式返回响应体
 	responseSize, err := io.Copy(w, proxyResp.Body)
 	if err != nil {
 		// 日志记录错误，但不能再返回HTTP响应了
@@ -228,7 +241,7 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// 17. 记录成功的API使用日志
+	// 15. 记录成功的API使用日志
 	c.logApiUsageWithSize(r, apiKey.ApiApplicationID, apiKey.ID, proxyResp.StatusCode, time.Since(startTime), "", int64(len(bodyBytes)), responseSize)
 }
 
@@ -297,4 +310,20 @@ func getStringPointer(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// Close 关闭控制器并释放资源
+func (c *DataProxyController) Close() error {
+	if c.postgrestClient != nil {
+		return c.postgrestClient.Close()
+	}
+	return nil
+}
+
+// GetPostgRESTClientStats 获取PostgREST客户端统计信息
+func (c *DataProxyController) GetPostgRESTClientStats() map[string]interface{} {
+	if c.postgrestClient != nil {
+		return c.postgrestClient.GetStatistics()
+	}
+	return map[string]interface{}{"error": "PostgREST client not initialized"}
 }
