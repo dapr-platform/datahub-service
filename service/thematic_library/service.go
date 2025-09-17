@@ -16,6 +16,7 @@ import (
 	"datahub-service/service/models"
 	"errors"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -377,7 +378,7 @@ func (s *Service) UpdateThematicInterface(id string, updates *models.ThematicInt
 
 	// 如果更新接口类型，需要验证
 	if updates.Type != "" {
-		validTypes := []string{"realtime", "batch"}
+		validTypes := []string{"realtime", "batch", "view"}
 		if !contains(validTypes, updates.Type) {
 			return errors.New("无效的接口类型")
 		}
@@ -437,12 +438,21 @@ func isValidSchemaName(name string) bool {
 }
 
 // UpdateThematicInterfaceFields 更新主题接口字段配置
-func (s *Service) UpdateThematicInterfaceFields(interfaceID string, fields []models.TableField, updateTable bool) error {
+func (s *Service) UpdateThematicInterfaceFields(interfaceID string, fields []models.TableField) error {
 	// 获取主题接口信息
 	interfaceData, err := s.GetThematicInterface(interfaceID)
 	if err != nil {
 		return fmt.Errorf("获取主题接口信息失败: %w", err)
 	}
+
+	// 获取主题库信息
+	var library models.ThematicLibrary
+	if err := s.db.First(&library, "id = ?", interfaceData.LibraryID).Error; err != nil {
+		return fmt.Errorf("获取主题库信息失败: %w", err)
+	}
+
+	schemaName := library.NameEn
+	tableName := interfaceData.NameEn
 
 	// 转换字段为JSONB格式
 	fieldsData := make(models.JSONB)
@@ -459,24 +469,190 @@ func (s *Service) UpdateThematicInterfaceFields(interfaceID string, fields []mod
 		return fmt.Errorf("更新主题接口字段配置失败: %w", err)
 	}
 
-	// 如果需要更新表结构
-	if updateTable {
-		// 获取主题库信息
-		var library models.ThematicLibrary
-		if err := s.db.First(&library, "id = ?", interfaceData.LibraryID).Error; err != nil {
-			return fmt.Errorf("获取主题库信息失败: %w", err)
-		}
+	// 检查表是否存在
+	tableExists, err := s.schemaService.CheckTableExists(schemaName, tableName)
+	if err != nil {
+		return fmt.Errorf("检查表存在性失败: %w", err)
+	}
 
-		schemaName := library.NameEn
-		tableName := interfaceData.NameEn
+	// 根据表是否存在决定操作类型
+	var operation string
+	if tableExists {
+		operation = "alter_table"
+	} else {
+		operation = "create_table"
+	}
 
-		// 调用SchemaService更新表结构
-		err := s.schemaService.ManageTableSchema(interfaceID, "alter", schemaName, tableName, fields)
-		if err != nil {
-			// 如果表结构更新失败，记录警告但不回滚字段配置更新
-			return fmt.Errorf("更新表结构失败，但字段配置已更新: %w", err)
-		}
+	// 调用SchemaService管理表结构
+	err = s.schemaService.ManageTableSchema(interfaceID, operation, schemaName, tableName, fields)
+	if err != nil {
+		return fmt.Errorf("管理表结构失败: %w", err)
+	}
+	updates["is_table_created"] = true
+	if err := s.db.Model(&models.ThematicInterface{}).Where("id = ?", interfaceID).Updates(updates).Error; err != nil {
+		return fmt.Errorf("更新主题接口表创建状态失败: %w", err)
+	}
+	return nil
+}
+
+// CreateThematicInterfaceView 创建主题接口视图
+func (s *Service) CreateThematicInterfaceView(interfaceID, viewSQL string) error {
+	// 获取主题接口信息
+	interfaceData, err := s.GetThematicInterface(interfaceID)
+	if err != nil {
+		return fmt.Errorf("获取主题接口信息失败: %w", err)
+	}
+
+	// 验证接口类型是否为视图类型
+	if interfaceData.Type != "view" {
+		return errors.New("只有视图类型的接口才能创建视图")
+	}
+
+	// 获取主题库信息
+	var library models.ThematicLibrary
+	if err := s.db.First(&library, "id = ?", interfaceData.LibraryID).Error; err != nil {
+		return fmt.Errorf("获取主题库信息失败: %w", err)
+	}
+
+	schemaName := library.NameEn
+	viewName := interfaceData.NameEn
+
+	// 检查视图是否已存在
+	viewExists, err := s.schemaService.CheckViewExists(schemaName, viewName)
+	if err != nil {
+		return fmt.Errorf("检查视图存在性失败: %w", err)
+	}
+
+	// 根据视图是否存在决定操作类型
+	var operation string
+	if viewExists {
+		operation = "update_view"
+	} else {
+		operation = "create_view"
+	}
+
+	// 调用SchemaService管理视图结构
+	err = s.schemaService.ManageViewSchema(interfaceID, operation, schemaName, viewName, viewSQL)
+	if err != nil {
+		return fmt.Errorf("管理视图结构失败: %w", err)
+	}
+
+	// 更新主题接口的视图配置
+	updates := map[string]interface{}{
+		"view_sql":        viewSQL,
+		"is_view_created": true,
+		"view_config": map[string]interface{}{
+			"created_at":   fmt.Sprintf("%d", time.Now().Unix()),
+			"last_updated": fmt.Sprintf("%d", time.Now().Unix()),
+			"operation":    operation,
+		},
+	}
+
+	if err := s.db.Model(&models.ThematicInterface{}).Where("id = ?", interfaceID).Updates(updates).Error; err != nil {
+		return fmt.Errorf("更新主题接口视图配置失败: %w", err)
 	}
 
 	return nil
+}
+
+// UpdateThematicInterfaceView 更新主题接口视图
+func (s *Service) UpdateThematicInterfaceView(interfaceID, viewSQL string) error {
+	// 获取主题接口信息
+	interfaceData, err := s.GetThematicInterface(interfaceID)
+	if err != nil {
+		return fmt.Errorf("获取主题接口信息失败: %w", err)
+	}
+
+	// 验证接口类型是否为视图类型
+	if interfaceData.Type != "view" {
+		return errors.New("只有视图类型的接口才能更新视图")
+	}
+
+	// 获取主题库信息
+	var library models.ThematicLibrary
+	if err := s.db.First(&library, "id = ?", interfaceData.LibraryID).Error; err != nil {
+		return fmt.Errorf("获取主题库信息失败: %w", err)
+	}
+
+	schemaName := library.NameEn
+	viewName := interfaceData.NameEn
+
+	// 调用SchemaService更新视图
+	err = s.schemaService.ManageViewSchema(interfaceID, "update_view", schemaName, viewName, viewSQL)
+	if err != nil {
+		return fmt.Errorf("更新视图失败: %w", err)
+	}
+
+	// 更新主题接口的视图配置
+	updates := map[string]interface{}{
+		"view_sql": viewSQL,
+		"view_config": map[string]interface{}{
+			"last_updated": fmt.Sprintf("%d", time.Now().Unix()),
+			"operation":    "update_view",
+		},
+	}
+
+	if err := s.db.Model(&models.ThematicInterface{}).Where("id = ?", interfaceID).Updates(updates).Error; err != nil {
+		return fmt.Errorf("更新主题接口视图配置失败: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteThematicInterfaceView 删除主题接口视图
+func (s *Service) DeleteThematicInterfaceView(interfaceID string) error {
+	// 获取主题接口信息
+	interfaceData, err := s.GetThematicInterface(interfaceID)
+	if err != nil {
+		return fmt.Errorf("获取主题接口信息失败: %w", err)
+	}
+
+	// 验证接口类型是否为视图类型
+	if interfaceData.Type != "view" {
+		return errors.New("只有视图类型的接口才能删除视图")
+	}
+
+	// 获取主题库信息
+	var library models.ThematicLibrary
+	if err := s.db.First(&library, "id = ?", interfaceData.LibraryID).Error; err != nil {
+		return fmt.Errorf("获取主题库信息失败: %w", err)
+	}
+
+	schemaName := library.NameEn
+	viewName := interfaceData.NameEn
+
+	// 调用SchemaService删除视图
+	err = s.schemaService.ManageViewSchema(interfaceID, "drop_view", schemaName, viewName, "")
+	if err != nil {
+		return fmt.Errorf("删除视图失败: %w", err)
+	}
+
+	// 更新主题接口的视图配置
+	updates := map[string]interface{}{
+		"view_sql":        "",
+		"is_view_created": false,
+		"view_config":     nil,
+	}
+
+	if err := s.db.Model(&models.ThematicInterface{}).Where("id = ?", interfaceID).Updates(updates).Error; err != nil {
+		return fmt.Errorf("更新主题接口视图配置失败: %w", err)
+	}
+
+	return nil
+}
+
+// GetThematicInterfaceViewSQL 获取主题接口的视图SQL
+func (s *Service) GetThematicInterfaceViewSQL(interfaceID string) (string, error) {
+	// 获取主题接口信息
+	interfaceData, err := s.GetThematicInterface(interfaceID)
+	if err != nil {
+		return "", fmt.Errorf("获取主题接口信息失败: %w", err)
+	}
+
+	// 验证接口类型是否为视图类型
+	if interfaceData.Type != "view" {
+		return "", errors.New("只有视图类型的接口才有视图SQL")
+	}
+
+	return interfaceData.ViewSQL, nil
 }

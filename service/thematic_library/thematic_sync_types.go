@@ -15,21 +15,35 @@ import (
 	"datahub-service/service/models"
 )
 
+// SQLDataSourceConfig SQL数据源配置
+type SQLDataSourceConfig struct {
+	LibraryID   string                 `json:"library_id"`
+	InterfaceID string                 `json:"interface_id"`
+	SQLQuery    string                 `json:"sql_query"`
+	Parameters  map[string]interface{} `json:"parameters,omitempty"`
+	Timeout     int                    `json:"timeout,omitempty"`
+	MaxRows     int                    `json:"max_rows,omitempty"`
+}
+
 // CreateThematicSyncTaskRequest 创建主题同步任务请求
 type CreateThematicSyncTaskRequest struct {
-	ThematicLibraryID   string                `json:"thematic_library_id" binding:"required"`
-	ThematicInterfaceID string                `json:"thematic_interface_id" binding:"required"`
-	TaskName            string                `json:"task_name" binding:"required"`
-	Description         string                `json:"description"`
-	SourceLibraries     []SourceLibraryConfig `json:"source_libraries" binding:"required,min=1"`
-	AggregationConfig   *AggregationConfig    `json:"aggregation_config,omitempty"`
-	KeyMatchingRules    *KeyMatchingRules     `json:"key_matching_rules,omitempty"`
-	FieldMappingRules   *FieldMappingRules    `json:"field_mapping_rules,omitempty"`
-	CleansingRules      *CleansingRules       `json:"cleansing_rules,omitempty"`
-	PrivacyRules        *PrivacyRules         `json:"privacy_rules,omitempty"`
-	QualityRules        *QualityRules         `json:"quality_rules,omitempty"`
-	ScheduleConfig      *ScheduleConfig       `json:"schedule_config" binding:"required"`
-	CreatedBy           string                `json:"created_by" binding:"required"`
+	ThematicLibraryID   string `json:"thematic_library_id" binding:"required"`
+	ThematicInterfaceID string `json:"thematic_interface_id" binding:"required"`
+	TaskName            string `json:"task_name" binding:"required"`
+	Description         string `json:"description"`
+
+	// 数据源配置 - 两种方式二选一，SQL数据源优先级更高
+	SourceLibraries []SourceLibraryConfig `json:"source_libraries,omitempty"`
+	DataSourceSQL   []SQLDataSourceConfig `json:"data_source_sql,omitempty"`
+
+	AggregationConfig *AggregationConfig `json:"aggregation_config,omitempty"`
+	KeyMatchingRules  *KeyMatchingRules  `json:"key_matching_rules,omitempty"`
+	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`
+	CleansingRules    *CleansingRules    `json:"cleansing_rules,omitempty"`
+	PrivacyRules      *PrivacyRules      `json:"privacy_rules,omitempty"`
+	QualityRules      *QualityRules      `json:"quality_rules,omitempty"`
+	ScheduleConfig    *ScheduleConfig    `json:"schedule_config" binding:"required"`
+	CreatedBy         string             `json:"created_by" binding:"required"`
 }
 
 // UpdateThematicSyncTaskRequest 更新主题同步任务请求

@@ -34,7 +34,7 @@ func InitRoute(r *chi.Mux) {
 	// CORS配置
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
@@ -84,6 +84,10 @@ func InitRoute(r *chi.Mux) {
 			r.Get("/categories", metaController.GetThematicLibraryCategories)
 			r.Get("/domains", metaController.GetThematicLibraryDomains)
 			r.Get("/access-levels", metaController.GetThematicLibraryAccessLevels)
+			r.Get("/statuses", metaController.GetThematicLibraryStatuses)
+			r.Get("/interface-types", metaController.GetThematicInterfaceTypes)
+			r.Get("/interface-statuses", metaController.GetThematicInterfaceStatuses)
+			r.Get("/all", metaController.GetThematicLibraryAllMetadata)
 		})
 
 		// 主题库同步相关元数据
@@ -182,6 +186,12 @@ func InitRoute(r *chi.Mux) {
 
 		// 更新主题接口字段配置
 		r.Post("/update-fields", thematicLibraryController.UpdateThematicInterfaceFields)
+
+		// 视图管理
+		r.Post("/create-view", thematicLibraryController.CreateThematicInterfaceView)
+		r.Post("/update-view", thematicLibraryController.UpdateThematicInterfaceView)
+		r.Delete("/{id}/delete-view", thematicLibraryController.DeleteThematicInterfaceView)
+		r.Get("/{id}/view-sql", thematicLibraryController.GetThematicInterfaceViewSQL)
 	})
 
 	// 通用同步任务管理（统一接口）
@@ -318,6 +328,14 @@ func InitRoute(r *chi.Mux) {
 			r.Get("/{id}", sharingController.GetApiApplicationByID)
 			r.Put("/{id}", sharingController.UpdateApiApplication)
 			r.Delete("/{id}", sharingController.DeleteApiApplication)
+
+			// ApiKey管理
+			r.Route("/{app_id}/keys", func(r chi.Router) {
+				r.Post("/", sharingController.CreateApiKey)
+				r.Get("/", sharingController.GetApiKeys)
+				r.Put("/{key_id}", sharingController.UpdateApiKey)
+				r.Delete("/{key_id}", sharingController.DeleteApiKey)
+			})
 		})
 
 		// API限流管理
@@ -347,6 +365,24 @@ func InitRoute(r *chi.Mux) {
 
 		// API使用日志管理
 		r.Get("/api-usage-logs", sharingController.GetApiUsageLogs)
+
+		// API接口管理
+		r.Route("/api-interfaces", func(r chi.Router) {
+			r.Post("/", sharingController.CreateApiInterface)
+			r.Get("/", sharingController.GetApiInterfaces)
+			r.Delete("/{id}", sharingController.DeleteApiInterface)
+		})
+	})
+
+	// 数据访问代理API（只读查询）
+	r.Route("/api/v1/share", func(r chi.Router) {
+		dataProxyController := controllers.NewDataProxyController(sharing.NewSharingService(service.DB))
+
+		// 只支持GET和HEAD方法的代理请求，URL格式：/api/v1/share/{app_path}/{interface_path}
+		r.Get("/{app_path}/{interface_path}", dataProxyController.ProxyDataAccess)
+		r.Head("/{app_path}/{interface_path}", dataProxyController.ProxyDataAccess)
+		r.Get("/{app_path}/{interface_path}/*", dataProxyController.ProxyDataAccess)
+		r.Head("/{app_path}/{interface_path}/*", dataProxyController.ProxyDataAccess)
 	})
 
 	// 监控管理

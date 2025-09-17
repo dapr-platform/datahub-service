@@ -123,6 +123,20 @@ func (s *SchemaService) ManageTableSchema(interfaceID, operation, schemaName, ta
 
 }
 
+// ManageViewSchema 管理视图结构
+func (s *SchemaService) ManageViewSchema(interfaceID, operation, schemaName, viewName, viewSQL string) error {
+	switch operation {
+	case "create_view":
+		return s.createView(schemaName, viewName, viewSQL)
+	case "update_view":
+		return s.updateView(schemaName, viewName, viewSQL)
+	case "drop_view":
+		return s.dropView(schemaName, viewName)
+	default:
+		return fmt.Errorf("不支持的视图操作类型: %s", operation)
+	}
+}
+
 // createTable 创建表
 func (s *SchemaService) createTable(schemaName, tableName string, fields []models.TableField) error {
 	// 首先创建表
@@ -716,6 +730,29 @@ func (s *SchemaService) ListSchemas() ([]string, error) {
 	return schemaNames, nil
 }
 
+// CheckTableExists 检查表是否存在
+func (s *SchemaService) CheckTableExists(schemaName, tableName string) (bool, error) {
+	log.Printf("[DEBUG] SchemaService.CheckTableExists - 检查表是否存在，schemaName: %s, tableName: %s", schemaName, tableName)
+
+	// 调用PgMetaClient获取表列表
+	tables, err := s.pgClient.ListTables(nil, schemaName, "", nil, nil, nil)
+	if err != nil {
+		log.Printf("[ERROR] SchemaService.CheckTableExists - PgMetaClient调用失败: %v", err)
+		return false, fmt.Errorf("获取表列表失败: %v", err)
+	}
+
+	// 检查指定表是否存在
+	for _, table := range tables {
+		if table.Name == tableName && table.Schema == schemaName {
+			log.Printf("[DEBUG] SchemaService.CheckTableExists - 表存在: %s.%s", schemaName, tableName)
+			return true, nil
+		}
+	}
+
+	log.Printf("[DEBUG] SchemaService.CheckTableExists - 表不存在: %s.%s", schemaName, tableName)
+	return false, nil
+}
+
 // GetTableData 获取表数据
 func (s *SchemaService) GetTableData(fullTableName string, limit, offset int) ([]map[string]interface{}, int, error) {
 	// 分离schema和表名
@@ -804,4 +841,109 @@ func (s *SchemaService) GetTableData(fullTableName string, limit, offset int) ([
 	}
 
 	return data, int(totalCount), nil
+}
+
+// createView 创建视图
+func (s *SchemaService) createView(schemaName, viewName, viewSQL string) error {
+	// 验证SQL语句
+	if err := s.validateViewSQL(viewSQL, schemaName, viewName); err != nil {
+		return fmt.Errorf("视图SQL验证失败: %v", err)
+	}
+
+	// 构造完整的CREATE OR REPLACE VIEW语句
+	fullSQL := fmt.Sprintf("CREATE OR REPLACE VIEW %s.%s AS %s",
+		s.quoteIdentifier(schemaName),
+		s.quoteIdentifier(viewName),
+		s.extractSelectFromViewSQL(viewSQL))
+
+	// 执行SQL
+	if err := s.db.Exec(fullSQL).Error; err != nil {
+		return fmt.Errorf("创建视图失败: %v", err)
+	}
+
+	return nil
+}
+
+// updateView 更新视图
+func (s *SchemaService) updateView(schemaName, viewName, viewSQL string) error {
+	// 更新视图实际上就是重新创建视图
+	return s.createView(schemaName, viewName, viewSQL)
+}
+
+// dropView 删除视图
+func (s *SchemaService) dropView(schemaName, viewName string) error {
+	dropSQL := fmt.Sprintf("DROP VIEW IF EXISTS %s.%s",
+		s.quoteIdentifier(schemaName),
+		s.quoteIdentifier(viewName))
+
+	if err := s.db.Exec(dropSQL).Error; err != nil {
+		return fmt.Errorf("删除视图失败: %v", err)
+	}
+
+	return nil
+}
+
+// CheckViewExists 检查视图是否存在
+func (s *SchemaService) CheckViewExists(schemaName, viewName string) (bool, error) {
+	var count int64
+	query := `
+		SELECT COUNT(*) 
+		FROM information_schema.views 
+		WHERE table_schema = ? AND table_name = ?
+	`
+
+	if err := s.db.Raw(query, schemaName, viewName).Count(&count).Error; err != nil {
+		return false, fmt.Errorf("检查视图存在性失败: %v", err)
+	}
+
+	return count > 0, nil
+}
+
+// validateViewSQL 验证视图SQL语句
+func (s *SchemaService) validateViewSQL(viewSQL, schemaName, viewName string) error {
+	// 基本验证：检查SQL是否包含SELECT语句
+	if viewSQL == "" {
+		return fmt.Errorf("视图SQL不能为空")
+	}
+
+	// 移除首尾空白字符并转换为大写进行检查
+	trimmedSQL := strings.TrimSpace(strings.ToUpper(viewSQL))
+
+	// 检查是否是SELECT语句或CREATE VIEW语句
+	if !strings.HasPrefix(trimmedSQL, "SELECT") && !strings.HasPrefix(trimmedSQL, "CREATE") {
+		return fmt.Errorf("视图SQL必须是SELECT语句或CREATE VIEW语句")
+	}
+
+	// 检查是否包含危险操作
+	dangerousKeywords := []string{"DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", "ALTER"}
+	for _, keyword := range dangerousKeywords {
+		if strings.Contains(trimmedSQL, keyword) {
+			return fmt.Errorf("视图SQL不能包含危险操作: %s", keyword)
+		}
+	}
+
+	return nil
+}
+
+// extractSelectFromViewSQL 从视图SQL中提取SELECT部分
+func (s *SchemaService) extractSelectFromViewSQL(viewSQL string) string {
+	trimmedSQL := strings.TrimSpace(viewSQL)
+	upperSQL := strings.ToUpper(trimmedSQL)
+
+	// 如果已经是CREATE VIEW语句，提取SELECT部分
+	if strings.HasPrefix(upperSQL, "CREATE") {
+		// 查找AS关键字后的SELECT部分
+		asIndex := strings.Index(upperSQL, " AS ")
+		if asIndex != -1 {
+			return strings.TrimSpace(trimmedSQL[asIndex+4:])
+		}
+	}
+
+	// 如果是SELECT语句，直接返回
+	return trimmedSQL
+}
+
+// quoteIdentifier 给标识符添加引号
+func (s *SchemaService) quoteIdentifier(identifier string) string {
+	return fmt.Sprintf(`"%s"`, identifier)
 }

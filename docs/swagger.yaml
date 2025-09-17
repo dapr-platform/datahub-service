@@ -86,6 +86,45 @@ definitions:
         example: 0
         type: integer
     type: object
+  controllers.ApiApplicationListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.ApiApplication'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  controllers.ApiRateLimitListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.ApiRateLimit'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  controllers.ApiUsageLogListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.ApiUsageLog'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+    type: object
   controllers.ApproveDataAccessRequestRequest:
     properties:
       approved:
@@ -150,65 +189,81 @@ definitions:
     type: object
   controllers.CreateApiApplicationRequest:
     properties:
-      app_secret:
-        type: string
-      contact_email:
-        type: string
       contact_person:
+        type: string
+      contact_phone:
         type: string
       description:
         type: string
       name:
         type: string
-    required:
-    - app_secret
-    - contact_email
-    - contact_person
-    - name
-    type: object
-  controllers.CreateSyncTaskRequest:
-    properties:
-      aggregation_config:
-        $ref: '#/definitions/thematic_library.AggregationConfig'
-      cleansing_rules:
-        $ref: '#/definitions/thematic_library.CleansingRules'
-      created_by:
-        example: admin
-        type: string
-      description:
-        example: 从基础库同步用户数据到主题库
-        type: string
-      field_mapping_rules:
-        $ref: '#/definitions/thematic_library.FieldMappingRules'
-      key_matching_rules:
-        $ref: '#/definitions/thematic_library.KeyMatchingRules'
-      privacy_rules:
-        $ref: '#/definitions/thematic_library.PrivacyRules'
-      quality_rules:
-        $ref: '#/definitions/thematic_library.QualityRules'
-      schedule_config:
-        $ref: '#/definitions/thematic_library.ScheduleConfig'
-      source_libraries:
-        items:
-          $ref: '#/definitions/thematic_library.SourceLibraryConfig'
-        minItems: 1
-        type: array
-      task_name:
-        example: 用户数据同步任务
-        type: string
-      thematic_interface_id:
-        example: 550e8400-e29b-41d4-a716-446655440002
+      path:
         type: string
       thematic_library_id:
-        example: 550e8400-e29b-41d4-a716-446655440000
         type: string
     required:
-    - created_by
-    - schedule_config
-    - source_libraries
-    - task_name
-    - thematic_interface_id
+    - contact_person
+    - contact_phone
+    - name
+    - path
     - thematic_library_id
+    type: object
+  controllers.CreateApiInterfaceRequest:
+    properties:
+      api_application_id:
+        type: string
+      description:
+        type: string
+      path:
+        type: string
+      thematic_interface_id:
+        type: string
+    required:
+    - api_application_id
+    - path
+    - thematic_interface_id
+    type: object
+  controllers.CreateApiKeyRequest:
+    properties:
+      description:
+        type: string
+      expires_at:
+        type: string
+    type: object
+  controllers.CreateApiKeyResponse:
+    properties:
+      api_key:
+        $ref: '#/definitions/models.ApiKey'
+      key_value:
+        description: 完整的Key值，仅返回一次
+        type: string
+    type: object
+  controllers.CreateSyncTaskRequest:
+    type: object
+  controllers.CreateThematicInterfaceViewRequest:
+    properties:
+      interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      view_sql:
+        example: SELECT * FROM users WHERE status = 'active'
+        type: string
+    required:
+    - interface_id
+    - view_sql
+    type: object
+  controllers.DataAccessRequestListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.DataAccessRequest'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
     type: object
   controllers.DataInterfaceListResponse:
     properties:
@@ -286,6 +341,19 @@ definitions:
       test_type:
         example: connection
         type: string
+    type: object
+  controllers.DataSubscriptionListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/models.DataSubscription'
+        type: array
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
     type: object
   controllers.EventHistoryListResponse:
     properties:
@@ -418,25 +486,6 @@ definitions:
           $ref: '#/definitions/controllers.TableInfo'
         type: array
       total_count:
-        type: integer
-    type: object
-  controllers.PaginatedResponse:
-    properties:
-      data: {}
-      msg:
-        example: 操作成功
-        type: string
-      page:
-        example: 1
-        type: integer
-      size:
-        example: 10
-        type: integer
-      status:
-        example: 0
-        type: integer
-      total:
-        example: 100
         type: integer
     type: object
   controllers.PrimaryKey:
@@ -664,6 +713,33 @@ definitions:
       total:
         type: integer
     type: object
+  controllers.ThematicLibraryMetadataResponse:
+    properties:
+      access_levels:
+        items:
+          $ref: '#/definitions/meta.ThematicLibraryAccessLevel'
+        type: array
+      categories:
+        items:
+          $ref: '#/definitions/meta.ThematicLibraryCategory'
+        type: array
+      domains:
+        items:
+          $ref: '#/definitions/meta.ThematicLibraryDomain'
+        type: array
+      interface_statuses:
+        items:
+          $ref: '#/definitions/meta.ThematicInterfaceStatus'
+        type: array
+      interface_types:
+        items:
+          $ref: '#/definitions/meta.ThematicInterfaceType'
+        type: array
+      library_statuses:
+        items:
+          $ref: '#/definitions/meta.ThematicLibraryStatus'
+        type: array
+    type: object
   controllers.UpdateBasicLibraryRequest:
     properties:
       description:
@@ -802,10 +878,6 @@ definitions:
     type: object
   controllers.UpdateThematicInterfaceFieldsRequest:
     properties:
-      backup_table:
-        description: 是否备份原表
-        example: false
-        type: boolean
       fields:
         items:
           $ref: '#/definitions/models.TableField'
@@ -813,13 +885,21 @@ definitions:
       interface_id:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
-      update_table:
-        description: 是否同时更新数据库表结构
-        example: true
-        type: boolean
     required:
     - fields
     - interface_id
+    type: object
+  controllers.UpdateThematicInterfaceViewRequest:
+    properties:
+      interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      view_sql:
+        example: SELECT * FROM users WHERE status = 'active'
+        type: string
+    required:
+    - interface_id
+    - view_sql
     type: object
   meta.DataInterfaceConfigDefinition:
     properties:
@@ -1037,6 +1117,24 @@ definitions:
       value:
         description: 条件值
     type: object
+  meta.ThematicInterfaceStatus:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  meta.ThematicInterfaceType:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
   meta.ThematicLibraryAccessLevel:
     properties:
       description:
@@ -1056,6 +1154,15 @@ definitions:
         type: string
     type: object
   meta.ThematicLibraryDomain:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  meta.ThematicLibraryStatus:
     properties:
       description:
         type: string
@@ -1319,13 +1426,17 @@ definitions:
     type: object
   models.ApiApplication:
     properties:
-      app_key:
-        type: string
-      app_secret_hash:
-        type: string
-      contact_email:
-        type: string
+      api_interfaces:
+        items:
+          $ref: '#/definitions/models.ApiInterface'
+        type: array
+      api_keys:
+        items:
+          $ref: '#/definitions/models.ApiKey'
+        type: array
       contact_person:
+        type: string
+      contact_phone:
         type: string
       created_at:
         type: string
@@ -1337,13 +1448,74 @@ definitions:
         type: string
       name:
         type: string
+      path:
+        description: 应用访问路径，例如 "user-center"
+        type: string
       status:
         description: active/inactive
+        type: string
+      thematic_library:
+        allOf:
+        - $ref: '#/definitions/models.ThematicLibrary'
+        description: 关联关系
+      thematic_library_id:
         type: string
       updated_at:
         type: string
       updated_by:
         type: string
+    type: object
+  models.ApiInterface:
+    properties:
+      api_application:
+        $ref: '#/definitions/models.ApiApplication'
+      api_application_id:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      path:
+        description: 对外暴露的路径，例如 "users"
+        type: string
+      status:
+        description: active, inactive
+        type: string
+      thematic_interface:
+        $ref: '#/definitions/models.ThematicInterface'
+      thematic_interface_id:
+        type: string
+    type: object
+  models.ApiKey:
+    properties:
+      api_application:
+        $ref: '#/definitions/models.ApiApplication'
+      api_application_id:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: string
+      description:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      key_prefix:
+        description: Key的前缀，用于快速识别
+        type: string
+      last_used_at:
+        type: string
+      status:
+        description: active, inactive, revoked
+        type: string
+      usage_count:
+        type: integer
     type: object
   models.ApiRateLimit:
     properties:
@@ -2721,6 +2893,8 @@ definitions:
         $ref: '#/definitions/models.JSONB'
       is_table_created:
         type: boolean
+      is_view_created:
+        type: boolean
       library_id:
         type: string
       name_en:
@@ -2738,11 +2912,15 @@ definitions:
         - $ref: '#/definitions/models.ThematicLibrary'
         description: 关联关系
       type:
-        description: realtime, batch
+        description: realtime, batch, view
         type: string
       updated_at:
         type: string
       updated_by:
+        type: string
+      view_config:
+        $ref: '#/definitions/models.JSONB'
+      view_sql:
         type: string
     type: object
   models.ThematicLibrary:
@@ -5114,6 +5292,97 @@ paths:
       summary: 执行数据质量检查
       tags:
       - 数据质量
+  /api/v1/share/{app_path}/{interface_path}:
+    get:
+      consumes:
+      - application/json
+      description: 代理对PostgREST的查询请求，实现统一的鉴权、日志、限流和路由功能，仅支持数据查询操作
+      parameters:
+      - description: 应用路径
+        in: path
+        name: app_path
+        required: true
+        type: string
+      - description: 接口路径
+        in: path
+        name: interface_path
+        required: true
+        type: string
+      - description: Bearer Token格式的API Key
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 查询成功
+          schema: {}
+        "401":
+          description: 未授权
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 资源不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "429":
+          description: 请求过于频繁
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 数据访问代理（只读查询）
+      tags:
+      - 数据共享服务
+    head:
+      consumes:
+      - application/json
+      description: 代理对PostgREST的查询请求，实现统一的鉴权、日志、限流和路由功能，仅支持数据查询操作
+      parameters:
+      - description: 应用路径
+        in: path
+        name: app_path
+        required: true
+        type: string
+      - description: 接口路径
+        in: path
+        name: interface_path
+        required: true
+        type: string
+      - description: Bearer Token格式的API Key
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 查询成功
+          schema: {}
+        "401":
+          description: 未授权
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 资源不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "429":
+          description: 请求过于频繁
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 数据访问代理（只读查询）
+      tags:
+      - 数据共享服务
   /basic-libraries:
     get:
       consumes:
@@ -6171,7 +6440,7 @@ paths:
           description: 获取成功
           schema:
             allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
                   items:
@@ -6351,7 +6620,7 @@ paths:
           description: 获取成功
           schema:
             allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
                   items:
@@ -6566,7 +6835,7 @@ paths:
           description: 获取成功
           schema:
             allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
                   items:
@@ -6645,7 +6914,7 @@ paths:
           description: 获取成功
           schema:
             allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
                   items:
@@ -6833,7 +7102,7 @@ paths:
           description: 获取成功
           schema:
             allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
                   items:
@@ -6955,6 +7224,28 @@ paths:
       summary: 获取所有数据主题库访问级别元数据
       tags:
       - 元数据
+  /meta/thematic-libraries/all:
+    get:
+      description: 获取主题库相关的所有元数据，包括分类、数据域、访问级别、状态等
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.ThematicLibraryMetadataResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取主题库完整元数据
+      tags:
+      - 元数据
   /meta/thematic-libraries/categories:
     get:
       description: 获取所有数据主题库分类元数据
@@ -7001,6 +7292,78 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取所有数据主题库域元数据
+      tags:
+      - 元数据
+  /meta/thematic-libraries/interface-statuses:
+    get:
+      description: 获取主题接口状态元数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/meta.ThematicInterfaceStatus'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取主题接口状态元数据
+      tags:
+      - 元数据
+  /meta/thematic-libraries/interface-types:
+    get:
+      description: 获取主题接口类型元数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/meta.ThematicInterfaceType'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取主题接口类型元数据
+      tags:
+      - 元数据
+  /meta/thematic-libraries/statuses:
+    get:
+      description: 获取主题库状态元数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/meta.ThematicLibraryStatus'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取主题库状态元数据
       tags:
       - 元数据
   /meta/thematic-sync-configs:
@@ -7090,12 +7453,10 @@ paths:
           description: 获取成功
           schema:
             allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  items:
-                    $ref: '#/definitions/models.ApiApplication'
-                  type: array
+                  $ref: '#/definitions/controllers.ApiApplicationListResponse'
               type: object
         "500":
           description: 服务器内部错误
@@ -7136,6 +7497,147 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 创建API应用
+      tags:
+      - 数据共享服务
+  /sharing/api-applications/{app_id}/keys:
+    get:
+      consumes:
+      - application/json
+      description: 获取某个应用下的所有ApiKey信息（不包含Key本身）
+      parameters:
+      - description: 应用ID
+        in: path
+        name: app_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.ApiKey'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取API密钥列表
+      tags:
+      - 数据共享服务
+    post:
+      consumes:
+      - application/json
+      description: 为指定应用生成一个新的ApiKey，返回完整的Key值（仅此一次）
+      parameters:
+      - description: 应用ID
+        in: path
+        name: app_id
+        required: true
+        type: string
+      - description: ApiKey信息
+        in: body
+        name: key
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateApiKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.CreateApiKeyResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 生成API密钥
+      tags:
+      - 数据共享服务
+  /sharing/api-applications/{app_id}/keys/{key_id}:
+    delete:
+      consumes:
+      - application/json
+      description: 吊销（删除）一个ApiKey
+      parameters:
+      - description: 应用ID
+        in: path
+        name: app_id
+        required: true
+        type: string
+      - description: 密钥ID
+        in: path
+        name: key_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除API密钥
+      tags:
+      - 数据共享服务
+    put:
+      consumes:
+      - application/json
+      description: 更新ApiKey信息（如描述、状态）
+      parameters:
+      - description: 应用ID
+        in: path
+        name: app_id
+        required: true
+        type: string
+      - description: 密钥ID
+        in: path
+        name: key_id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新API密钥
       tags:
       - 数据共享服务
   /sharing/api-applications/{id}:
@@ -7239,6 +7741,96 @@ paths:
       summary: 更新API应用
       tags:
       - 数据共享服务
+  /sharing/api-interfaces:
+    get:
+      consumes:
+      - application/json
+      description: 查询共享接口列表，可按 api_application_id 过滤
+      parameters:
+      - description: 应用ID
+        in: query
+        name: api_application_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.ApiInterface'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取共享接口列表
+      tags:
+      - 数据共享服务
+    post:
+      consumes:
+      - application/json
+      description: 创建一个共享接口，请求体包含 api_application_id, thematic_interface_id, path
+      parameters:
+      - description: 接口信息
+        in: body
+        name: interface_param
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateApiInterfaceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ApiInterface'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建共享接口
+      tags:
+      - 数据共享服务
+  /sharing/api-interfaces/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除一个共享接口
+      parameters:
+      - description: 接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除共享接口
+      tags:
+      - 数据共享服务
   /sharing/api-rate-limits:
     get:
       consumes:
@@ -7266,12 +7858,10 @@ paths:
           description: 获取成功
           schema:
             allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  items:
-                    $ref: '#/definitions/models.ApiRateLimit'
-                  type: array
+                  $ref: '#/definitions/controllers.ApiRateLimitListResponse'
               type: object
         "500":
           description: 服务器内部错误
@@ -7421,12 +8011,10 @@ paths:
           description: 获取成功
           schema:
             allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  items:
-                    $ref: '#/definitions/models.ApiUsageLog'
-                  type: array
+                  $ref: '#/definitions/controllers.ApiUsageLogListResponse'
               type: object
         "500":
           description: 服务器内部错误
@@ -7470,12 +8058,10 @@ paths:
           description: 获取成功
           schema:
             allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  items:
-                    $ref: '#/definitions/models.DataAccessRequest'
-                  type: array
+                  $ref: '#/definitions/controllers.DataAccessRequestListResponse'
               type: object
         "500":
           description: 服务器内部错误
@@ -7626,12 +8212,10 @@ paths:
           description: 获取成功
           schema:
             allOf:
-            - $ref: '#/definitions/controllers.PaginatedResponse'
+            - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  items:
-                    $ref: '#/definitions/models.DataSubscription'
-                  type: array
+                  $ref: '#/definitions/controllers.DataSubscriptionListResponse'
               type: object
         "500":
           description: 服务器内部错误
@@ -8639,11 +9223,108 @@ paths:
       summary: 更新主题接口
       tags:
       - 主题接口
+  /thematic-interfaces/{id}/delete-view:
+    delete:
+      description: 删除主题接口的数据库视图
+      parameters:
+      - description: 主题接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除主题接口视图
+      tags:
+      - 主题接口视图
+  /thematic-interfaces/{id}/view-sql:
+    get:
+      description: 获取主题接口的视图SQL语句
+      parameters:
+      - description: 主题接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取主题接口视图SQL
+      tags:
+      - 主题接口视图
+  /thematic-interfaces/create-view:
+    post:
+      consumes:
+      - application/json
+      description: 为主题接口创建数据库视图，支持CREATE OR REPLACE VIEW语法
+      parameters:
+      - description: 创建视图请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateThematicInterfaceViewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建主题接口视图
+      tags:
+      - 主题接口视图
   /thematic-interfaces/update-fields:
     post:
       consumes:
       - application/json
-      description: 更新主题接口的字段配置，并可选择同时更新数据库表结构
+      description: 更新主题接口的字段配置，自动同步数据库表结构（如表不存在则创建，存在则修改）
       parameters:
       - description: 更新字段配置请求
         in: body
@@ -8669,6 +9350,36 @@ paths:
       summary: 更新主题接口字段配置
       tags:
       - 主题接口
+  /thematic-interfaces/update-view:
+    post:
+      consumes:
+      - application/json
+      description: 更新主题接口的数据库视图SQL
+      parameters:
+      - description: 更新视图请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateThematicInterfaceViewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新主题接口视图
+      tags:
+      - 主题接口视图
   /thematic-libraries:
     get:
       consumes:

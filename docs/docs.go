@@ -2137,6 +2137,140 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/share/{app_path}/{interface_path}": {
+            "get": {
+                "description": "代理对PostgREST的查询请求，实现统一的鉴权、日志、限流和路由功能，仅支持数据查询操作",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "数据访问代理（只读查询）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用路径",
+                        "name": "app_path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "接口路径",
+                        "name": "interface_path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer Token格式的API Key",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "查询成功",
+                        "schema": {}
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "资源不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "请求过于频繁",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "head": {
+                "description": "代理对PostgREST的查询请求，实现统一的鉴权、日志、限流和路由功能，仅支持数据查询操作",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "数据访问代理（只读查询）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用路径",
+                        "name": "app_path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "接口路径",
+                        "name": "interface_path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer Token格式的API Key",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "查询成功",
+                        "schema": {}
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "资源不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "请求过于频繁",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/basic-libraries": {
             "get": {
                 "description": "分页获取数据基础库列表，支持多种过滤条件",
@@ -3767,7 +3901,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
+                                    "$ref": "#/definitions/controllers.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -4051,7 +4185,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
+                                    "$ref": "#/definitions/controllers.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -4392,7 +4526,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
+                                    "$ref": "#/definitions/controllers.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -4520,7 +4654,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
+                                    "$ref": "#/definitions/controllers.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -4816,7 +4950,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
+                                    "$ref": "#/definitions/controllers.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -5023,6 +5157,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/meta/thematic-libraries/all": {
+            "get": {
+                "description": "获取主题库相关的所有元数据，包括分类、数据域、访问级别、状态等",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取主题库完整元数据",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.ThematicLibraryMetadataResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/meta/thematic-libraries/categories": {
             "get": {
                 "description": "获取所有数据主题库分类元数据",
@@ -5089,6 +5261,129 @@ const docTemplate = `{
                                             "type": "array",
                                             "items": {
                                                 "$ref": "#/definitions/meta.ThematicLibraryDomain"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/thematic-libraries/interface-statuses": {
+            "get": {
+                "description": "获取主题接口状态元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取主题接口状态元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/meta.ThematicInterfaceStatus"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/thematic-libraries/interface-types": {
+            "get": {
+                "description": "获取主题接口类型元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取主题接口类型元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/meta.ThematicInterfaceType"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/thematic-libraries/statuses": {
+            "get": {
+                "description": "获取主题库状态元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取主题库状态元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/meta.ThematicLibraryStatus"
                                             }
                                         }
                                     }
@@ -5246,16 +5541,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
+                                    "$ref": "#/definitions/controllers.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.ApiApplication"
-                                            }
+                                            "$ref": "#/definitions/controllers.ApiApplicationListResponse"
                                         }
                                     }
                                 }
@@ -5314,6 +5606,226 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sharing/api-applications/{app_id}/keys": {
+            "get": {
+                "description": "获取某个应用下的所有ApiKey信息（不包含Key本身）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "获取API密钥列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用ID",
+                        "name": "app_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.ApiKey"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "为指定应用生成一个新的ApiKey，返回完整的Key值（仅此一次）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "生成API密钥",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用ID",
+                        "name": "app_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ApiKey信息",
+                        "name": "key",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.CreateApiKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.CreateApiKeyResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sharing/api-applications/{app_id}/keys/{key_id}": {
+            "put": {
+                "description": "更新ApiKey信息（如描述、状态）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "更新API密钥",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用ID",
+                        "name": "app_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "密钥ID",
+                        "name": "key_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新信息",
+                        "name": "updates",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "吊销（删除）一个ApiKey",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "删除API密钥",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用ID",
+                        "name": "app_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "密钥ID",
+                        "name": "key_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -5483,6 +5995,152 @@ const docTemplate = `{
                 }
             }
         },
+        "/sharing/api-interfaces": {
+            "get": {
+                "description": "查询共享接口列表，可按 api_application_id 过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "获取共享接口列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用ID",
+                        "name": "api_application_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.ApiInterface"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建一个共享接口，请求体包含 api_application_id, thematic_interface_id, path",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "创建共享接口",
+                "parameters": [
+                    {
+                        "description": "接口信息",
+                        "name": "interface_param",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.CreateApiInterfaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.ApiInterface"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sharing/api-interfaces/{id}": {
+            "delete": {
+                "description": "删除一个共享接口",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "删除共享接口",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/sharing/api-rate-limits": {
             "get": {
                 "description": "分页获取API限流规则列表",
@@ -5524,16 +6182,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
+                                    "$ref": "#/definitions/controllers.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.ApiRateLimit"
-                                            }
+                                            "$ref": "#/definitions/controllers.ApiRateLimitListResponse"
                                         }
                                     }
                                 }
@@ -5766,16 +6421,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
+                                    "$ref": "#/definitions/controllers.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.ApiUsageLog"
-                                            }
+                                            "$ref": "#/definitions/controllers.ApiUsageLogListResponse"
                                         }
                                     }
                                 }
@@ -5844,16 +6496,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
+                                    "$ref": "#/definitions/controllers.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.DataAccessRequest"
-                                            }
+                                            "$ref": "#/definitions/controllers.DataAccessRequestListResponse"
                                         }
                                     }
                                 }
@@ -6093,16 +6742,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.PaginatedResponse"
+                                    "$ref": "#/definitions/controllers.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.DataSubscription"
-                                            }
+                                            "$ref": "#/definitions/controllers.DataSubscriptionListResponse"
                                         }
                                     }
                                 }
@@ -7511,9 +8157,55 @@ const docTemplate = `{
                 }
             }
         },
+        "/thematic-interfaces/create-view": {
+            "post": {
+                "description": "为主题接口创建数据库视图，支持CREATE OR REPLACE VIEW语法",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题接口视图"
+                ],
+                "summary": "创建主题接口视图",
+                "parameters": [
+                    {
+                        "description": "创建视图请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.CreateThematicInterfaceViewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/thematic-interfaces/update-fields": {
             "post": {
-                "description": "更新主题接口的字段配置，并可选择同时更新数据库表结构",
+                "description": "更新主题接口的字段配置，自动同步数据库表结构（如表不存在则创建，存在则修改）",
                 "consumes": [
                     "application/json"
                 ],
@@ -7532,6 +8224,52 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/controllers.UpdateThematicInterfaceFieldsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-interfaces/update-view": {
+            "post": {
+                "description": "更新主题接口的数据库视图SQL",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题接口视图"
+                ],
+                "summary": "更新主题接口视图",
+                "parameters": [
+                    {
+                        "description": "更新视图请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateThematicInterfaceViewRequest"
                         }
                     }
                 ],
@@ -7689,6 +8427,112 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-interfaces/{id}/delete-view": {
+            "delete": {
+                "description": "删除主题接口的数据库视图",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题接口视图"
+                ],
+                "summary": "删除主题接口视图",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "主题接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-interfaces/{id}/view-sql": {
+            "get": {
+                "description": "获取主题接口的视图SQL语句",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题接口视图"
+                ],
+                "summary": "获取主题接口视图SQL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "主题接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -8808,6 +9652,66 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.ApiApplicationListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ApiApplication"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.ApiRateLimitListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ApiRateLimit"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.ApiUsageLogListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ApiUsageLog"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.ApproveDataAccessRequestRequest": {
             "type": "object",
             "properties": {
@@ -8905,19 +9809,17 @@ const docTemplate = `{
         "controllers.CreateApiApplicationRequest": {
             "type": "object",
             "required": [
-                "app_secret",
-                "contact_email",
                 "contact_person",
-                "name"
+                "contact_phone",
+                "name",
+                "path",
+                "thematic_library_id"
             ],
             "properties": {
-                "app_secret": {
-                    "type": "string"
-                },
-                "contact_email": {
-                    "type": "string"
-                },
                 "contact_person": {
+                    "type": "string"
+                },
+                "contact_phone": {
                     "type": "string"
                 },
                 "description": {
@@ -8925,67 +9827,97 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "thematic_library_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.CreateApiInterfaceRequest": {
+            "type": "object",
+            "required": [
+                "api_application_id",
+                "path",
+                "thematic_interface_id"
+            ],
+            "properties": {
+                "api_application_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "thematic_interface_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.CreateApiKeyRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.CreateApiKeyResponse": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "$ref": "#/definitions/models.ApiKey"
+                },
+                "key_value": {
+                    "description": "完整的Key值，仅返回一次",
+                    "type": "string"
                 }
             }
         },
         "controllers.CreateSyncTaskRequest": {
+            "type": "object"
+        },
+        "controllers.CreateThematicInterfaceViewRequest": {
             "type": "object",
             "required": [
-                "created_by",
-                "schedule_config",
-                "source_libraries",
-                "task_name",
-                "thematic_interface_id",
-                "thematic_library_id"
+                "interface_id",
+                "view_sql"
             ],
             "properties": {
-                "aggregation_config": {
-                    "$ref": "#/definitions/thematic_library.AggregationConfig"
-                },
-                "cleansing_rules": {
-                    "$ref": "#/definitions/thematic_library.CleansingRules"
-                },
-                "created_by": {
-                    "type": "string",
-                    "example": "admin"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "从基础库同步用户数据到主题库"
-                },
-                "field_mapping_rules": {
-                    "$ref": "#/definitions/thematic_library.FieldMappingRules"
-                },
-                "key_matching_rules": {
-                    "$ref": "#/definitions/thematic_library.KeyMatchingRules"
-                },
-                "privacy_rules": {
-                    "$ref": "#/definitions/thematic_library.PrivacyRules"
-                },
-                "quality_rules": {
-                    "$ref": "#/definitions/thematic_library.QualityRules"
-                },
-                "schedule_config": {
-                    "$ref": "#/definitions/thematic_library.ScheduleConfig"
-                },
-                "source_libraries": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "$ref": "#/definitions/thematic_library.SourceLibraryConfig"
-                    }
-                },
-                "task_name": {
-                    "type": "string",
-                    "example": "用户数据同步任务"
-                },
-                "thematic_interface_id": {
-                    "type": "string",
-                    "example": "550e8400-e29b-41d4-a716-446655440002"
-                },
-                "thematic_library_id": {
+                "interface_id": {
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "view_sql": {
+                    "type": "string",
+                    "example": "SELECT * FROM users WHERE status = 'active'"
+                }
+            }
+        },
+        "controllers.DataAccessRequestListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DataAccessRequest"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -9095,6 +10027,26 @@ const docTemplate = `{
                 "test_type": {
                     "type": "string",
                     "example": "connection"
+                }
+            }
+        },
+        "controllers.DataSubscriptionListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DataSubscription"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -9283,32 +10235,6 @@ const docTemplate = `{
                 },
                 "total_count": {
                     "type": "integer"
-                }
-            }
-        },
-        "controllers.PaginatedResponse": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "msg": {
-                    "type": "string",
-                    "example": "操作成功"
-                },
-                "page": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "size": {
-                    "type": "integer",
-                    "example": 10
-                },
-                "status": {
-                    "type": "integer",
-                    "example": 0
-                },
-                "total": {
-                    "type": "integer",
-                    "example": 100
                 }
             }
         },
@@ -9638,6 +10564,47 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.ThematicLibraryMetadataResponse": {
+            "type": "object",
+            "properties": {
+                "access_levels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.ThematicLibraryAccessLevel"
+                    }
+                },
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.ThematicLibraryCategory"
+                    }
+                },
+                "domains": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.ThematicLibraryDomain"
+                    }
+                },
+                "interface_statuses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.ThematicInterfaceStatus"
+                    }
+                },
+                "interface_types": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.ThematicInterfaceType"
+                    }
+                },
+                "library_statuses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.ThematicLibraryStatus"
+                    }
+                }
+            }
+        },
         "controllers.UpdateBasicLibraryRequest": {
             "type": "object",
             "required": [
@@ -9835,11 +10802,6 @@ const docTemplate = `{
                 "interface_id"
             ],
             "properties": {
-                "backup_table": {
-                    "description": "是否备份原表",
-                    "type": "boolean",
-                    "example": false
-                },
                 "fields": {
                     "type": "array",
                     "items": {
@@ -9849,11 +10811,23 @@ const docTemplate = `{
                 "interface_id": {
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
+                }
+            }
+        },
+        "controllers.UpdateThematicInterfaceViewRequest": {
+            "type": "object",
+            "required": [
+                "interface_id",
+                "view_sql"
+            ],
+            "properties": {
+                "interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
-                "update_table": {
-                    "description": "是否同时更新数据库表结构",
-                    "type": "boolean",
-                    "example": true
+                "view_sql": {
+                    "type": "string",
+                    "example": "SELECT * FROM users WHERE status = 'active'"
                 }
             }
         },
@@ -10165,6 +11139,34 @@ const docTemplate = `{
                 }
             }
         },
+        "meta.ThematicInterfaceStatus": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "meta.ThematicInterfaceType": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "meta.ThematicLibraryAccessLevel": {
             "type": "object",
             "properties": {
@@ -10194,6 +11196,20 @@ const docTemplate = `{
             }
         },
         "meta.ThematicLibraryDomain": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "meta.ThematicLibraryStatus": {
             "type": "object",
             "properties": {
                 "description": {
@@ -10578,16 +11594,22 @@ const docTemplate = `{
         "models.ApiApplication": {
             "type": "object",
             "properties": {
-                "app_key": {
-                    "type": "string"
+                "api_interfaces": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ApiInterface"
+                    }
                 },
-                "app_secret_hash": {
-                    "type": "string"
-                },
-                "contact_email": {
-                    "type": "string"
+                "api_keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ApiKey"
+                    }
                 },
                 "contact_person": {
+                    "type": "string"
+                },
+                "contact_phone": {
                     "type": "string"
                 },
                 "created_at": {
@@ -10605,8 +11627,23 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "path": {
+                    "description": "应用访问路径，例如 \"user-center\"",
+                    "type": "string"
+                },
                 "status": {
                     "description": "active/inactive",
+                    "type": "string"
+                },
+                "thematic_library": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.ThematicLibrary"
+                        }
+                    ]
+                },
+                "thematic_library_id": {
                     "type": "string"
                 },
                 "updated_at": {
@@ -10614,6 +11651,83 @@ const docTemplate = `{
                 },
                 "updated_by": {
                     "type": "string"
+                }
+            }
+        },
+        "models.ApiInterface": {
+            "type": "object",
+            "properties": {
+                "api_application": {
+                    "$ref": "#/definitions/models.ApiApplication"
+                },
+                "api_application_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "path": {
+                    "description": "对外暴露的路径，例如 \"users\"",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "active, inactive",
+                    "type": "string"
+                },
+                "thematic_interface": {
+                    "$ref": "#/definitions/models.ThematicInterface"
+                },
+                "thematic_interface_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ApiKey": {
+            "type": "object",
+            "properties": {
+                "api_application": {
+                    "$ref": "#/definitions/models.ApiApplication"
+                },
+                "api_application_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "key_prefix": {
+                    "description": "Key的前缀，用于快速识别",
+                    "type": "string"
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "active, inactive, revoked",
+                    "type": "string"
+                },
+                "usage_count": {
+                    "type": "integer"
                 }
             }
         },
@@ -12668,6 +13782,9 @@ const docTemplate = `{
                 "is_table_created": {
                     "type": "boolean"
                 },
+                "is_view_created": {
+                    "type": "boolean"
+                },
                 "library_id": {
                     "type": "string"
                 },
@@ -12695,13 +13812,19 @@ const docTemplate = `{
                     ]
                 },
                 "type": {
-                    "description": "realtime, batch",
+                    "description": "realtime, batch, view",
                     "type": "string"
                 },
                 "updated_at": {
                     "type": "string"
                 },
                 "updated_by": {
+                    "type": "string"
+                },
+                "view_config": {
+                    "$ref": "#/definitions/models.JSONB"
+                },
+                "view_sql": {
                     "type": "string"
                 }
             }

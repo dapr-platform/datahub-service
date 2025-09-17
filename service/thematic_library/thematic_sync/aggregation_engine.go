@@ -74,15 +74,7 @@ type AggregationResult struct {
 	ProcessingTime    time.Duration            `json:"processing_time"`
 }
 
-// SourceRecordInfo 源记录信息
-type SourceRecordInfo struct {
-	LibraryID   string                 `json:"library_id"`
-	InterfaceID string                 `json:"interface_id"`
-	RecordID    string                 `json:"record_id"`
-	Record      map[string]interface{} `json:"record"`
-	Quality     float64                `json:"quality"`
-	LastUpdated time.Time              `json:"last_updated"`
-}
+// SourceRecordInfo 源记录信息 - 已在sync_support_types.go中定义
 
 // ConflictResolution 冲突解决
 type ConflictResolution struct {

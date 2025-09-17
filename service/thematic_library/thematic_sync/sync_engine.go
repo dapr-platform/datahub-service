@@ -15,6 +15,8 @@ import (
 	"context"
 	"datahub-service/service/models"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -355,36 +357,14 @@ func (tse *ThematicSyncEngine) initializeSync(request *SyncRequest,
 func (tse *ThematicSyncEngine) fetchSourceData(request *SyncRequest,
 	result *SyncExecutionResult) ([]SourceRecordInfo, error) {
 
-	var sourceRecords []SourceRecordInfo
-
-	for i, interfaceID := range request.SourceInterfaces {
-		libraryID := ""
-		if i < len(request.SourceLibraries) {
-			libraryID = request.SourceLibraries[i]
-		}
-
-		// 获取接口数据
-		records, err := tse.basicLibraryService.GetDataByInterface(request.Context, libraryID, interfaceID)
-		if err != nil {
-			return nil, fmt.Errorf("获取接口 %s 数据失败: %w", interfaceID, err)
-		}
-
-		// 转换为源记录信息
-		for j, record := range records {
-			sourceRecord := SourceRecordInfo{
-				LibraryID:   libraryID,
-				InterfaceID: interfaceID,
-				RecordID:    fmt.Sprintf("%s_%d", interfaceID, j),
-				Record:      record,
-				Quality:     1.0, // 默认质量评分
-				LastUpdated: time.Now(),
-			}
-			sourceRecords = append(sourceRecords, sourceRecord)
-		}
+	// 优先检查是否配置了SQL数据源
+	if sqlConfigs, hasSQLConfig := tse.parseSQLDataSourceConfigs(request); hasSQLConfig {
+		// 使用SQL数据源获取数据
+		return tse.fetchDataFromSQL(sqlConfigs, request, result)
 	}
 
-	result.SourceRecordCount = int64(len(sourceRecords))
-	return sourceRecords, nil
+	// 兜底：使用传统的基础库接口获取数据
+	return tse.fetchDataFromBasicLibrary(request, result)
 }
 
 // performAggregation 执行数据汇聚
@@ -632,4 +612,420 @@ func (tse *ThematicSyncEngine) calculateRecordQuality(record map[string]interfac
 	}
 
 	return float64(nonNullCount) / float64(len(record)) * 100
+}
+
+// parseSQLDataSourceConfigs 解析SQL数据源配置
+func (tse *ThematicSyncEngine) parseSQLDataSourceConfigs(request *SyncRequest) ([]SQLDataSourceConfig, bool) {
+	// 检查请求配置中是否有SQL数据源配置
+	if sqlConfigRaw, exists := request.Config["data_source_sql"]; exists {
+		var sqlConfigs []SQLDataSourceConfig
+
+		// 尝试直接转换
+		if configSlice, ok := sqlConfigRaw.([]SQLDataSourceConfig); ok {
+			return configSlice, true
+		}
+
+		// 尝试从接口数组转换
+		if configSlice, ok := sqlConfigRaw.([]interface{}); ok {
+			for _, configRaw := range configSlice {
+				if configMap, ok := configRaw.(map[string]interface{}); ok {
+					config := SQLDataSourceConfig{
+						LibraryID:   tse.getStringFromMap(configMap, "library_id"),
+						InterfaceID: tse.getStringFromMap(configMap, "interface_id"),
+						SQLQuery:    tse.getStringFromMap(configMap, "sql_query"),
+						Timeout:     30,    // 默认30秒
+						MaxRows:     10000, // 默认1万行
+					}
+
+					// 解析参数
+					if params, exists := configMap["parameters"]; exists {
+						if paramsMap, ok := params.(map[string]interface{}); ok {
+							config.Parameters = paramsMap
+						}
+					}
+
+					// 解析超时时间
+					if timeout, exists := configMap["timeout"]; exists {
+						if timeoutInt, ok := timeout.(int); ok {
+							config.Timeout = timeoutInt
+						}
+					}
+
+					// 解析最大行数
+					if maxRows, exists := configMap["max_rows"]; exists {
+						if maxRowsInt, ok := maxRows.(int); ok {
+							config.MaxRows = maxRowsInt
+						}
+					}
+
+					sqlConfigs = append(sqlConfigs, config)
+				}
+			}
+
+			if len(sqlConfigs) > 0 {
+				return sqlConfigs, true
+			}
+		}
+	}
+
+	return nil, false
+}
+
+// parseSourceConfigs 解析源库配置
+func (tse *ThematicSyncEngine) parseSourceConfigs(request *SyncRequest) ([]SourceLibraryConfig, error) {
+	var configs []SourceLibraryConfig
+
+	// 从请求配置中解析源库配置
+	if sourceConfigsRaw, exists := request.Config["source_libraries"]; exists {
+		// 尝试直接转换
+		if configSlice, ok := sourceConfigsRaw.([]SourceLibraryConfig); ok {
+			return configSlice, nil
+		}
+
+		// 尝试从接口数组转换
+		if configSlice, ok := sourceConfigsRaw.([]interface{}); ok {
+			for _, configRaw := range configSlice {
+				if configMap, ok := configRaw.(map[string]interface{}); ok {
+					config := SourceLibraryConfig{
+						LibraryID:   tse.getStringFromMap(configMap, "library_id"),
+						InterfaceID: tse.getStringFromMap(configMap, "interface_id"),
+						SQLQuery:    tse.getStringFromMap(configMap, "sql_query"),
+					}
+
+					// 解析参数
+					if params, exists := configMap["parameters"]; exists {
+						if paramsMap, ok := params.(map[string]interface{}); ok {
+							config.Parameters = paramsMap
+						}
+					}
+
+					configs = append(configs, config)
+				}
+			}
+			return configs, nil
+		}
+	}
+
+	// 兜底：使用传统的库和接口列表
+	for i, interfaceID := range request.SourceInterfaces {
+		libraryID := ""
+		if i < len(request.SourceLibraries) {
+			libraryID = request.SourceLibraries[i]
+		}
+
+		configs = append(configs, SourceLibraryConfig{
+			LibraryID:   libraryID,
+			InterfaceID: interfaceID,
+		})
+	}
+
+	return configs, nil
+}
+
+// applyFilters 应用过滤器
+func (tse *ThematicSyncEngine) applyFilters(records []map[string]interface{}, filters []FilterConfig) []map[string]interface{} {
+	if len(filters) == 0 {
+		return records
+	}
+
+	var filtered []map[string]interface{}
+
+	for _, record := range records {
+		if tse.matchesFilters(record, filters) {
+			filtered = append(filtered, record)
+		}
+	}
+
+	return filtered
+}
+
+// matchesFilters 检查记录是否匹配过滤条件
+func (tse *ThematicSyncEngine) matchesFilters(record map[string]interface{}, filters []FilterConfig) bool {
+	for _, filter := range filters {
+		if !tse.matchesFilter(record, filter) {
+			return false // 任意条件不匹配则过滤掉
+		}
+	}
+	return true
+}
+
+// matchesFilter 检查单个过滤条件
+func (tse *ThematicSyncEngine) matchesFilter(record map[string]interface{}, filter FilterConfig) bool {
+	value, exists := record[filter.Field]
+	if !exists {
+		return false
+	}
+
+	valueStr := fmt.Sprintf("%v", value)
+	filterValueStr := fmt.Sprintf("%v", filter.Value)
+
+	switch filter.Operator {
+	case "eq", "=":
+		return valueStr == filterValueStr
+	case "ne", "!=":
+		return valueStr != filterValueStr
+	case "gt", ">":
+		return tse.compareValues(value, filter.Value) > 0
+	case "lt", "<":
+		return tse.compareValues(value, filter.Value) < 0
+	case "gte", ">=":
+		return tse.compareValues(value, filter.Value) >= 0
+	case "lte", "<=":
+		return tse.compareValues(value, filter.Value) <= 0
+	case "contains":
+		return strings.Contains(valueStr, filterValueStr)
+	case "not_contains":
+		return !strings.Contains(valueStr, filterValueStr)
+	case "starts_with":
+		return strings.HasPrefix(valueStr, filterValueStr)
+	case "ends_with":
+		return strings.HasSuffix(valueStr, filterValueStr)
+	case "in":
+		if filterSlice, ok := filter.Value.([]interface{}); ok {
+			for _, filterVal := range filterSlice {
+				if fmt.Sprintf("%v", filterVal) == valueStr {
+					return true
+				}
+			}
+		}
+		return false
+	case "not_in":
+		if filterSlice, ok := filter.Value.([]interface{}); ok {
+			for _, filterVal := range filterSlice {
+				if fmt.Sprintf("%v", filterVal) == valueStr {
+					return false
+				}
+			}
+		}
+		return true
+	default:
+		return true // 未知操作符默认通过
+	}
+}
+
+// applyTransforms 应用数据转换
+func (tse *ThematicSyncEngine) applyTransforms(records []map[string]interface{}, transforms []TransformConfig) ([]map[string]interface{}, error) {
+	if len(transforms) == 0 {
+		return records, nil
+	}
+
+	transformer := NewDataTransformer()
+
+	for i, record := range records {
+		for _, transform := range transforms {
+			if sourceValue, exists := record[transform.SourceField]; exists {
+				// 执行转换
+				transformedValue, err := transformer.Transform(sourceValue, transform.Transform, transform.Config)
+				if err != nil {
+					return nil, fmt.Errorf("记录 %d 字段 %s 转换失败: %w", i, transform.SourceField, err)
+				}
+
+				// 设置目标字段值
+				record[transform.TargetField] = transformedValue
+			}
+		}
+	}
+
+	return records, nil
+}
+
+// generateRecordID 生成记录ID
+func (tse *ThematicSyncEngine) generateRecordID(libraryID, interfaceID string, index int, record map[string]interface{}) string {
+	// 尝试使用记录中的主键字段
+	keyFields := []string{"id", "uuid", "primary_key", "pk"}
+
+	for _, keyField := range keyFields {
+		if value, exists := record[keyField]; exists && value != nil {
+			return fmt.Sprintf("%s_%s_%v", libraryID, interfaceID, value)
+		}
+	}
+
+	// 使用索引生成ID
+	return fmt.Sprintf("%s_%s_%d", libraryID, interfaceID, index)
+}
+
+// calculateInitialQuality 计算初始质量评分
+func (tse *ThematicSyncEngine) calculateInitialQuality(record map[string]interface{}) float64 {
+	if len(record) == 0 {
+		return 0.0
+	}
+
+	validFieldCount := 0
+	for _, value := range record {
+		if tse.isValidFieldValue(value) {
+			validFieldCount++
+		}
+	}
+
+	return float64(validFieldCount) / float64(len(record))
+}
+
+// isValidFieldValue 检查字段值是否有效
+func (tse *ThematicSyncEngine) isValidFieldValue(value interface{}) bool {
+	if value == nil {
+		return false
+	}
+
+	str := strings.TrimSpace(fmt.Sprintf("%v", value))
+	return str != "" && str != "null" && str != "NULL" && str != "nil"
+}
+
+// compareValues 比较两个值
+func (tse *ThematicSyncEngine) compareValues(a, b interface{}) int {
+	aStr := fmt.Sprintf("%v", a)
+	bStr := fmt.Sprintf("%v", b)
+
+	// 尝试数值比较
+	if aNum, aErr := strconv.ParseFloat(aStr, 64); aErr == nil {
+		if bNum, bErr := strconv.ParseFloat(bStr, 64); bErr == nil {
+			if aNum < bNum {
+				return -1
+			} else if aNum > bNum {
+				return 1
+			}
+			return 0
+		}
+	}
+
+	// 字符串比较
+	if aStr < bStr {
+		return -1
+	} else if aStr > bStr {
+		return 1
+	}
+	return 0
+}
+
+// fetchDataFromSQL 从SQL数据源获取数据
+func (tse *ThematicSyncEngine) fetchDataFromSQL(sqlConfigs []SQLDataSourceConfig,
+	request *SyncRequest, result *SyncExecutionResult) ([]SourceRecordInfo, error) {
+
+	var sourceRecords []SourceRecordInfo
+
+	// 创建SQL数据源
+	sqlDataSource, err := NewSQLDataSource(tse.db)
+	if err != nil {
+		return nil, fmt.Errorf("创建SQL数据源失败: %w", err)
+	}
+
+	// 执行SQL查询获取数据
+	for _, config := range sqlConfigs {
+		records, err := sqlDataSource.ExecuteQuery(request.Context, config)
+		if err != nil {
+			return nil, fmt.Errorf("执行SQL查询失败 [%s/%s]: %w",
+				config.LibraryID, config.InterfaceID, err)
+		}
+
+		// 转换为源记录信息
+		for j, record := range records {
+			sourceRecord := SourceRecordInfo{
+				LibraryID:   config.LibraryID,
+				InterfaceID: config.InterfaceID,
+				RecordID:    tse.generateRecordID(config.LibraryID, config.InterfaceID, j, record),
+				Record:      record,
+				Quality:     tse.calculateInitialQuality(record),
+				LastUpdated: time.Now(),
+				Metadata: map[string]interface{}{
+					"data_source_type": "sql",
+					"sql_config":       config,
+					"fetch_time":       time.Now(),
+				},
+			}
+			sourceRecords = append(sourceRecords, sourceRecord)
+		}
+	}
+
+	result.SourceRecordCount = int64(len(sourceRecords))
+	return sourceRecords, nil
+}
+
+// fetchDataFromBasicLibrary 从基础库接口获取数据
+func (tse *ThematicSyncEngine) fetchDataFromBasicLibrary(request *SyncRequest,
+	result *SyncExecutionResult) ([]SourceRecordInfo, error) {
+
+	var sourceRecords []SourceRecordInfo
+
+	// 从配置中获取源库配置
+	sourceConfigs, err := tse.parseSourceConfigs(request)
+	if err != nil {
+		return nil, fmt.Errorf("解析源库配置失败: %w", err)
+	}
+
+	// 创建SQL数据源（用于配置了SQL的源库）
+	sqlDataSource, err := NewSQLDataSource(tse.db)
+	if err != nil {
+		return nil, fmt.Errorf("创建SQL数据源失败: %w", err)
+	}
+
+	// 批量获取数据
+	for _, config := range sourceConfigs {
+		var records []map[string]interface{}
+
+		if config.SQLQuery != "" {
+			// 使用SQL查询获取数据
+			sqlConfig := SQLDataSourceConfig{
+				LibraryID:   config.LibraryID,
+				InterfaceID: config.InterfaceID,
+				SQLQuery:    config.SQLQuery,
+				Parameters:  config.Parameters,
+				Timeout:     30,    // 默认30秒超时
+				MaxRows:     10000, // 默认最大1万行
+			}
+
+			records, err = sqlDataSource.ExecuteQuery(request.Context, sqlConfig)
+			if err != nil {
+				return nil, fmt.Errorf("执行SQL查询失败 [%s]: %w", config.LibraryID, err)
+			}
+		} else {
+			// 使用基础库服务获取数据
+			records, err = tse.basicLibraryService.GetDataByInterface(
+				request.Context, config.LibraryID, config.InterfaceID)
+			if err != nil {
+				return nil, fmt.Errorf("获取接口数据失败 [%s/%s]: %w",
+					config.LibraryID, config.InterfaceID, err)
+			}
+		}
+
+		// 应用过滤器
+		if len(config.Filters) > 0 {
+			records = tse.applyFilters(records, config.Filters)
+		}
+
+		// 应用转换
+		if len(config.Transforms) > 0 {
+			records, err = tse.applyTransforms(records, config.Transforms)
+			if err != nil {
+				return nil, fmt.Errorf("应用数据转换失败: %w", err)
+			}
+		}
+
+		// 转换为源记录信息
+		for j, record := range records {
+			sourceRecord := SourceRecordInfo{
+				LibraryID:   config.LibraryID,
+				InterfaceID: config.InterfaceID,
+				RecordID:    tse.generateRecordID(config.LibraryID, config.InterfaceID, j, record),
+				Record:      record,
+				Quality:     tse.calculateInitialQuality(record),
+				LastUpdated: time.Now(),
+				Metadata: map[string]interface{}{
+					"data_source_type": "basic_library",
+					"source_config":    config,
+					"fetch_time":       time.Now(),
+				},
+			}
+			sourceRecords = append(sourceRecords, sourceRecord)
+		}
+	}
+
+	result.SourceRecordCount = int64(len(sourceRecords))
+	return sourceRecords, nil
+}
+
+// getStringFromMap 从map中获取字符串值
+func (tse *ThematicSyncEngine) getStringFromMap(m map[string]interface{}, key string) string {
+	if value, exists := m[key]; exists {
+		return fmt.Sprintf("%v", value)
+	}
+	return ""
 }

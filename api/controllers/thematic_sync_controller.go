@@ -14,6 +14,7 @@ package controllers
 import (
 	"datahub-service/service"
 	"datahub-service/service/thematic_library"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -36,21 +37,35 @@ func NewThematicSyncController() *ThematicSyncController {
 	}
 }
 
+// SQLDataSourceConfig SQL数据源配置
+type SQLDataSourceConfig struct {
+	LibraryID   string                 `json:"library_id" example:"lib_001"`
+	InterfaceID string                 `json:"interface_id" example:"interface_001"`
+	SQLQuery    string                 `json:"sql_query" example:"SELECT * FROM users WHERE status = {{status}}"`
+	Parameters  map[string]interface{} `json:"parameters,omitempty" example:"{\"status\":\"active\"}"`
+	Timeout     int                    `json:"timeout,omitempty" example:"30"`
+	MaxRows     int                    `json:"max_rows,omitempty" example:"10000"`
+}
+
 // CreateSyncTaskRequest 创建同步任务请求结构
 type CreateSyncTaskRequest struct {
-	ThematicLibraryID   string                                 `json:"thematic_library_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
-	ThematicInterfaceID string                                 `json:"thematic_interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440002"`
-	TaskName            string                                 `json:"task_name" validate:"required" example:"用户数据同步任务"`
-	Description         string                                 `json:"description,omitempty" example:"从基础库同步用户数据到主题库"`
-	SourceLibraries     []thematic_library.SourceLibraryConfig `json:"source_libraries" validate:"required,min=1"`
-	AggregationConfig   *thematic_library.AggregationConfig    `json:"aggregation_config,omitempty"`
-	KeyMatchingRules    *thematic_library.KeyMatchingRules     `json:"key_matching_rules,omitempty"`
-	FieldMappingRules   *thematic_library.FieldMappingRules    `json:"field_mapping_rules,omitempty"`
-	CleansingRules      *thematic_library.CleansingRules       `json:"cleansing_rules,omitempty"`
-	PrivacyRules        *thematic_library.PrivacyRules         `json:"privacy_rules,omitempty"`
-	QualityRules        *thematic_library.QualityRules         `json:"quality_rules,omitempty"`
-	ScheduleConfig      *thematic_library.ScheduleConfig       `json:"schedule_config" validate:"required"`
-	CreatedBy           string                                 `json:"created_by" validate:"required" example:"admin"`
+	ThematicLibraryID   string `json:"thematic_library_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ThematicInterfaceID string `json:"thematic_interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440002"`
+	TaskName            string `json:"task_name" validate:"required" example:"用户数据同步任务"`
+	Description         string `json:"description,omitempty" example:"从基础库同步用户数据到主题库"`
+
+	// 数据源配置 - 两种方式二选一
+	SourceLibraries []thematic_library.SourceLibraryConfig `json:"source_libraries,omitempty"` // 基础库接口方式
+	DataSourceSQL   []SQLDataSourceConfig                  `json:"data_source_sql,omitempty"`  // SQL数据源方式（优先级更高）
+
+	AggregationConfig *thematic_library.AggregationConfig `json:"aggregation_config,omitempty"`
+	KeyMatchingRules  *thematic_library.KeyMatchingRules  `json:"key_matching_rules,omitempty"`
+	FieldMappingRules *thematic_library.FieldMappingRules `json:"field_mapping_rules,omitempty"`
+	CleansingRules    *thematic_library.CleansingRules    `json:"cleansing_rules,omitempty"`
+	PrivacyRules      *thematic_library.PrivacyRules      `json:"privacy_rules,omitempty"`
+	QualityRules      *thematic_library.QualityRules      `json:"quality_rules,omitempty"`
+	ScheduleConfig    *thematic_library.ScheduleConfig    `json:"schedule_config" validate:"required"`
+	CreatedBy         string                              `json:"created_by" validate:"required" example:"admin"`
 }
 
 // UpdateSyncTaskRequest 更新同步任务请求结构
@@ -121,10 +136,29 @@ func (c *ThematicSyncController) CreateSyncTask(w http.ResponseWriter, r *http.R
 		render.JSON(w, r, BadRequestResponse("主题接口ID不能为空", nil))
 		return
 	}
-	if len(req.SourceLibraries) == 0 {
-		render.JSON(w, r, BadRequestResponse("源库配置不能为空", nil))
+
+	// 验证数据源配置 - 必须配置其中一种
+	if len(req.DataSourceSQL) == 0 && len(req.SourceLibraries) == 0 {
+		render.JSON(w, r, BadRequestResponse("必须配置SQL数据源或基础库源配置", nil))
 		return
 	}
+
+	// 验证SQL数据源配置
+	for i, sqlConfig := range req.DataSourceSQL {
+		if sqlConfig.SQLQuery == "" {
+			render.JSON(w, r, BadRequestResponse(fmt.Sprintf("第%d个SQL配置的查询语句不能为空", i+1), nil))
+			return
+		}
+		if sqlConfig.LibraryID == "" {
+			render.JSON(w, r, BadRequestResponse(fmt.Sprintf("第%d个SQL配置的库ID不能为空", i+1), nil))
+			return
+		}
+		if sqlConfig.InterfaceID == "" {
+			render.JSON(w, r, BadRequestResponse(fmt.Sprintf("第%d个SQL配置的接口ID不能为空", i+1), nil))
+			return
+		}
+	}
+
 	if req.ScheduleConfig == nil {
 		render.JSON(w, r, BadRequestResponse("调度配置不能为空", nil))
 		return
@@ -135,6 +169,19 @@ func (c *ThematicSyncController) CreateSyncTask(w http.ResponseWriter, r *http.R
 		req.CreatedBy = "system"
 	}
 
+	// 转换SQL数据源配置到服务层类型
+	var serviceDataSourceSQL []thematic_library.SQLDataSourceConfig
+	for _, sqlConfig := range req.DataSourceSQL {
+		serviceDataSourceSQL = append(serviceDataSourceSQL, thematic_library.SQLDataSourceConfig{
+			LibraryID:   sqlConfig.LibraryID,
+			InterfaceID: sqlConfig.InterfaceID,
+			SQLQuery:    sqlConfig.SQLQuery,
+			Parameters:  sqlConfig.Parameters,
+			Timeout:     sqlConfig.Timeout,
+			MaxRows:     sqlConfig.MaxRows,
+		})
+	}
+
 	// 直接使用强类型的服务层请求
 	serviceReq := &thematic_library.CreateThematicSyncTaskRequest{
 		ThematicLibraryID:   req.ThematicLibraryID,
@@ -142,6 +189,7 @@ func (c *ThematicSyncController) CreateSyncTask(w http.ResponseWriter, r *http.R
 		TaskName:            req.TaskName,
 		Description:         req.Description,
 		SourceLibraries:     req.SourceLibraries,
+		DataSourceSQL:       serviceDataSourceSQL, // 转换后的SQL数据源配置
 		AggregationConfig:   req.AggregationConfig,
 		KeyMatchingRules:    req.KeyMatchingRules,
 		FieldMappingRules:   req.FieldMappingRules,

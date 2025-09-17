@@ -110,3 +110,66 @@ func (c *MetaController) GetThematicSyncTaskMeta(w http.ResponseWriter, r *http.
 func (c *MetaController) GetThematicSyncConfigDefinitions(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, SuccessResponse("获取主题库同步配置定义成功", meta.ThematicSyncConfigDefinitions))
 }
+
+// @Summary 获取主题库状态元数据
+// @Description 获取主题库状态元数据
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=[]meta.ThematicLibraryStatus}
+// @Failure 500 {object} APIResponse
+// @Router /meta/thematic-libraries/statuses [get]
+func (c *MetaController) GetThematicLibraryStatuses(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取主题库状态元数据成功", meta.GetThematicLibraryStatuses()))
+}
+
+// @Summary 获取主题接口类型元数据
+// @Description 获取主题接口类型元数据
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=[]meta.ThematicInterfaceType}
+// @Failure 500 {object} APIResponse
+// @Router /meta/thematic-libraries/interface-types [get]
+func (c *MetaController) GetThematicInterfaceTypes(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取主题接口类型元数据成功", meta.GetThematicInterfaceTypes()))
+}
+
+// @Summary 获取主题接口状态元数据
+// @Description 获取主题接口状态元数据
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=[]meta.ThematicInterfaceStatus}
+// @Failure 500 {object} APIResponse
+// @Router /meta/thematic-libraries/interface-statuses [get]
+func (c *MetaController) GetThematicInterfaceStatuses(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取主题接口状态元数据成功", meta.GetThematicInterfaceStatuses()))
+}
+
+// ThematicLibraryMetadataResponse 主题库完整元数据响应结构
+type ThematicLibraryMetadataResponse struct {
+	Categories        []meta.ThematicLibraryCategory    `json:"categories"`
+	Domains           []meta.ThematicLibraryDomain      `json:"domains"`
+	AccessLevels      []meta.ThematicLibraryAccessLevel `json:"access_levels"`
+	LibraryStatuses   []meta.ThematicLibraryStatus      `json:"library_statuses"`
+	InterfaceTypes    []meta.ThematicInterfaceType      `json:"interface_types"`
+	InterfaceStatuses []meta.ThematicInterfaceStatus    `json:"interface_statuses"`
+}
+
+// @Summary 获取主题库完整元数据
+// @Description 获取主题库相关的所有元数据，包括分类、数据域、访问级别、状态等
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=ThematicLibraryMetadataResponse} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /meta/thematic-libraries/all [get]
+func (c *MetaController) GetThematicLibraryAllMetadata(w http.ResponseWriter, r *http.Request) {
+	response := ThematicLibraryMetadataResponse{
+		Categories:        meta.GetThematicLibraryCategories(),
+		Domains:           meta.GetThematicLibraryDomains(),
+		AccessLevels:      meta.GetThematicLibraryAccessLevels(),
+		LibraryStatuses:   meta.GetThematicLibraryStatuses(),
+		InterfaceTypes:    meta.GetThematicInterfaceTypes(),
+		InterfaceStatuses: meta.GetThematicInterfaceStatuses(),
+	}
+
+	render.JSON(w, r, SuccessResponse("获取主题库完整元数据成功", response))
+}

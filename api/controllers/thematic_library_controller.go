@@ -55,8 +55,18 @@ type ThematicInterfaceListResponse struct {
 type UpdateThematicInterfaceFieldsRequest struct {
 	InterfaceID string              `json:"interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Fields      []models.TableField `json:"fields" validate:"required"`
-	UpdateTable bool                `json:"update_table" example:"true"`  // 是否同时更新数据库表结构
-	BackupTable bool                `json:"backup_table" example:"false"` // 是否备份原表
+}
+
+// CreateThematicInterfaceViewRequest 创建主题接口视图请求结构
+type CreateThematicInterfaceViewRequest struct {
+	InterfaceID string `json:"interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ViewSQL     string `json:"view_sql" validate:"required" example:"SELECT * FROM users WHERE status = 'active'"`
+}
+
+// UpdateThematicInterfaceViewRequest 更新主题接口视图请求结构
+type UpdateThematicInterfaceViewRequest struct {
+	InterfaceID string `json:"interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ViewSQL     string `json:"view_sql" validate:"required" example:"SELECT * FROM users WHERE status = 'active'"`
 }
 
 // CreateThematicLibrary 创建数据主题库
@@ -411,7 +421,7 @@ func (c *ThematicLibraryController) DeleteThematicInterface(w http.ResponseWrite
 
 // UpdateThematicInterfaceFields 更新主题接口字段配置
 // @Summary 更新主题接口字段配置
-// @Description 更新主题接口的字段配置，并可选择同时更新数据库表结构
+// @Description 更新主题接口的字段配置，自动同步数据库表结构（如表不存在则创建，存在则修改）
 // @Tags 主题接口
 // @Accept json
 // @Produce json
@@ -437,11 +447,139 @@ func (c *ThematicLibraryController) UpdateThematicInterfaceFields(w http.Respons
 		return
 	}
 
-	err := c.service.UpdateThematicInterfaceFields(req.InterfaceID, req.Fields, req.UpdateTable)
+	err := c.service.UpdateThematicInterfaceFields(req.InterfaceID, req.Fields)
 	if err != nil {
 		render.JSON(w, r, InternalErrorResponse("更新主题接口字段配置失败", err))
 		return
 	}
 
 	render.JSON(w, r, SuccessResponse("更新主题接口字段配置成功", nil))
+}
+
+// CreateThematicInterfaceView 创建主题接口视图
+// @Summary 创建主题接口视图
+// @Description 为主题接口创建数据库视图，支持CREATE OR REPLACE VIEW语法
+// @Tags 主题接口视图
+// @Accept json
+// @Produce json
+// @Param request body CreateThematicInterfaceViewRequest true "创建视图请求"
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /thematic-interfaces/create-view [post]
+func (c *ThematicLibraryController) CreateThematicInterfaceView(w http.ResponseWriter, r *http.Request) {
+	var req CreateThematicInterfaceViewRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.InterfaceID == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	if req.ViewSQL == "" {
+		render.JSON(w, r, BadRequestResponse("视图SQL不能为空", nil))
+		return
+	}
+
+	err := c.service.CreateThematicInterfaceView(req.InterfaceID, req.ViewSQL)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("创建主题接口视图失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("创建主题接口视图成功", nil))
+}
+
+// UpdateThematicInterfaceView 更新主题接口视图
+// @Summary 更新主题接口视图
+// @Description 更新主题接口的数据库视图SQL
+// @Tags 主题接口视图
+// @Accept json
+// @Produce json
+// @Param request body UpdateThematicInterfaceViewRequest true "更新视图请求"
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /thematic-interfaces/update-view [post]
+func (c *ThematicLibraryController) UpdateThematicInterfaceView(w http.ResponseWriter, r *http.Request) {
+	var req UpdateThematicInterfaceViewRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.InterfaceID == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	if req.ViewSQL == "" {
+		render.JSON(w, r, BadRequestResponse("视图SQL不能为空", nil))
+		return
+	}
+
+	err := c.service.UpdateThematicInterfaceView(req.InterfaceID, req.ViewSQL)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("更新主题接口视图失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("更新主题接口视图成功", nil))
+}
+
+// DeleteThematicInterfaceView 删除主题接口视图
+// @Summary 删除主题接口视图
+// @Description 删除主题接口的数据库视图
+// @Tags 主题接口视图
+// @Produce json
+// @Param id path string true "主题接口ID"
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 404 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /thematic-interfaces/{id}/delete-view [delete]
+func (c *ThematicLibraryController) DeleteThematicInterfaceView(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("ID参数不能为空", nil))
+		return
+	}
+
+	err := c.service.DeleteThematicInterfaceView(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("删除主题接口视图失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("删除主题接口视图成功", nil))
+}
+
+// GetThematicInterfaceViewSQL 获取主题接口视图SQL
+// @Summary 获取主题接口视图SQL
+// @Description 获取主题接口的视图SQL语句
+// @Tags 主题接口视图
+// @Produce json
+// @Param id path string true "主题接口ID"
+// @Success 200 {object} APIResponse{data=string}
+// @Failure 400 {object} APIResponse
+// @Failure 404 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /thematic-interfaces/{id}/view-sql [get]
+func (c *ThematicLibraryController) GetThematicInterfaceViewSQL(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("ID参数不能为空", nil))
+		return
+	}
+
+	viewSQL, err := c.service.GetThematicInterfaceViewSQL(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取主题接口视图SQL失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取主题接口视图SQL成功", viewSQL))
 }

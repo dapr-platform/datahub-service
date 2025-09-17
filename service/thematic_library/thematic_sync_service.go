@@ -83,6 +83,7 @@ func (tss *ThematicSyncService) CreateSyncTask(ctx context.Context, req *CreateT
 		TaskName:            req.TaskName,
 		Description:         req.Description,
 		SourceLibraries:     structToJSONB(req.SourceLibraries),
+		DataSourceSQL:       structToJSONB(req.DataSourceSQL), // 新增SQL数据源配置
 		AggregationConfig:   structToJSONB(req.AggregationConfig),
 		KeyMatchingRules:    structToJSONB(req.KeyMatchingRules),
 		FieldMappingRules:   structToJSONB(req.FieldMappingRules),
@@ -265,34 +266,218 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 		return nil, fmt.Errorf("任务状态不允许执行: %s", task.Status)
 	}
 
-	// 解析源库和接口列表
-	var sourceLibraries []string
+	// 解析源库配置
+	var sourceLibraryConfigs []thematic_sync.SourceLibraryConfig
 	if len(task.SourceLibraries) > 0 {
-		// 简化处理：假设存储的是JSON格式的字符串数组
-		// 实际项目中应该使用json.Unmarshal
-		sourceLibraries = []string{} // 临时处理
+		// 从JSONB中解析源库配置
+		var sourceLibrariesRaw []interface{}
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.SourceLibraries)), &sourceLibrariesRaw); err == nil {
+			for _, configRaw := range sourceLibrariesRaw {
+				if configMap, ok := configRaw.(map[string]interface{}); ok {
+					config := thematic_sync.SourceLibraryConfig{
+						LibraryID:   getStringFromMap(configMap, "library_id"),
+						InterfaceID: getStringFromMap(configMap, "interface_id"),
+						SQLQuery:    getStringFromMap(configMap, "sql_query"),
+					}
+
+					// 解析参数
+					if params, exists := configMap["parameters"]; exists {
+						if paramsMap, ok := params.(map[string]interface{}); ok {
+							config.Parameters = paramsMap
+						}
+					}
+
+					// 解析过滤器
+					if filters, exists := configMap["filters"]; exists {
+						if filtersSlice, ok := filters.([]interface{}); ok {
+							for _, filterRaw := range filtersSlice {
+								if filterMap, ok := filterRaw.(map[string]interface{}); ok {
+									filter := thematic_sync.FilterConfig{
+										Field:    getStringFromMap(filterMap, "field"),
+										Operator: getStringFromMap(filterMap, "operator"),
+										Value:    filterMap["value"],
+										LogicOp:  getStringFromMap(filterMap, "logic_op"),
+									}
+									config.Filters = append(config.Filters, filter)
+								}
+							}
+						}
+					}
+
+					// 解析转换配置
+					if transforms, exists := configMap["transforms"]; exists {
+						if transformsSlice, ok := transforms.([]interface{}); ok {
+							for _, transformRaw := range transformsSlice {
+								if transformMap, ok := transformRaw.(map[string]interface{}); ok {
+									transform := thematic_sync.TransformConfig{
+										SourceField: getStringFromMap(transformMap, "source_field"),
+										TargetField: getStringFromMap(transformMap, "target_field"),
+										Transform:   getStringFromMap(transformMap, "transform"),
+									}
+
+									if config, exists := transformMap["config"]; exists {
+										if configMap, ok := config.(map[string]interface{}); ok {
+											transform.Config = configMap
+										}
+									}
+
+									config.Transforms = append(config.Transforms, transform)
+								}
+							}
+						}
+					}
+
+					sourceLibraryConfigs = append(sourceLibraryConfigs, config)
+				}
+			}
+		}
 	}
 
+	// 兜底：使用接口列表（如果存在）
 	var sourceInterfaces []string
 	if len(task.SourceInterfaces) > 0 {
-		// 简化处理：假设存储的是JSON格式的字符串数组
-		// 实际项目中应该使用json.Unmarshal
-		sourceInterfaces = []string{} // 临时处理
+		// 从JSONB中解析接口列表
+		var interfacesRaw []interface{}
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.SourceInterfaces)), &interfacesRaw); err == nil {
+			for _, interfaceRaw := range interfacesRaw {
+				sourceInterfaces = append(sourceInterfaces, fmt.Sprintf("%v", interfaceRaw))
+			}
+		}
 	}
 
-	// 构建同步请求
-	var configMap map[string]interface{}
+	// 解析SQL数据源配置（优先级更高）
+	var sqlDataSourceConfigs []thematic_sync.SQLDataSourceConfig
+	if len(task.DataSourceSQL) > 0 {
+		var sqlConfigsRaw []interface{}
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.DataSourceSQL)), &sqlConfigsRaw); err == nil {
+			for _, configRaw := range sqlConfigsRaw {
+				if configMap, ok := configRaw.(map[string]interface{}); ok {
+					config := thematic_sync.SQLDataSourceConfig{
+						LibraryID:   getStringFromMap(configMap, "library_id"),
+						InterfaceID: getStringFromMap(configMap, "interface_id"),
+						SQLQuery:    getStringFromMap(configMap, "sql_query"),
+						Timeout:     30,    // 默认30秒
+						MaxRows:     10000, // 默认1万行
+					}
+
+					// 解析参数
+					if params, exists := configMap["parameters"]; exists {
+						if paramsMap, ok := params.(map[string]interface{}); ok {
+							config.Parameters = paramsMap
+						}
+					}
+
+					// 解析超时时间
+					if timeout, exists := configMap["timeout"]; exists {
+						if timeoutFloat, ok := timeout.(float64); ok {
+							config.Timeout = int(timeoutFloat)
+						} else if timeoutInt, ok := timeout.(int); ok {
+							config.Timeout = timeoutInt
+						}
+					}
+
+					// 解析最大行数
+					if maxRows, exists := configMap["max_rows"]; exists {
+						if maxRowsFloat, ok := maxRows.(float64); ok {
+							config.MaxRows = int(maxRowsFloat)
+						} else if maxRowsInt, ok := maxRows.(int); ok {
+							config.MaxRows = maxRowsInt
+						}
+					}
+
+					sqlDataSourceConfigs = append(sqlDataSourceConfigs, config)
+				}
+			}
+		}
+	}
+
+	// 构建同步请求配置
+	configMap := make(map[string]interface{})
+
+	// 优先添加SQL数据源配置
+	if len(sqlDataSourceConfigs) > 0 {
+		configMap["data_source_sql"] = sqlDataSourceConfigs
+	} else if len(sourceLibraryConfigs) > 0 {
+		// 兜底：添加传统源库配置
+		configMap["source_libraries"] = sourceLibraryConfigs
+	}
+
+	// 添加各种规则配置
+	if len(task.AggregationConfig) > 0 {
+		var aggConfig AggregationConfig
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.AggregationConfig)), &aggConfig); err == nil {
+			configMap["aggregation_config"] = aggConfig
+		}
+	}
+
+	if len(task.KeyMatchingRules) > 0 {
+		var keyRules KeyMatchingRules
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.KeyMatchingRules)), &keyRules); err == nil {
+			configMap["key_matching_rules"] = keyRules
+		}
+	}
+
+	if len(task.FieldMappingRules) > 0 {
+		var fieldRules FieldMappingRules
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.FieldMappingRules)), &fieldRules); err == nil {
+			configMap["field_mapping_rules"] = fieldRules
+		}
+	}
+
+	if len(task.CleansingRules) > 0 {
+		var cleansingRules CleansingRules
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.CleansingRules)), &cleansingRules); err == nil {
+			configMap["cleansing_rules"] = cleansingRules
+		}
+	}
+
+	if len(task.PrivacyRules) > 0 {
+		var privacyRules PrivacyRules
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.PrivacyRules)), &privacyRules); err == nil {
+			configMap["privacy_rules"] = privacyRules
+		}
+	}
+
+	if len(task.QualityRules) > 0 {
+		var qualityRules QualityRules
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.QualityRules)), &qualityRules); err == nil {
+			configMap["quality_rules"] = qualityRules
+		}
+	}
+
+	// 添加执行选项
 	if req.Options != nil {
-		// 将结构化配置转换为 map[string]interface{} 以兼容现有的同步引擎
-		configBytes, _ := json.Marshal(req.Options)
-		json.Unmarshal(configBytes, &configMap)
+		optionsBytes, _ := json.Marshal(req.Options)
+		var optionsMap map[string]interface{}
+		if err := json.Unmarshal(optionsBytes, &optionsMap); err == nil {
+			for key, value := range optionsMap {
+				configMap[key] = value
+			}
+		}
+	}
+
+	// 构建源库和接口列表（兜底处理）
+	var sourceLibraries []string
+	var finalSourceInterfaces []string
+
+	if len(sourceLibraryConfigs) > 0 {
+		for _, config := range sourceLibraryConfigs {
+			sourceLibraries = append(sourceLibraries, config.LibraryID)
+			finalSourceInterfaces = append(finalSourceInterfaces, config.InterfaceID)
+		}
+	} else if len(sourceInterfaces) > 0 {
+		finalSourceInterfaces = sourceInterfaces
+		// 如果没有明确的库ID，使用空字符串
+		for range sourceInterfaces {
+			sourceLibraries = append(sourceLibraries, "")
+		}
 	}
 
 	syncRequest := &thematic_sync.SyncRequest{
 		TaskID:            taskID,
 		ExecutionType:     req.ExecutionType,
 		SourceLibraries:   sourceLibraries,
-		SourceInterfaces:  sourceInterfaces,
+		SourceInterfaces:  finalSourceInterfaces,
 		TargetLibraryID:   task.ThematicLibraryID,
 		TargetInterfaceID: task.ThematicInterfaceID,
 		Config:            configMap,
@@ -515,4 +700,12 @@ func (tss *ThematicSyncService) GetSyncTaskExecutions(ctx context.Context, taskI
 	}
 
 	return result, total, nil
+}
+
+// getStringFromMap 从map中获取字符串值
+func getStringFromMap(m map[string]interface{}, key string) string {
+	if value, exists := m[key]; exists {
+		return fmt.Sprintf("%v", value)
+	}
+	return ""
 }

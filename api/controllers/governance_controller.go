@@ -50,26 +50,16 @@ func NewGovernanceController(governanceService *governance.GovernanceService) *G
 func (c *GovernanceController) CreateQualityRule(w http.ResponseWriter, r *http.Request) {
 	var rule models.QualityRule
 	if err := render.DecodeJSON(r.Body, &rule); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusBadRequest,
-			Msg:    "请求参数格式错误",
-		})
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	if err := c.governanceService.CreateQualityRule(&rule); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "创建数据质量规则失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("创建数据质量规则失败", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusCreated,
-		Msg:    "创建数据质量规则成功",
-		Data:   rule,
-	})
+	render.JSON(w, r, SuccessResponse("创建数据质量规则成功", rule))
 }
 
 // GetQualityRules 获取数据质量规则列表
@@ -82,7 +72,7 @@ func (c *GovernanceController) CreateQualityRule(w http.ResponseWriter, r *http.
 // @Param size query int false "每页数量" default(10)
 // @Param type query string false "规则类型"
 // @Param object_type query string false "关联对象类型"
-// @Success 200 {object} PaginatedResponse{data=[]models.QualityRule} "获取成功"
+// @Success 200 {object} APIResponse{data=[]models.QualityRule} "获取成功"
 // @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /governance/quality-rules [get]
 func (c *GovernanceController) GetQualityRules(w http.ResponseWriter, r *http.Request) {
@@ -100,21 +90,23 @@ func (c *GovernanceController) GetQualityRules(w http.ResponseWriter, r *http.Re
 
 	rules, total, err := c.governanceService.GetQualityRules(page, size, ruleType, objectType)
 	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "获取数据质量规则列表失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("获取数据质量规则列表失败", err))
 		return
 	}
 
-	render.JSON(w, r, PaginatedResponse{
-		Status: http.StatusOK,
-		Msg:    "获取数据质量规则列表成功",
-		Data:   rules,
-		Total:  total,
-		Page:   page,
-		Size:   size,
-	})
+	response := struct {
+		List  []models.QualityRule `json:"list"`
+		Total int64                `json:"total"`
+		Page  int                  `json:"page"`
+		Size  int                  `json:"size"`
+	}{
+		List:  rules,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据质量规则列表成功", response))
 }
 
 // GetQualityRuleByID 根据ID获取数据质量规则
@@ -133,18 +125,11 @@ func (c *GovernanceController) GetQualityRuleByID(w http.ResponseWriter, r *http
 
 	rule, err := c.governanceService.GetQualityRuleByID(id)
 	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusNotFound,
-			Msg:    "数据质量规则不存在",
-		})
+		render.JSON(w, r, InternalErrorResponse("数据质量规则不存在", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusOK,
-		Msg:    "获取数据质量规则成功",
-		Data:   rule,
-	})
+	render.JSON(w, r, SuccessResponse("获取数据质量规则成功", rule))
 }
 
 // UpdateQualityRule 更新数据质量规则
@@ -165,25 +150,16 @@ func (c *GovernanceController) UpdateQualityRule(w http.ResponseWriter, r *http.
 
 	var updates map[string]interface{}
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusBadRequest,
-			Msg:    "请求参数格式错误",
-		})
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	if err := c.governanceService.UpdateQualityRule(id, updates); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "更新数据质量规则失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("更新数据质量规则失败", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusOK,
-		Msg:    "更新数据质量规则成功",
-	})
+	render.JSON(w, r, SuccessResponse("更新数据质量规则成功", nil))
 }
 
 // DeleteQualityRule 删除数据质量规则
@@ -201,17 +177,11 @@ func (c *GovernanceController) DeleteQualityRule(w http.ResponseWriter, r *http.
 	id := chi.URLParam(r, "id")
 
 	if err := c.governanceService.DeleteQualityRule(id); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "删除数据质量规则失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("删除数据质量规则失败", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusOK,
-		Msg:    "删除数据质量规则成功",
-	})
+	render.JSON(w, r, SuccessResponse("删除数据质量规则成功", nil))
 }
 
 // === 元数据管理 ===
@@ -230,26 +200,16 @@ func (c *GovernanceController) DeleteQualityRule(w http.ResponseWriter, r *http.
 func (c *GovernanceController) CreateMetadata(w http.ResponseWriter, r *http.Request) {
 	var metadata models.Metadata
 	if err := render.DecodeJSON(r.Body, &metadata); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusBadRequest,
-			Msg:    "请求参数格式错误",
-		})
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	if err := c.governanceService.CreateMetadata(&metadata); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "创建元数据失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("创建元数据失败", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusCreated,
-		Msg:    "创建元数据成功",
-		Data:   metadata,
-	})
+	render.JSON(w, r, SuccessResponse("创建元数据成功", metadata))
 }
 
 // GetMetadataList 获取元数据列表
@@ -262,7 +222,7 @@ func (c *GovernanceController) CreateMetadata(w http.ResponseWriter, r *http.Req
 // @Param size query int false "每页数量" default(10)
 // @Param type query string false "元数据类型"
 // @Param name query string false "元数据名称"
-// @Success 200 {object} PaginatedResponse{data=[]models.Metadata} "获取成功"
+// @Success 200 {object} APIResponse{data=[]models.Metadata} "获取成功"
 // @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /governance/metadata [get]
 func (c *GovernanceController) GetMetadataList(w http.ResponseWriter, r *http.Request) {
@@ -280,21 +240,23 @@ func (c *GovernanceController) GetMetadataList(w http.ResponseWriter, r *http.Re
 
 	metadataList, total, err := c.governanceService.GetMetadataList(page, size, metadataType, name)
 	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "获取元数据列表失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("获取元数据列表失败", err))
 		return
 	}
 
-	render.JSON(w, r, PaginatedResponse{
-		Status: http.StatusOK,
-		Msg:    "获取元数据列表成功",
-		Data:   metadataList,
-		Total:  total,
-		Page:   page,
-		Size:   size,
-	})
+	response := struct {
+		List  []models.Metadata `json:"list"`
+		Total int64             `json:"total"`
+		Page  int               `json:"page"`
+		Size  int               `json:"size"`
+	}{
+		List:  metadataList,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取元数据列表成功", response))
 }
 
 // GetMetadataByID 根据ID获取元数据
@@ -313,18 +275,11 @@ func (c *GovernanceController) GetMetadataByID(w http.ResponseWriter, r *http.Re
 
 	metadata, err := c.governanceService.GetMetadataByID(id)
 	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusNotFound,
-			Msg:    "元数据不存在",
-		})
+		render.JSON(w, r, InternalErrorResponse("元数据不存在", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusOK,
-		Msg:    "获取元数据成功",
-		Data:   metadata,
-	})
+	render.JSON(w, r, SuccessResponse("获取元数据成功", metadata))
 }
 
 // UpdateMetadata 更新元数据
@@ -345,25 +300,16 @@ func (c *GovernanceController) UpdateMetadata(w http.ResponseWriter, r *http.Req
 
 	var updates map[string]interface{}
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusBadRequest,
-			Msg:    "请求参数格式错误",
-		})
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	if err := c.governanceService.UpdateMetadata(id, updates); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "更新元数据失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("更新元数据失败", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusOK,
-		Msg:    "更新元数据成功",
-	})
+	render.JSON(w, r, SuccessResponse("更新元数据成功", nil))
 }
 
 // DeleteMetadata 删除元数据
@@ -381,17 +327,11 @@ func (c *GovernanceController) DeleteMetadata(w http.ResponseWriter, r *http.Req
 	id := chi.URLParam(r, "id")
 
 	if err := c.governanceService.DeleteMetadata(id); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "删除元数据失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("删除元数据失败", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusOK,
-		Msg:    "删除元数据成功",
-	})
+	render.JSON(w, r, SuccessResponse("删除元数据成功", nil))
 }
 
 // === 数据脱敏规则管理 ===
@@ -410,26 +350,16 @@ func (c *GovernanceController) DeleteMetadata(w http.ResponseWriter, r *http.Req
 func (c *GovernanceController) CreateMaskingRule(w http.ResponseWriter, r *http.Request) {
 	var rule models.DataMaskingRule
 	if err := render.DecodeJSON(r.Body, &rule); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusBadRequest,
-			Msg:    "请求参数格式错误",
-		})
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	if err := c.governanceService.CreateMaskingRule(&rule); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "创建数据脱敏规则失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("创建数据脱敏规则失败", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusCreated,
-		Msg:    "创建数据脱敏规则成功",
-		Data:   rule,
-	})
+	render.JSON(w, r, SuccessResponse("创建数据脱敏规则成功", rule))
 }
 
 // GetMaskingRules 获取数据脱敏规则列表
@@ -442,7 +372,7 @@ func (c *GovernanceController) CreateMaskingRule(w http.ResponseWriter, r *http.
 // @Param page_size query int false "每页数量" default(10)
 // @Param data_source query string false "数据源"
 // @Param masking_type query string false "脱敏类型"
-// @Success 200 {object} PaginatedResponse{data=[]models.DataMaskingRule} "获取成功"
+// @Success 200 {object} APIResponse{data=[]models.DataMaskingRule} "获取成功"
 // @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /governance/masking-rules [get]
 func (c *GovernanceController) GetMaskingRules(w http.ResponseWriter, r *http.Request) {
@@ -460,21 +390,23 @@ func (c *GovernanceController) GetMaskingRules(w http.ResponseWriter, r *http.Re
 
 	rules, total, err := c.governanceService.GetMaskingRules(page, pageSize, dataSource, maskingType)
 	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "获取数据脱敏规则列表失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("获取数据脱敏规则列表失败", err))
 		return
 	}
 
-	render.JSON(w, r, PaginatedResponse{
-		Status: http.StatusOK,
-		Msg:    "获取数据脱敏规则列表成功",
-		Data:   rules,
-		Total:  total,
-		Page:   page,
-		Size:   pageSize,
-	})
+	response := struct {
+		List  []models.DataMaskingRule `json:"list"`
+		Total int64                    `json:"total"`
+		Page  int                      `json:"page"`
+		Size  int                      `json:"size"`
+	}{
+		List:  rules,
+		Total: total,
+		Page:  page,
+		Size:  pageSize,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据脱敏规则列表成功", response))
 }
 
 // GetMaskingRuleByID 根据ID获取数据脱敏规则
@@ -493,18 +425,11 @@ func (c *GovernanceController) GetMaskingRuleByID(w http.ResponseWriter, r *http
 
 	rule, err := c.governanceService.GetMaskingRuleByID(id)
 	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusNotFound,
-			Msg:    "数据脱敏规则不存在",
-		})
+		render.JSON(w, r, InternalErrorResponse("数据脱敏规则不存在", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusOK,
-		Msg:    "获取数据脱敏规则成功",
-		Data:   rule,
-	})
+	render.JSON(w, r, SuccessResponse("获取数据脱敏规则成功", rule))
 }
 
 // UpdateMaskingRule 更新数据脱敏规则
@@ -525,25 +450,16 @@ func (c *GovernanceController) UpdateMaskingRule(w http.ResponseWriter, r *http.
 
 	var updates map[string]interface{}
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusBadRequest,
-			Msg:    "请求参数格式错误",
-		})
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
 	if err := c.governanceService.UpdateMaskingRule(id, updates); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "更新数据脱敏规则失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("更新数据脱敏规则失败", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusOK,
-		Msg:    "更新数据脱敏规则成功",
-	})
+	render.JSON(w, r, SuccessResponse("更新数据脱敏规则成功", nil))
 }
 
 // DeleteMaskingRule 删除数据脱敏规则
@@ -561,17 +477,11 @@ func (c *GovernanceController) DeleteMaskingRule(w http.ResponseWriter, r *http.
 	id := chi.URLParam(r, "id")
 
 	if err := c.governanceService.DeleteMaskingRule(id); err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "删除数据脱敏规则失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("删除数据脱敏规则失败", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusOK,
-		Msg:    "删除数据脱敏规则成功",
-	})
+	render.JSON(w, r, SuccessResponse("删除数据脱敏规则成功", nil))
 }
 
 // === 系统日志管理 ===
@@ -588,7 +498,7 @@ func (c *GovernanceController) DeleteMaskingRule(w http.ResponseWriter, r *http.
 // @Param object_type query string false "对象类型"
 // @Param start_time query string false "开始时间"
 // @Param end_time query string false "结束时间"
-// @Success 200 {object} PaginatedResponse{data=[]models.SystemLog} "获取成功"
+// @Success 200 {object} APIResponse{data=[]models.SystemLog} "获取成功"
 // @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /governance/system-logs [get]
 func (c *GovernanceController) GetSystemLogs(w http.ResponseWriter, r *http.Request) {
@@ -618,21 +528,23 @@ func (c *GovernanceController) GetSystemLogs(w http.ResponseWriter, r *http.Requ
 
 	logs, total, err := c.governanceService.GetSystemLogs(page, pageSize, operationType, objectType, startTime, endTime)
 	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "获取系统日志列表失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("获取系统日志列表失败", err))
 		return
 	}
 
-	render.JSON(w, r, PaginatedResponse{
-		Status: http.StatusOK,
-		Msg:    "获取系统日志列表成功",
-		Data:   logs,
-		Total:  total,
-		Page:   page,
-		Size:   pageSize,
-	})
+	response := struct {
+		List  []models.SystemLog `json:"list"`
+		Total int64              `json:"total"`
+		Page  int                `json:"page"`
+		Size  int                `json:"size"`
+	}{
+		List:  logs,
+		Total: total,
+		Page:  page,
+		Size:  pageSize,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取系统日志列表成功", response))
 }
 
 // === 数据质量报告 ===
@@ -646,7 +558,7 @@ func (c *GovernanceController) GetSystemLogs(w http.ResponseWriter, r *http.Requ
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(10)
 // @Param object_type query string false "对象类型"
-// @Success 200 {object} PaginatedResponse{data=[]models.DataQualityReport} "获取成功"
+// @Success 200 {object} APIResponse{data=[]models.DataQualityReport} "获取成功"
 // @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /governance/quality-reports [get]
 func (c *GovernanceController) GetQualityReports(w http.ResponseWriter, r *http.Request) {
@@ -663,21 +575,23 @@ func (c *GovernanceController) GetQualityReports(w http.ResponseWriter, r *http.
 
 	reports, total, err := c.governanceService.GetQualityReports(page, pageSize, objectType)
 	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "获取数据质量报告列表失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("获取数据质量报告列表失败", err))
 		return
 	}
 
-	render.JSON(w, r, PaginatedResponse{
-		Status: http.StatusOK,
-		Msg:    "获取数据质量报告列表成功",
-		Data:   reports,
-		Total:  total,
-		Page:   page,
-		Size:   pageSize,
-	})
+	response := struct {
+		List  []models.DataQualityReport `json:"list"`
+		Total int64                      `json:"total"`
+		Page  int                        `json:"page"`
+		Size  int                        `json:"size"`
+	}{
+		List:  reports,
+		Total: total,
+		Page:  page,
+		Size:  pageSize,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据质量报告列表成功", response))
 }
 
 // GetQualityReportByID 根据ID获取数据质量报告
@@ -696,18 +610,11 @@ func (c *GovernanceController) GetQualityReportByID(w http.ResponseWriter, r *ht
 
 	report, err := c.governanceService.GetQualityReportByID(id)
 	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusNotFound,
-			Msg:    "数据质量报告不存在",
-		})
+		render.JSON(w, r, InternalErrorResponse("数据质量报告不存在", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusOK,
-		Msg:    "获取数据质量报告成功",
-		Data:   report,
-	})
+	render.JSON(w, r, SuccessResponse("获取数据质量报告成功", report))
 }
 
 // RunQualityCheck 执行数据质量检查
@@ -727,25 +634,15 @@ func (c *GovernanceController) RunQualityCheck(w http.ResponseWriter, r *http.Re
 	objectType := r.URL.Query().Get("object_type")
 
 	if objectID == "" || objectType == "" {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusBadRequest,
-			Msg:    "缺少必要参数",
-		})
+		render.JSON(w, r, BadRequestResponse("缺少必要参数", nil))
 		return
 	}
 
 	report, err := c.governanceService.RunQualityCheck(objectID, objectType)
 	if err != nil {
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusInternalServerError,
-			Msg:    "执行数据质量检查失败",
-		})
+		render.JSON(w, r, InternalErrorResponse("执行数据质量检查失败", err))
 		return
 	}
 
-	render.JSON(w, r, APIResponse{
-		Status: http.StatusOK,
-		Msg:    "执行数据质量检查成功",
-		Data:   report,
-	})
+	render.JSON(w, r, SuccessResponse("执行数据质量检查成功", report))
 }

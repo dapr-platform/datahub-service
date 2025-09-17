@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -93,6 +94,8 @@ func AutoMigrate(db *gorm.DB) error {
 	log.Println("正在迁移数据共享服务相关表...")
 	err = db.AutoMigrate(
 		&models.ApiApplication{},
+		&models.ApiKey{},
+		&models.ApiInterface{},
 		&models.ApiRateLimit{},
 		&models.DataSubscription{},
 		&models.DataAccessRequest{},
@@ -476,45 +479,49 @@ func InitializeSyncData(db *gorm.DB) error {
 // createDefaultSyncConfigurations 创建默认同步配置
 func createDefaultSyncConfigurations(db *gorm.DB) error {
 	// 创建默认的系统级配置
-	defaultConfigs := []map[string]interface{}{
+	defaultConfigs := []models.SystemConfig{
 		{
-			"key":         "sync.default_batch_size",
-			"value":       "1000",
-			"environment": "default",
-			"description": "默认的数据同步批量大小",
+			ID:          uuid.New().String(),
+			Key:         "sync.default_batch_size",
+			Value:       "1000",
+			Environment: "default",
+			Description: "默认的数据同步批量大小",
 		},
 		{
-			"key":         "sync.default_timeout",
-			"value":       "300",
-			"environment": "default",
-			"description": "默认的同步超时时间（秒）",
+			ID:          uuid.New().String(),
+			Key:         "sync.default_timeout",
+			Value:       "300",
+			Environment: "default",
+			Description: "默认的同步超时时间（秒）",
 		},
 		{
-			"key":         "sync.default_retry_count",
-			"value":       "3",
-			"environment": "default",
-			"description": "默认的同步失败重试次数",
+			ID:          uuid.New().String(),
+			Key:         "sync.default_retry_count",
+			Value:       "3",
+			Environment: "default",
+			Description: "默认的同步失败重试次数",
 		},
 		{
-			"key":         "sync.default_concurrency",
-			"value":       "5",
-			"environment": "default",
-			"description": "默认的并发同步任务数",
+			ID:          uuid.New().String(),
+			Key:         "sync.default_concurrency",
+			Value:       "5",
+			Environment: "default",
+			Description: "默认的并发同步任务数",
 		},
 	}
 
 	for _, config := range defaultConfigs {
 		var count int64
-		if err := db.Table("system_configs").Where("key = ?", config["key"]).Count(&count).Error; err != nil {
+		if err := db.Model(&models.SystemConfig{}).Where("key = ?", config.Key).Count(&count).Error; err != nil {
 			return fmt.Errorf("检查默认配置失败: %v", err)
 		}
 
 		if count == 0 {
-			if err := db.Table("system_configs").Create(config).Error; err != nil {
+			if err := db.Create(&config).Error; err != nil {
 				log.Printf("创建默认配置失败: %v", err)
 				// 继续执行，不中断整个初始化过程
 			} else {
-				log.Printf("创建默认配置: %s", config["name"])
+				log.Printf("创建默认配置: %s", config.Key)
 			}
 		}
 	}

@@ -50,7 +50,7 @@ type ThematicInterface struct {
 	LibraryID         string    `json:"library_id" gorm:"not null;type:varchar(36);index"`
 	NameZh            string    `json:"name_zh" gorm:"not null;size:255"`
 	NameEn            string    `json:"name_en" gorm:"not null;size:255"`
-	Type              string    `json:"type" gorm:"not null;size:20"` // realtime, batch
+	Type              string    `json:"type" gorm:"not null;size:20"` // realtime, batch, view
 	Description       string    `json:"description" gorm:"size:1000"`
 	CreatedAt         time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
 	CreatedBy         string    `json:"created_by" gorm:"not null;default:'system';size:100"`
@@ -58,9 +58,12 @@ type ThematicInterface struct {
 	UpdatedBy         string    `json:"updated_by" gorm:"not null;default:'system';size:100"`
 	Status            string    `json:"status" gorm:"not null;default:'active';size:20"`
 	IsTableCreated    bool      `json:"is_table_created" gorm:"not null;default:false"`
+	IsViewCreated     bool      `json:"is_view_created" gorm:"not null;default:false"`
+	ViewSQL           string    `json:"view_sql" gorm:"type:text"`
 	InterfaceConfig   JSONB     `json:"interface_config" gorm:"type:jsonb"`
 	ParseConfig       JSONB     `json:"parse_config" gorm:"type:jsonb"`
 	TableFieldsConfig JSONB     `json:"table_fields_config" gorm:"type:jsonb"`
+	ViewConfig        JSONB     `json:"view_config" gorm:"type:jsonb"`
 	// 关联关系
 	ThematicLibrary ThematicLibrary `json:"thematic_library,omitempty" gorm:"foreignKey:LibraryID"`
 }

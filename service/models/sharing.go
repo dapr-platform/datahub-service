@@ -20,18 +20,23 @@ import (
 
 // ApiApplication API接入应用模型
 type ApiApplication struct {
-	ID            string    `gorm:"type:uuid;primary_key" json:"id"`
-	Name          string    `gorm:"not null;unique" json:"name"`
-	AppKey        string    `gorm:"not null;unique" json:"app_key"`
-	AppSecretHash string    `gorm:"not null" json:"app_secret_hash"`
-	Description   *string   `json:"description"`
-	ContactPerson string    `gorm:"not null" json:"contact_person"`
-	ContactEmail  string    `gorm:"not null" json:"contact_email"`
-	Status        string    `gorm:"not null;default:'active'" json:"status"` // active/inactive
-	CreatedAt     time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
-	CreatedBy     string    `gorm:"not null;default:'system';size:100" json:"created_by"`
-	UpdatedAt     time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
-	UpdatedBy     string    `gorm:"not null;default:'system';size:100" json:"updated_by"`
+	ID                string    `gorm:"type:uuid;primary_key" json:"id"`
+	Name              string    `gorm:"not null;unique" json:"name"`
+	Path              string    `gorm:"not null;unique" json:"path"` // 应用访问路径，例如 "user-center"
+	ThematicLibraryID string    `gorm:"not null" json:"thematic_library_id"`
+	Description       *string   `json:"description"`
+	ContactPerson     string    `gorm:"not null" json:"contact_person"`
+	ContactPhone      string    `gorm:"not null" json:"contact_phone"`
+	Status            string    `gorm:"not null;default:'active'" json:"status"` // active/inactive
+	CreatedAt         time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	CreatedBy         string    `gorm:"not null;default:'system';size:100" json:"created_by"`
+	UpdatedAt         time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	UpdatedBy         string    `gorm:"not null;default:'system';size:100" json:"updated_by"`
+
+	// 关联关系
+	ThematicLibrary ThematicLibrary `gorm:"foreignKey:ThematicLibraryID" json:"thematic_library,omitempty"`
+	ApiKeys         []ApiKey        `gorm:"foreignKey:ApiApplicationID" json:"api_keys,omitempty"`
+	ApiInterfaces   []ApiInterface  `gorm:"foreignKey:ApiApplicationID" json:"api_interfaces,omitempty"`
 }
 
 // BeforeCreate 创建前钩子
@@ -52,6 +57,58 @@ func (a *ApiApplication) BeforeCreate(tx *gorm.DB) error {
 func (a *ApiApplication) BeforeUpdate(tx *gorm.DB) error {
 	if a.UpdatedBy == "" {
 		a.UpdatedBy = "system"
+	}
+	return nil
+}
+
+// ApiKey API密钥模型 - 用于实现一个应用可有多个Key
+type ApiKey struct {
+	ID               string         `gorm:"type:uuid;primary_key" json:"id"`
+	ApiApplicationID string         `gorm:"not null;index" json:"api_application_id"`
+	KeyPrefix        string         `gorm:"not null;size:8" json:"key_prefix"` // Key的前缀，用于快速识别
+	KeyValueHash     string         `gorm:"not null;unique" json:"-"`          // 存储Hash后的Key值
+	Description      string         `json:"description"`
+	Status           string         `gorm:"not null;default:'active'" json:"status"` // active, inactive, revoked
+	ExpiresAt        *time.Time     `json:"expires_at"`
+	LastUsedAt       *time.Time     `json:"last_used_at"`
+	UsageCount       int64          `gorm:"default:0" json:"usage_count"`
+	CreatedBy        string         `gorm:"size:100" json:"created_by"`
+	CreatedAt        time.Time      `json:"created_at"`
+	ApiApplication   ApiApplication `gorm:"foreignKey:ApiApplicationID" json:"api_application,omitempty"`
+}
+
+// BeforeCreate 创建前钩子
+func (ak *ApiKey) BeforeCreate(tx *gorm.DB) error {
+	if ak.ID == "" {
+		ak.ID = uuid.New().String()
+	}
+	if ak.CreatedBy == "" {
+		ak.CreatedBy = "system"
+	}
+	return nil
+}
+
+// ApiInterface API接口模型
+type ApiInterface struct {
+	ID                  string            `gorm:"type:uuid;primary_key" json:"id"`
+	ApiApplicationID    string            `gorm:"not null;index" json:"api_application_id"`
+	ThematicInterfaceID string            `gorm:"not null;index" json:"thematic_interface_id"`
+	Path                string            `gorm:"not null;unique" json:"path"` // 对外暴露的路径，例如 "users"
+	Description         string            `json:"description"`
+	Status              string            `gorm:"not null;default:'active'" json:"status"` // active, inactive
+	CreatedAt           time.Time         `json:"created_at"`
+	CreatedBy           string            `gorm:"size:100" json:"created_by"`
+	ApiApplication      ApiApplication    `gorm:"foreignKey:ApiApplicationID" json:"api_application,omitempty"`
+	ThematicInterface   ThematicInterface `gorm:"foreignKey:ThematicInterfaceID" json:"thematic_interface,omitempty"`
+}
+
+// BeforeCreate 创建前钩子
+func (ai *ApiInterface) BeforeCreate(tx *gorm.DB) error {
+	if ai.ID == "" {
+		ai.ID = uuid.New().String()
+	}
+	if ai.CreatedBy == "" {
+		ai.CreatedBy = "system"
 	}
 	return nil
 }

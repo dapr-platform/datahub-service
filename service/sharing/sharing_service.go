@@ -35,22 +35,21 @@ func NewSharingService(db *gorm.DB) *SharingService {
 // === API应用管理 ===
 
 // CreateApiApplication 创建API应用
-func (s *SharingService) CreateApiApplication(app *models.ApiApplication, appSecret string) error {
-	// 生成应用密钥
-	if app.AppKey == "" {
-		appKey, err := generateRandomString(32)
-		if err != nil {
-			return err
-		}
-		app.AppKey = appKey
+func (s *SharingService) CreateApiApplication(app *models.ApiApplication) error {
+	// 验证主题库是否存在
+	var thematicLibrary models.ThematicLibrary
+	if err := s.db.First(&thematicLibrary, "id = ?", app.ThematicLibraryID).Error; err != nil {
+		return errors.New("主题库不存在")
 	}
 
-	// 加密应用密钥
-	hashedSecret, err := bcrypt.GenerateFromPassword([]byte(appSecret), bcrypt.DefaultCost)
-	if err != nil {
+	// 验证应用路径唯一性
+	var count int64
+	if err := s.db.Model(&models.ApiApplication{}).Where("path = ?", app.Path).Count(&count).Error; err != nil {
 		return err
 	}
-	app.AppSecretHash = string(hashedSecret)
+	if count > 0 {
+		return errors.New("应用路径已存在")
+	}
 
 	return s.db.Create(app).Error
 }
@@ -87,15 +86,6 @@ func (s *SharingService) GetApiApplicationByID(id string) (*models.ApiApplicatio
 	return &app, nil
 }
 
-// GetApiApplicationByAppKey 根据AppKey获取API应用
-func (s *SharingService) GetApiApplicationByAppKey(appKey string) (*models.ApiApplication, error) {
-	var app models.ApiApplication
-	if err := s.db.First(&app, "app_key = ?", appKey).Error; err != nil {
-		return nil, err
-	}
-	return &app, nil
-}
-
 // UpdateApiApplication 更新API应用
 func (s *SharingService) UpdateApiApplication(id string, updates map[string]interface{}) error {
 	return s.db.Model(&models.ApiApplication{}).Where("id = ?", id).Updates(updates).Error
@@ -106,22 +96,190 @@ func (s *SharingService) DeleteApiApplication(id string) error {
 	return s.db.Delete(&models.ApiApplication{}, "id = ?", id).Error
 }
 
-// VerifyApiApplication 验证API应用
-func (s *SharingService) VerifyApiApplication(appKey, appSecret string) (*models.ApiApplication, error) {
-	app, err := s.GetApiApplicationByAppKey(appKey)
+// === ApiKey管理 ===
+
+// CreateApiKey 为指定应用生成一个新的ApiKey
+func (s *SharingService) CreateApiKey(appID, description string, expiresAt *time.Time) (*models.ApiKey, string, error) {
+	// 验证应用是否存在
+	var app models.ApiApplication
+	if err := s.db.First(&app, "id = ?", appID).Error; err != nil {
+		return nil, "", errors.New("应用不存在")
+	}
+
+	// 生成API Key
+	fullKey, err := generateRandomString(64) // 生成32字节的随机字符串，转为64字符的hex
 	if err != nil {
+		return nil, "", err
+	}
+
+	// 生成前缀（取前8个字符）
+	keyPrefix := fullKey[:8]
+
+	// 对完整Key进行哈希
+	hashedKey, err := bcrypt.GenerateFromPassword([]byte(fullKey), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, "", err
+	}
+
+	apiKey := &models.ApiKey{
+		ApiApplicationID: appID,
+		KeyPrefix:        keyPrefix,
+		KeyValueHash:     string(hashedKey),
+		Description:      description,
+		ExpiresAt:        expiresAt,
+		Status:           "active",
+	}
+
+	if err := s.db.Create(apiKey).Error; err != nil {
+		return nil, "", err
+	}
+
+	// 返回完整的Key值（仅此一次），数据库存储其Hash
+	return apiKey, fullKey, nil
+}
+
+// GetApiKeys 获取某个应用下的所有ApiKey信息（不包含Key本身）
+func (s *SharingService) GetApiKeys(appID string) ([]models.ApiKey, error) {
+	var keys []models.ApiKey
+	if err := s.db.Where("api_application_id = ?", appID).Find(&keys).Error; err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
+// GetApiKeyByID 根据ID获取ApiKey
+func (s *SharingService) GetApiKeyByID(keyID string) (*models.ApiKey, error) {
+	var key models.ApiKey
+	if err := s.db.Preload("ApiApplication").First(&key, "id = ?", keyID).Error; err != nil {
+		return nil, err
+	}
+	return &key, nil
+}
+
+// UpdateApiKey 更新ApiKey信息（如描述、状态）
+func (s *SharingService) UpdateApiKey(keyID string, updates map[string]interface{}) error {
+	return s.db.Model(&models.ApiKey{}).Where("id = ?", keyID).Updates(updates).Error
+}
+
+// DeleteApiKey 吊销（删除）一个ApiKey
+func (s *SharingService) DeleteApiKey(keyID string) error {
+	return s.db.Delete(&models.ApiKey{}, "id = ?", keyID).Error
+}
+
+// VerifyApiKey 验证API Key
+func (s *SharingService) VerifyApiKey(keyValue string) (*models.ApiKey, error) {
+	if len(keyValue) < 8 {
+		return nil, errors.New("无效的API Key格式")
+	}
+
+	keyPrefix := keyValue[:8]
+
+	var keys []models.ApiKey
+	if err := s.db.Where("key_prefix = ? AND status = 'active'", keyPrefix).Find(&keys).Error; err != nil {
 		return nil, err
 	}
 
-	if app.Status != "active" {
-		return nil, errors.New("应用已被禁用")
+	// 遍历所有匹配前缀的Key，验证完整Key
+	for _, key := range keys {
+		if err := bcrypt.CompareHashAndPassword([]byte(key.KeyValueHash), []byte(keyValue)); err == nil {
+			// 检查是否过期
+			if key.ExpiresAt != nil && key.ExpiresAt.Before(time.Now()) {
+				return nil, errors.New("API Key已过期")
+			}
+
+			// 更新最后使用时间和使用次数
+			s.db.Model(&key).Updates(map[string]interface{}{
+				"last_used_at": time.Now(),
+				"usage_count":  key.UsageCount + 1,
+			})
+
+			return &key, nil
+		}
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(app.AppSecretHash), []byte(appSecret)); err != nil {
-		return nil, errors.New("应用密钥验证失败")
+	return nil, errors.New("无效的API Key")
+}
+
+// === ApiInterface管理 ===
+
+// CreateApiInterface 创建一个共享接口
+func (s *SharingService) CreateApiInterface(apiInterface *models.ApiInterface) error {
+	// 验证应用是否存在
+	var app models.ApiApplication
+	if err := s.db.First(&app, "id = ?", apiInterface.ApiApplicationID).Error; err != nil {
+		return errors.New("应用不存在")
 	}
 
-	return app, nil
+	// 验证主题接口是否存在
+	var thematicInterface models.ThematicInterface
+	if err := s.db.First(&thematicInterface, "id = ?", apiInterface.ThematicInterfaceID).Error; err != nil {
+		return errors.New("主题接口不存在")
+	}
+
+	// 验证路径唯一性
+	var count int64
+	if err := s.db.Model(&models.ApiInterface{}).Where("path = ?", apiInterface.Path).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return errors.New("接口路径已存在")
+	}
+
+	return s.db.Create(apiInterface).Error
+}
+
+// GetApiInterfaces 查询共享接口列表，可按 api_application_id 过滤
+func (s *SharingService) GetApiInterfaces(appID string) ([]models.ApiInterface, error) {
+	var interfaces []models.ApiInterface
+	query := s.db.Preload("ApiApplication").Preload("ThematicInterface")
+
+	if appID != "" {
+		query = query.Where("api_application_id = ?", appID)
+	}
+
+	if err := query.Find(&interfaces).Error; err != nil {
+		return nil, err
+	}
+	return interfaces, nil
+}
+
+// GetApiInterfaceByID 根据ID获取ApiInterface
+func (s *SharingService) GetApiInterfaceByID(id string) (*models.ApiInterface, error) {
+	var apiInterface models.ApiInterface
+	if err := s.db.Preload("ApiApplication").Preload("ThematicInterface").First(&apiInterface, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &apiInterface, nil
+}
+
+// GetApiInterfaceByAppPathAndInterfacePath 根据应用路径和接口路径获取ApiInterface
+func (s *SharingService) GetApiInterfaceByAppPathAndInterfacePath(appPath, interfacePath string) (*models.ApiInterface, error) {
+	var apiInterface models.ApiInterface
+	if err := s.db.Joins("JOIN api_applications ON api_interfaces.api_application_id = api_applications.id").
+		Where("api_applications.path = ? AND api_interfaces.path = ? AND api_interfaces.status = 'active' AND api_applications.status = 'active'", appPath, interfacePath).
+		Preload("ApiApplication").Preload("ApiApplication.ThematicLibrary").Preload("ThematicInterface").
+		First(&apiInterface).Error; err != nil {
+		return nil, err
+	}
+	return &apiInterface, nil
+}
+
+// GetApiInterfaceBySchemaAndPath 根据主题库Schema和路径获取ApiInterface（保留向后兼容）
+func (s *SharingService) GetApiInterfaceBySchemaAndPath(schema, path string) (*models.ApiInterface, error) {
+	var apiInterface models.ApiInterface
+	if err := s.db.Joins("JOIN api_applications ON api_interfaces.api_application_id = api_applications.id").
+		Joins("JOIN thematic_libraries ON api_applications.thematic_library_id = thematic_libraries.id").
+		Where("thematic_libraries.name_en = ? AND api_interfaces.path = ? AND api_interfaces.status = 'active'", schema, path).
+		Preload("ApiApplication").Preload("ApiApplication.ThematicLibrary").Preload("ThematicInterface").
+		First(&apiInterface).Error; err != nil {
+		return nil, err
+	}
+	return &apiInterface, nil
+}
+
+// DeleteApiInterface 删除一个共享接口
+func (s *SharingService) DeleteApiInterface(id string) error {
+	return s.db.Delete(&models.ApiInterface{}, "id = ?", id).Error
 }
 
 // === API限流管理 ===

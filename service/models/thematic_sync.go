@@ -27,6 +27,10 @@ type ThematicSyncTask struct {
 	SourceLibraries  JSONB `json:"source_libraries" gorm:"type:jsonb"`  // 源基础库列表
 	SourceInterfaces JSONB `json:"source_interfaces" gorm:"type:jsonb"` // 源接口列表
 
+	// SQL数据源配置 - 如果配置了SQL，则优先使用SQL获取数据
+	DataSourceSQL  JSONB `json:"data_source_sql" gorm:"type:jsonb"`  // SQL数据源配置
+	SQLQueryConfig JSONB `json:"sql_query_config" gorm:"type:jsonb"` // SQL查询配置（参数、超时等）
+
 	// 汇聚配置
 	AggregationConfig JSONB `json:"aggregation_config" gorm:"type:jsonb"`  // 汇聚配置
 	KeyMatchingRules  JSONB `json:"key_matching_rules" gorm:"type:jsonb"`  // 主键匹配规则
