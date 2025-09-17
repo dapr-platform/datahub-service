@@ -57,3 +57,35 @@ func DeleteSchema(db *gorm.DB, schemaName string) error {
 	log.Printf("成功删除 schema: %s", schemaName)
 	return nil
 }
+
+// UpdateUserSchemas 更新用户的schema权限
+func UpdateUserSchemas(db *gorm.DB, userName, newSchemas string) error {
+	log.Printf("开始更新用户 %s 的 schema 权限: %s", userName, newSchemas)
+
+	// 调用 postgrest.update_user_schemas 函数
+	sql := `SELECT postgrest.update_user_schemas($1, $2)`
+
+	var result string
+	if err := db.Raw(sql, userName, newSchemas).Scan(&result).Error; err != nil {
+		return fmt.Errorf("调用 postgrest.update_user_schemas 失败: %v", err)
+	}
+
+	log.Printf("用户 schema 权限更新结果: %s", result)
+	return nil
+}
+
+// DeletePostgRESTUser 调用PostgREST的delete_user函数删除用户
+func DeletePostgRESTUser(db *gorm.DB, userName string) error {
+	log.Printf("开始删除 PostgREST 用户: %s", userName)
+
+	// 调用 postgrest.delete_user 函数
+	sql := `SELECT postgrest.delete_user($1, true)`
+
+	var result string
+	if err := db.Raw(sql, userName).Scan(&result).Error; err != nil {
+		return fmt.Errorf("调用 postgrest.delete_user 失败: %v", err)
+	}
+
+	log.Printf("PostgREST 用户删除结果: %s", result)
+	return nil
+}

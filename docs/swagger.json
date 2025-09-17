@@ -2130,6 +2130,54 @@
                 }
             }
         },
+        "/api/v1/share/": {
+            "get": {
+                "description": "根据API Key获取该Key所属的API应用详细信息以及该应用下的所有接口信息，包括主题接口的字段定义",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "通过API Key获取API应用信息和接口列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer Token格式的API Key",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {}
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "应用不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/share/{app_path}/{interface_path}": {
             "get": {
                 "description": "代理对PostgREST的查询请求，实现统一的鉴权、日志、限流和路由功能，仅支持数据查询操作",
@@ -2251,6 +2299,61 @@
                     },
                     "429": {
                         "description": "请求过于频繁",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/{app_path}": {
+            "get": {
+                "description": "根据应用路径获取API应用的详细信息以及该应用下的所有接口信息，包括主题接口的字段定义",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "获取API应用信息和接口列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用路径",
+                        "name": "app_path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer Token格式的API Key",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {}
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "应用不存在",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }

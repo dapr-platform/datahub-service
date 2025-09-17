@@ -29,11 +29,13 @@ func TestPostgRESTClient_BasicFunctionality(t *testing.T) {
 	if dbUser == "" {
 		dbUser = "postgres"
 	}
+	dbUser = "admin"
 
 	dbPassword := os.Getenv("DB_PASSWORD")
 	if dbPassword == "" {
 		dbPassword = "things2024"
 	}
+	dbPassword="things2024"
 
 	t.Logf("测试配置: URL=%s, User=%s", postgrestURL, dbUser)
 

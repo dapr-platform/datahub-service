@@ -375,14 +375,22 @@ func InitRoute(r *chi.Mux) {
 	})
 
 	// 数据访问代理API（只读查询）
-	r.Route("/api/v1/share", func(r chi.Router) {
+	r.Route("/api/v1", func(r chi.Router) {
 		dataProxyController := controllers.NewDataProxyController(sharing.NewSharingService(service.DB))
 
-		// 只支持GET和HEAD方法的代理请求，URL格式：/api/v1/share/{app_path}/{interface_path}
-		r.Get("/{app_path}/{interface_path}", dataProxyController.ProxyDataAccess)
-		r.Head("/{app_path}/{interface_path}", dataProxyController.ProxyDataAccess)
-		r.Get("/{app_path}/{interface_path}/*", dataProxyController.ProxyDataAccess)
-		r.Head("/{app_path}/{interface_path}/*", dataProxyController.ProxyDataAccess)
+		// 数据代理接口，URL格式：/api/v1/share/{app_path}/{interface_path}
+		r.Route("/share", func(r chi.Router) {
+			// 通过API Key获取应用信息和接口列表，URL格式：/api/v1/share/
+			r.Get("/", dataProxyController.GetApiApplicationByKey)
+			// 获取应用信息和接口列表，URL格式：/api/v1/share/{app_path}
+			r.Get("/{app_path}", dataProxyController.GetApplicationInfo)
+
+			// 只支持GET和HEAD方法的代理请求
+			r.Get("/{app_path}/{interface_path}", dataProxyController.ProxyDataAccess)
+			r.Head("/{app_path}/{interface_path}", dataProxyController.ProxyDataAccess)
+			r.Get("/{app_path}/{interface_path}/*", dataProxyController.ProxyDataAccess)
+			r.Head("/{app_path}/{interface_path}/*", dataProxyController.ProxyDataAccess)
+		})
 	})
 
 	// 监控管理

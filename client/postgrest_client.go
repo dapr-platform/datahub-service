@@ -28,7 +28,7 @@ type PostgRESTClient struct {
 	username   string
 	password   string
 	httpClient *http.Client
-
+	schema     string
 	// Token管理
 	accessToken  string
 	refreshToken string
@@ -58,28 +58,48 @@ type ClientStats struct {
 
 // TokenResponse Token响应结构
 type TokenResponse struct {
-	Success      bool   `json:"success"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
-	UserInfo     struct {
-		Username    string `json:"username"`
-		Email       string `json:"email"`
-		FullName    string `json:"full_name"`
-		DisplayName string `json:"display_name"`
+	Success          bool     `json:"success"`
+	Message          string   `json:"message"`
+	AccessToken      string   `json:"access_token"`
+	RefreshToken     string   `json:"refresh_token"`
+	AccessExpiresIn  int      `json:"access_expires_in"`
+	RefreshExpiresIn int      `json:"refresh_expires_in"`
+	Username         string   `json:"username"`
+	Roles            []string `json:"roles"`
+	Permissions      []string `json:"permissions"`
+	IsSuperuser      bool     `json:"is_superuser"`
+	UserInfo         struct {
+		Username    string    `json:"username"`
+		Email       string    `json:"email"`
+		FullName    string    `json:"full_name"`
+		DisplayName string    `json:"display_name"`
+		IsActive    bool      `json:"is_active"`
+		CreatedAt   time.Time `json:"created_at"`
+		UpdatedAt   time.Time `json:"updated_at"`
 	} `json:"user_info"`
-	Roles       []string `json:"roles"`
-	Permissions []string `json:"permissions"`
 }
 
 // RefreshTokenResponse 刷新Token响应结构
 type RefreshTokenResponse struct {
-	Success      bool   `json:"success"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
+	Success          bool     `json:"success"`
+	Message          string   `json:"message"`
+	AccessToken      string   `json:"access_token"`
+	RefreshToken     string   `json:"refresh_token,omitempty"` // 可选，仅在轮换时返回
+	AccessExpiresIn  int      `json:"access_expires_in"`
+	RefreshExpiresIn int      `json:"refresh_expires_in,omitempty"` // 可选，仅在轮换时返回
+	Username         string   `json:"username"`
+	Roles            []string `json:"roles"`
+	Permissions      []string `json:"permissions"`
+	IsSuperuser      bool     `json:"is_superuser"`
+	UserInfo         struct {
+		Username    string    `json:"username"`
+		Email       string    `json:"email"`
+		FullName    string    `json:"full_name"`
+		DisplayName string    `json:"display_name"`
+		IsActive    bool      `json:"is_active"`
+		CreatedAt   time.Time `json:"created_at"`
+		UpdatedAt   time.Time `json:"updated_at"`
+	} `json:"user_info"`
 }
 
 // PostgRESTConfig PostgREST客户端配置
@@ -90,6 +110,7 @@ type PostgRESTConfig struct {
 	Timeout         time.Duration `json:"timeout"`          // HTTP超时时间
 	RefreshInterval time.Duration `json:"refresh_interval"` // Token刷新间隔
 	MaxRetries      int           `json:"max_retries"`      // 最大重试次数
+	Schema          string        `json:"schema"`           // 数据库模式
 }
 
 // NewPostgRESTClient 创建新的PostgREST客户端
@@ -106,6 +127,7 @@ func NewPostgRESTClient(config *PostgRESTConfig) *PostgRESTClient {
 		ctx:    ctx,
 		cancel: cancel,
 		stats:  &ClientStats{},
+		schema: config.Schema,
 	}
 
 	// 设置默认刷新间隔（Token过期前5分钟刷新）
@@ -157,7 +179,6 @@ func (c *PostgRESTClient) getInitialToken() error {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("Token请求失败，状态码: %d, 响应: %s", resp.StatusCode, string(body))
 	}
-	
 
 	var tokenResp TokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
@@ -173,7 +194,7 @@ func (c *PostgRESTClient) getInitialToken() error {
 	c.tokenMutex.Lock()
 	c.accessToken = tokenResp.AccessToken
 	c.refreshToken = tokenResp.RefreshToken
-	c.tokenExpiry = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+	c.tokenExpiry = time.Now().Add(time.Duration(tokenResp.AccessExpiresIn) * time.Second)
 	c.tokenMutex.Unlock()
 
 	// 更新统计信息
@@ -251,8 +272,11 @@ func (c *PostgRESTClient) refreshAccessToken() error {
 	// 更新Token信息
 	c.tokenMutex.Lock()
 	c.accessToken = refreshResp.AccessToken
-	c.refreshToken = refreshResp.RefreshToken
-	c.tokenExpiry = time.Now().Add(time.Duration(refreshResp.ExpiresIn) * time.Second)
+	// 只有在轮换时才更新refresh token
+	if refreshResp.RefreshToken != "" {
+		c.refreshToken = refreshResp.RefreshToken
+	}
+	c.tokenExpiry = time.Now().Add(time.Duration(refreshResp.AccessExpiresIn) * time.Second)
 	c.tokenMutex.Unlock()
 
 	// 更新统计信息
@@ -323,13 +347,16 @@ func (c *PostgRESTClient) MakeRequest(method, path string, body []byte, headers 
 	}
 
 	// 设置PostgREST必要的头
-	req.Header.Set("Accept-Profile", "postgrest")
+	req.Header.Set("Accept-Profile", c.schema)
 	if method != "GET" && method != "HEAD" {
-		req.Header.Set("Content-Profile", "postgrest")
+		req.Header.Set("Content-Profile", c.schema)
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+
+	// 设置Accept头，确保返回JSON格式
+	req.Header.Set("Accept", "application/json")
 
 	// 设置自定义头
 	for key, value := range headers {
@@ -373,6 +400,27 @@ func (c *PostgRESTClient) ProxyRequest(method, tableName, queryParams string, bo
 	}
 
 	return c.MakeRequest(method, path, body, additionalHeaders)
+}
+
+// CheckSchemaAccess 检查当前用户对指定schema的访问权限
+func (c *PostgRESTClient) CheckSchemaAccess(schemaName string) error {
+	// 构建权限检查查询
+	query := fmt.Sprintf("select=schema_name&schema_name=eq.%s", schemaName)
+
+	resp, err := c.MakeRequest("GET", "/information_schema.schemata?"+query, nil, nil)
+	if err != nil {
+		return fmt.Errorf("检查schema权限失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 403 {
+		return fmt.Errorf("没有访问schema '%s' 的权限", schemaName)
+	} else if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("权限检查失败，状态码: %d, 响应: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }
 
 // GetAccessToken 获取当前访问Token

@@ -13,6 +13,7 @@ package sharing
 
 import (
 	"crypto/rand"
+	"datahub-service/service/database"
 	"datahub-service/service/models"
 	"encoding/hex"
 	"errors"
@@ -86,6 +87,45 @@ func (s *SharingService) GetApiApplicationByID(id string) (*models.ApiApplicatio
 	return &app, nil
 }
 
+// GetApiApplicationByPath 根据路径获取API应用及其接口信息（包括主题接口字段定义）
+func (s *SharingService) GetApiApplicationByPath(path string) (*models.ApiApplication, error) {
+	var app models.ApiApplication
+
+	// 预加载所有相关信息：主题库、API接口、主题接口（包含字段配置）
+	err := s.db.
+		Preload("ThematicLibrary").
+		Preload("ApiInterfaces", "status = 'active'").
+		Preload("ApiInterfaces.ThematicInterface").
+		Where("path = ? AND status = 'active'", path).
+		First(&app).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &app, nil
+}
+
+// GetApiApplicationByApiKey 根据API Key ID获取API应用及其接口信息（包括主题接口字段定义）
+func (s *SharingService) GetApiApplicationByApiKey(apiKeyID string) (*models.ApiApplication, error) {
+	var app models.ApiApplication
+
+	// 通过API Key ID查找对应的应用，并预加载所有相关信息
+	err := s.db.
+		Joins("JOIN api_keys ON api_applications.id = api_keys.api_application_id").
+		Where("api_keys.id = ? AND api_keys.status = 'active' AND api_applications.status = 'active'", apiKeyID).
+		Preload("ThematicLibrary").
+		Preload("ApiInterfaces", "status = 'active'").
+		Preload("ApiInterfaces.ThematicInterface").
+		First(&app).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &app, nil
+}
+
 // UpdateApiApplication 更新API应用
 func (s *SharingService) UpdateApiApplication(id string, updates map[string]interface{}) error {
 	return s.db.Model(&models.ApiApplication{}).Where("id = ?", id).Updates(updates).Error
@@ -100,9 +140,9 @@ func (s *SharingService) DeleteApiApplication(id string) error {
 
 // CreateApiKey 为指定应用生成一个新的ApiKey
 func (s *SharingService) CreateApiKey(appID, description string, expiresAt *time.Time) (*models.ApiKey, string, error) {
-	// 验证应用是否存在
+	// 验证应用是否存在并获取关联的主题库信息
 	var app models.ApiApplication
-	if err := s.db.First(&app, "id = ?", appID).Error; err != nil {
+	if err := s.db.Preload("ThematicLibrary").First(&app, "id = ?", appID).Error; err != nil {
 		return nil, "", errors.New("应用不存在")
 	}
 
@@ -130,7 +170,20 @@ func (s *SharingService) CreateApiKey(appID, description string, expiresAt *time
 		Status:           "active",
 	}
 
-	if err := s.db.Create(apiKey).Error; err != nil {
+	// 开始数据库事务
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return nil, "", tx.Error
+	}
+
+	// 创建API Key记录
+	if err := tx.Create(apiKey).Error; err != nil {
+		tx.Rollback()
+		return nil, "", err
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
 		return nil, "", err
 	}
 
@@ -163,7 +216,26 @@ func (s *SharingService) UpdateApiKey(keyID string, updates map[string]interface
 
 // DeleteApiKey 吊销（删除）一个ApiKey
 func (s *SharingService) DeleteApiKey(keyID string) error {
-	return s.db.Delete(&models.ApiKey{}, "id = ?", keyID).Error
+	// 开始数据库事务
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	// 删除API Key记录
+	if err := tx.Delete(&models.ApiKey{}, "id = ?", keyID).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 删除对应的PostgREST用户（使用keyID作为用户名）
+	if err := database.DeletePostgRESTUser(tx, keyID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 提交事务
+	return tx.Commit().Error
 }
 
 // VerifyApiKey 验证API Key
@@ -198,6 +270,28 @@ func (s *SharingService) VerifyApiKey(keyValue string) (*models.ApiKey, error) {
 	}
 
 	return nil, errors.New("无效的API Key")
+}
+
+// GetPostgRESTTokenByApiKey 通过API Key获取PostgREST Token
+func (s *SharingService) GetPostgRESTTokenByApiKey(keyValue string) (string, error) {
+	// 首先验证API Key
+	apiKey, err := s.VerifyApiKey(keyValue)
+	if err != nil {
+		return "", err
+	}
+
+	// 使用API Key的ID作为用户名和密码调用PostgREST的get_token函数
+	userName := apiKey.ID
+	password := apiKey.ID
+
+	sql := `SELECT postgrest.get_token($1, $2)`
+
+	var result string
+	if err := s.db.Raw(sql, userName, password).Scan(&result).Error; err != nil {
+		return "", err
+	}
+
+	return result, nil
 }
 
 // === ApiInterface管理 ===
