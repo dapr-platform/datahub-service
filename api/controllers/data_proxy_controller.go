@@ -212,7 +212,7 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 	// 4. 根据应用路径和接口路径查询ApiInterface
 	apiInterface, err := c.sharingService.GetApiInterfaceByAppPathAndInterfacePath(appPath, interfacePath)
 	if err != nil {
-		c.logApiUsage(r, apiKey.ApiApplicationID, "", http.StatusNotFound, time.Since(startTime), "接口不存在或已禁用")
+		c.logApiUsage(r, "", apiKey.ID, http.StatusNotFound, time.Since(startTime), "接口不存在或已禁用")
 		render.JSON(w, r, APIResponse{
 			Status: http.StatusNotFound,
 			Msg:    "接口不存在或已禁用",
@@ -220,12 +220,13 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// 5. 验证API Key是否属于该接口的应用
-	if apiKey.ApiApplicationID != apiInterface.ApiApplicationID {
-		c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusUnauthorized, time.Since(startTime), "API Key与接口应用不匹配")
+	// 5. 验证API Key是否可以访问该接口的应用
+	hasAccess, err := c.verifyApiKeyAccess(apiKey.ID, apiInterface.ApiApplicationID)
+	if err != nil || !hasAccess {
+		c.logApiUsage(r, apiInterface.ApiApplicationID, apiKey.ID, http.StatusUnauthorized, time.Since(startTime), "API Key无权访问该应用接口")
 		render.JSON(w, r, APIResponse{
 			Status: http.StatusUnauthorized,
-			Msg:    "API Key与接口应用不匹配",
+			Msg:    "API Key无权访问该应用接口",
 		})
 		return
 	}
@@ -233,7 +234,7 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 	// 6. 获取主题库schema和主题接口信息（table_name）
 	schema := apiInterface.ApiApplication.ThematicLibrary.NameEn
 	if schema == "" {
-		c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "主题库英文名为空")
+		c.logApiUsage(r, apiInterface.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "主题库英文名为空")
 		render.JSON(w, r, APIResponse{
 			Status: http.StatusInternalServerError,
 			Msg:    "主题库配置错误",
@@ -243,7 +244,7 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 
 	tableName := apiInterface.ThematicInterface.NameEn
 	if tableName == "" {
-		c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "主题接口英文名为空")
+		c.logApiUsage(r, apiInterface.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "主题接口英文名为空")
 		render.JSON(w, r, APIResponse{
 			Status: http.StatusInternalServerError,
 			Msg:    "主题接口配置错误",
@@ -256,7 +257,7 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 	if r.Body != nil {
 		bodyBytes, err = io.ReadAll(r.Body)
 		if err != nil {
-			c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "读取请求体失败")
+			c.logApiUsage(r, apiInterface.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "读取请求体失败")
 			render.JSON(w, r, APIResponse{
 				Status: http.StatusInternalServerError,
 				Msg:    "读取请求体失败",
@@ -289,7 +290,7 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 	// 11. 获取或创建专用的PostgREST客户端
 	postgrestClient, err := c.getOrCreatePostgRESTClient(apiKey.ID, schema)
 	if err != nil {
-		c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "获取PostgREST客户端失败: "+err.Error())
+		c.logApiUsage(r, apiInterface.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "获取PostgREST客户端失败: "+err.Error())
 		render.JSON(w, r, APIResponse{
 			Status: http.StatusInternalServerError,
 			Msg:    "服务初始化失败",
@@ -304,7 +305,7 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 		if strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "unauthorized") {
 			c.removePostgRESTClient(apiKey.ID)
 		}
-		c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "代理请求失败: "+err.Error())
+		c.logApiUsage(r, apiInterface.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "代理请求失败: "+err.Error())
 		render.JSON(w, r, APIResponse{
 			Status: http.StatusInternalServerError,
 			Msg:    "代理请求失败",
@@ -327,12 +328,12 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 	responseSize, err := io.Copy(w, proxyResp.Body)
 	if err != nil {
 		// 日志记录错误，但不能再返回HTTP响应了
-		c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, proxyResp.StatusCode, time.Since(startTime), "复制响应体失败: "+err.Error())
+		c.logApiUsage(r, apiInterface.ApiApplicationID, apiKey.ID, proxyResp.StatusCode, time.Since(startTime), "复制响应体失败: "+err.Error())
 		return
 	}
 
 	// 16. 记录成功的API使用日志
-	c.logApiUsageWithSize(r, apiKey.ApiApplicationID, apiKey.ID, proxyResp.StatusCode, time.Since(startTime), "", int64(len(bodyBytes)), responseSize)
+	c.logApiUsageWithSize(r, apiInterface.ApiApplicationID, apiKey.ID, proxyResp.StatusCode, time.Since(startTime), "", int64(len(bodyBytes)), responseSize)
 }
 
 // logApiUsage 记录API使用日志
@@ -526,6 +527,24 @@ func convertToSimplifiedApplicationInfo(app *models.ApiApplication) *SimplifiedA
 	return simplified
 }
 
+// verifyApiKeyAccess 验证API Key是否可以访问指定的应用
+func (c *DataProxyController) verifyApiKeyAccess(apiKeyID, appID string) (bool, error) {
+	// 通过API Key获取可访问的应用列表
+	apps, err := c.sharingService.GetApiApplicationsByApiKey(apiKeyID)
+	if err != nil {
+		return false, err
+	}
+
+	// 检查目标应用是否在可访问列表中
+	for _, app := range apps {
+		if app.ID == appID {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // GetApplicationInfo 获取应用信息和相关接口信息
 // @Summary 获取API应用信息和接口列表
 // @Description 根据应用路径获取API应用的详细信息以及该应用下的所有接口信息，包括主题接口的字段定义
@@ -598,29 +617,19 @@ func (c *DataProxyController) GetApplicationInfo(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// 5. 根据应用路径获取API应用信息及其接口信息
-	appInfo, err := c.sharingService.GetApiApplicationByPath(appPath)
+	// 5. 根据API Key和应用路径获取API应用信息及其接口信息
+	appInfo, err := c.sharingService.GetApiApplicationByApiKeyAndPath(apiKey.ID, appPath)
 	if err != nil {
-		c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusNotFound, time.Since(startTime), "应用不存在或已禁用")
+		c.logApiUsage(r, "", apiKey.ID, http.StatusNotFound, time.Since(startTime), "应用不存在、已禁用或API Key无权访问")
 		render.JSON(w, r, APIResponse{
 			Status: http.StatusNotFound,
-			Msg:    "应用不存在或已禁用",
+			Msg:    "应用不存在、已禁用或API Key无权访问",
 		})
 		return
 	}
 
-	// 6. 验证API Key是否属于该应用
-	if apiKey.ApiApplicationID != appInfo.ID {
-		c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusUnauthorized, time.Since(startTime), "API Key与应用不匹配")
-		render.JSON(w, r, APIResponse{
-			Status: http.StatusUnauthorized,
-			Msg:    "API Key与应用不匹配",
-		})
-		return
-	}
-
-	// 7. 记录成功的API使用日志
-	c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusOK, time.Since(startTime), "")
+	// 6. 记录成功的API使用日志
+	c.logApiUsage(r, appInfo.ID, apiKey.ID, http.StatusOK, time.Since(startTime), "")
 
 	// 8. 转换为简化的响应结构并返回
 	simplifiedInfo := convertToSimplifiedApplicationInfo(appInfo)
@@ -691,25 +700,29 @@ func (c *DataProxyController) GetApiApplicationByKey(w http.ResponseWriter, r *h
 		return
 	}
 
-	// 4. 根据API Key获取API应用信息及其接口信息
-	appInfo, err := c.sharingService.GetApiApplicationByApiKey(apiKey.ID)
-	if err != nil {
-		c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusNotFound, time.Since(startTime), "应用不存在或已禁用")
+	// 4. 根据API Key获取该Key可访问的所有API应用信息及其接口信息
+	appInfos, err := c.sharingService.GetApiApplicationsByApiKey(apiKey.ID)
+	if err != nil || len(appInfos) == 0 {
+		c.logApiUsage(r, "", apiKey.ID, http.StatusNotFound, time.Since(startTime), "该API Key无可访问的应用")
 		render.JSON(w, r, APIResponse{
 			Status: http.StatusNotFound,
-			Msg:    "应用不存在或已禁用",
+			Msg:    "该API Key无可访问的应用",
 		})
 		return
 	}
 
-	// 5. 记录成功的API使用日志
-	c.logApiUsage(r, apiKey.ApiApplicationID, apiKey.ID, http.StatusOK, time.Since(startTime), "")
+	// 5. 记录成功的API使用日志（记录第一个应用的ID作为示例）
+	c.logApiUsage(r, appInfos[0].ID, apiKey.ID, http.StatusOK, time.Since(startTime), "")
 
-	// 6. 转换为简化的响应结构并返回
-	simplifiedInfo := convertToSimplifiedApplicationInfo(appInfo)
+	// 6. 转换为简化的响应结构并返回所有应用信息
+	var simplifiedInfos []SimplifiedApplicationInfo
+	for _, appInfo := range appInfos {
+		simplifiedInfo := convertToSimplifiedApplicationInfo(&appInfo)
+		simplifiedInfos = append(simplifiedInfos, *simplifiedInfo)
+	}
 	render.JSON(w, r, APIResponse{
 		Status: http.StatusOK,
 		Msg:    "获取应用信息成功",
-		Data:   simplifiedInfo,
+		Data:   simplifiedInfos,
 	})
 }

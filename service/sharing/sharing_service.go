@@ -106,14 +106,36 @@ func (s *SharingService) GetApiApplicationByPath(path string) (*models.ApiApplic
 	return &app, nil
 }
 
-// GetApiApplicationByApiKey 根据API Key ID获取API应用及其接口信息（包括主题接口字段定义）
-func (s *SharingService) GetApiApplicationByApiKey(apiKeyID string) (*models.ApiApplication, error) {
+// GetApiApplicationsByApiKey 根据API Key ID获取该Key可访问的所有API应用及其接口信息
+func (s *SharingService) GetApiApplicationsByApiKey(apiKeyID string) ([]models.ApiApplication, error) {
+	var apps []models.ApiApplication
+
+	// 通过API Key ID和关联表查找对应的应用，并预加载所有相关信息
+	err := s.db.
+		Joins("JOIN api_key_applications ON api_applications.id = api_key_applications.api_application_id").
+		Joins("JOIN api_keys ON api_key_applications.api_key_id = api_keys.id").
+		Where("api_keys.id = ? AND api_keys.status = 'active' AND api_applications.status = 'active'", apiKeyID).
+		Preload("ThematicLibrary").
+		Preload("ApiInterfaces", "status = 'active'").
+		Preload("ApiInterfaces.ThematicInterface").
+		Find(&apps).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return apps, nil
+}
+
+// GetApiApplicationByApiKeyAndPath 根据API Key ID和应用路径获取特定的API应用
+func (s *SharingService) GetApiApplicationByApiKeyAndPath(apiKeyID, appPath string) (*models.ApiApplication, error) {
 	var app models.ApiApplication
 
-	// 通过API Key ID查找对应的应用，并预加载所有相关信息
+	// 通过API Key ID和应用路径查找对应的应用
 	err := s.db.
-		Joins("JOIN api_keys ON api_applications.id = api_keys.api_application_id").
-		Where("api_keys.id = ? AND api_keys.status = 'active' AND api_applications.status = 'active'", apiKeyID).
+		Joins("JOIN api_key_applications ON api_applications.id = api_key_applications.api_application_id").
+		Joins("JOIN api_keys ON api_key_applications.api_key_id = api_keys.id").
+		Where("api_keys.id = ? AND api_applications.path = ? AND api_keys.status = 'active' AND api_applications.status = 'active'", apiKeyID, appPath).
 		Preload("ThematicLibrary").
 		Preload("ApiInterfaces", "status = 'active'").
 		Preload("ApiInterfaces.ThematicInterface").
@@ -138,12 +160,20 @@ func (s *SharingService) DeleteApiApplication(id string) error {
 
 // === ApiKey管理 ===
 
-// CreateApiKey 为指定应用生成一个新的ApiKey
-func (s *SharingService) CreateApiKey(appID, description string, expiresAt *time.Time) (*models.ApiKey, string, error) {
-	// 验证应用是否存在并获取关联的主题库信息
-	var app models.ApiApplication
-	if err := s.db.Preload("ThematicLibrary").First(&app, "id = ?", appID).Error; err != nil {
-		return nil, "", errors.New("应用不存在")
+// CreateApiKey 创建一个新的ApiKey并关联到指定的应用
+func (s *SharingService) CreateApiKey(name, description string, appIDs []string, expiresAt *time.Time) (*models.ApiKey, string, error) {
+	// 验证应用是否存在
+	if len(appIDs) == 0 {
+		return nil, "", errors.New("至少需要关联一个应用")
+	}
+
+	var apps []models.ApiApplication
+	if err := s.db.Where("id IN ?", appIDs).Find(&apps).Error; err != nil {
+		return nil, "", err
+	}
+
+	if len(apps) != len(appIDs) {
+		return nil, "", errors.New("部分应用不存在")
 	}
 
 	// 生成API Key
@@ -162,12 +192,12 @@ func (s *SharingService) CreateApiKey(appID, description string, expiresAt *time
 	}
 
 	apiKey := &models.ApiKey{
-		ApiApplicationID: appID,
-		KeyPrefix:        keyPrefix,
-		KeyValueHash:     string(hashedKey),
-		Description:      description,
-		ExpiresAt:        expiresAt,
-		Status:           "active",
+		Name:         name,
+		KeyPrefix:    keyPrefix,
+		KeyValueHash: string(hashedKey),
+		Description:  description,
+		ExpiresAt:    expiresAt,
+		Status:       "active",
 	}
 
 	// 开始数据库事务
@@ -182,8 +212,25 @@ func (s *SharingService) CreateApiKey(appID, description string, expiresAt *time
 		return nil, "", err
 	}
 
+	// 关联应用
+	for _, appID := range appIDs {
+		keyApp := &models.ApiKeyApplication{
+			ApiKeyID:         apiKey.ID,
+			ApiApplicationID: appID,
+		}
+		if err := tx.Create(keyApp).Error; err != nil {
+			tx.Rollback()
+			return nil, "", err
+		}
+	}
+
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
+		return nil, "", err
+	}
+
+	// 加载关联的应用信息
+	if err := s.db.Preload("Applications").First(apiKey, "id = ?", apiKey.ID).Error; err != nil {
 		return nil, "", err
 	}
 
@@ -191,10 +238,18 @@ func (s *SharingService) CreateApiKey(appID, description string, expiresAt *time
 	return apiKey, fullKey, nil
 }
 
-// GetApiKeys 获取某个应用下的所有ApiKey信息（不包含Key本身）
+// GetApiKeys 获取所有ApiKey信息（不包含Key本身），可选择按应用过滤
 func (s *SharingService) GetApiKeys(appID string) ([]models.ApiKey, error) {
 	var keys []models.ApiKey
-	if err := s.db.Where("api_application_id = ?", appID).Find(&keys).Error; err != nil {
+	query := s.db.Preload("Applications")
+
+	if appID != "" {
+		// 通过关联表查询特定应用的ApiKey
+		query = query.Joins("JOIN api_key_applications ON api_keys.id = api_key_applications.api_key_id").
+			Where("api_key_applications.api_application_id = ?", appID)
+	}
+
+	if err := query.Find(&keys).Error; err != nil {
 		return nil, err
 	}
 	return keys, nil
@@ -203,7 +258,7 @@ func (s *SharingService) GetApiKeys(appID string) ([]models.ApiKey, error) {
 // GetApiKeyByID 根据ID获取ApiKey
 func (s *SharingService) GetApiKeyByID(keyID string) (*models.ApiKey, error) {
 	var key models.ApiKey
-	if err := s.db.Preload("ApiApplication").First(&key, "id = ?", keyID).Error; err != nil {
+	if err := s.db.Preload("Applications").First(&key, "id = ?", keyID).Error; err != nil {
 		return nil, err
 	}
 	return &key, nil
@@ -214,12 +269,68 @@ func (s *SharingService) UpdateApiKey(keyID string, updates map[string]interface
 	return s.db.Model(&models.ApiKey{}).Where("id = ?", keyID).Updates(updates).Error
 }
 
+// UpdateApiKeyApplications 更新ApiKey关联的应用
+func (s *SharingService) UpdateApiKeyApplications(keyID string, appIDs []string) error {
+	// 验证ApiKey是否存在
+	var key models.ApiKey
+	if err := s.db.First(&key, "id = ?", keyID).Error; err != nil {
+		return errors.New("ApiKey不存在")
+	}
+
+	// 验证应用是否存在
+	if len(appIDs) == 0 {
+		return errors.New("至少需要关联一个应用")
+	}
+
+	var apps []models.ApiApplication
+	if err := s.db.Where("id IN ?", appIDs).Find(&apps).Error; err != nil {
+		return err
+	}
+
+	if len(apps) != len(appIDs) {
+		return errors.New("部分应用不存在")
+	}
+
+	// 开始数据库事务
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	// 删除现有关联
+	if err := tx.Where("api_key_id = ?", keyID).Delete(&models.ApiKeyApplication{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 创建新关联
+	for _, appID := range appIDs {
+		keyApp := &models.ApiKeyApplication{
+			ApiKeyID:         keyID,
+			ApiApplicationID: appID,
+		}
+		if err := tx.Create(keyApp).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// 提交事务
+	return tx.Commit().Error
+}
+
 // DeleteApiKey 吊销（删除）一个ApiKey
 func (s *SharingService) DeleteApiKey(keyID string) error {
 	// 开始数据库事务
 	tx := s.db.Begin()
 	if tx.Error != nil {
 		return tx.Error
+	}
+
+	// 删除关联关系
+	if err := tx.Where("api_key_id = ?", keyID).Delete(&models.ApiKeyApplication{}).Error; err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	// 删除API Key记录

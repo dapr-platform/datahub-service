@@ -47,29 +47,8 @@ type SQLDataSourceConfig struct {
 	MaxRows     int                    `json:"max_rows,omitempty" example:"10000"`
 }
 
-// CreateSyncTaskRequest 创建同步任务请求结构
-type CreateSyncTaskRequest struct {
-	ThematicLibraryID   string `json:"thematic_library_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
-	ThematicInterfaceID string `json:"thematic_interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440002"`
-	TaskName            string `json:"task_name" validate:"required" example:"用户数据同步任务"`
-	Description         string `json:"description,omitempty" example:"从基础库同步用户数据到主题库"`
-
-	// 数据源配置 - 两种方式二选一
-	SourceLibraries []thematic_library.SourceLibraryConfig `json:"source_libraries,omitempty"` // 基础库接口方式
-	DataSourceSQL   []SQLDataSourceConfig                  `json:"data_source_sql,omitempty"`  // SQL数据源方式（优先级更高）
-
-	AggregationConfig *thematic_library.AggregationConfig `json:"aggregation_config,omitempty"`
-	KeyMatchingRules  *thematic_library.KeyMatchingRules  `json:"key_matching_rules,omitempty"`
-	FieldMappingRules *thematic_library.FieldMappingRules `json:"field_mapping_rules,omitempty"`
-	CleansingRules    *thematic_library.CleansingRules    `json:"cleansing_rules,omitempty"`
-	PrivacyRules      *thematic_library.PrivacyRules      `json:"privacy_rules,omitempty"`
-	QualityRules      *thematic_library.QualityRules      `json:"quality_rules,omitempty"`
-	ScheduleConfig    *thematic_library.ScheduleConfig    `json:"schedule_config" validate:"required"`
-	CreatedBy         string                              `json:"created_by" validate:"required" example:"admin"`
-}
-
-// UpdateSyncTaskRequest 更新同步任务请求结构
-type UpdateSyncTaskRequest struct {
+// UpdateThematicSyncTaskRequest 更新同步任务请求结构
+type UpdateThematicSyncTaskRequest struct {
 	TaskName          string                              `json:"task_name,omitempty" example:"更新后的用户数据同步任务"`
 	Description       string                              `json:"description,omitempty" example:"更新后的描述"`
 	Status            string                              `json:"status,omitempty" example:"active"` // active, inactive, paused
@@ -79,7 +58,6 @@ type UpdateSyncTaskRequest struct {
 	FieldMappingRules *thematic_library.FieldMappingRules `json:"field_mapping_rules,omitempty"`
 	CleansingRules    *thematic_library.CleansingRules    `json:"cleansing_rules,omitempty"`
 	PrivacyRules      *thematic_library.PrivacyRules      `json:"privacy_rules,omitempty"`
-	QualityRules      *thematic_library.QualityRules      `json:"quality_rules,omitempty"`
 	UpdatedBy         string                              `json:"updated_by" validate:"required" example:"admin"`
 }
 
@@ -111,13 +89,13 @@ type SyncExecutionListResponse struct {
 // @Tags 主题同步
 // @Accept json
 // @Produce json
-// @Param request body CreateSyncTaskRequest true "创建同步任务请求"
+// @Param request body thematic_library.CreateThematicSyncTaskRequest true "创建同步任务请求"
 // @Success 200 {object} APIResponse
 // @Failure 400 {object} APIResponse
 // @Failure 500 {object} APIResponse
 // @Router /thematic-sync/tasks [post]
 func (c *ThematicSyncController) CreateSyncTask(w http.ResponseWriter, r *http.Request) {
-	var req CreateSyncTaskRequest
+	var req thematic_library.CreateThematicSyncTaskRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
 		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
@@ -182,22 +160,10 @@ func (c *ThematicSyncController) CreateSyncTask(w http.ResponseWriter, r *http.R
 		})
 	}
 
-	// 直接使用强类型的服务层请求
-	serviceReq := &thematic_library.CreateThematicSyncTaskRequest{
-		ThematicLibraryID:   req.ThematicLibraryID,
-		ThematicInterfaceID: req.ThematicInterfaceID,
-		TaskName:            req.TaskName,
-		Description:         req.Description,
-		SourceLibraries:     req.SourceLibraries,
-		DataSourceSQL:       serviceDataSourceSQL, // 转换后的SQL数据源配置
-		AggregationConfig:   req.AggregationConfig,
-		KeyMatchingRules:    req.KeyMatchingRules,
-		FieldMappingRules:   req.FieldMappingRules,
-		CleansingRules:      req.CleansingRules,
-		PrivacyRules:        req.PrivacyRules,
-		QualityRules:        req.QualityRules,
-		ScheduleConfig:      req.ScheduleConfig,
-		CreatedBy:           req.CreatedBy,
+	// 直接使用请求结构，只需要更新SQL数据源配置
+	serviceReq := &req
+	if len(serviceDataSourceSQL) > 0 {
+		serviceReq.DataSourceSQL = serviceDataSourceSQL
 	}
 
 	task, err := c.thematicSyncService.CreateSyncTask(r.Context(), serviceReq)
@@ -302,7 +268,7 @@ func (c *ThematicSyncController) GetSyncTask(w http.ResponseWriter, r *http.Requ
 // @Accept json
 // @Produce json
 // @Param id path string true "任务ID"
-// @Param request body UpdateSyncTaskRequest true "更新同步任务请求"
+// @Param request body UpdateThematicSyncTaskRequest true "更新同步任务请求"
 // @Success 200 {object} APIResponse
 // @Failure 400 {object} APIResponse
 // @Failure 404 {object} APIResponse
@@ -315,7 +281,7 @@ func (c *ThematicSyncController) UpdateSyncTask(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	var req UpdateSyncTaskRequest
+	var req UpdateThematicSyncTaskRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
 		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
@@ -326,7 +292,7 @@ func (c *ThematicSyncController) UpdateSyncTask(w http.ResponseWriter, r *http.R
 		req.UpdatedBy = "system"
 	}
 
-	// 直接使用强类型的服务层请求
+	// 转换为服务层请求结构
 	serviceReq := &thematic_library.UpdateThematicSyncTaskRequest{
 		TaskName:          req.TaskName,
 		Description:       req.Description,
@@ -337,7 +303,6 @@ func (c *ThematicSyncController) UpdateSyncTask(w http.ResponseWriter, r *http.R
 		FieldMappingRules: req.FieldMappingRules,
 		CleansingRules:    req.CleansingRules,
 		PrivacyRules:      req.PrivacyRules,
-		QualityRules:      req.QualityRules,
 		UpdatedBy:         req.UpdatedBy,
 	}
 
@@ -409,7 +374,7 @@ func (c *ThematicSyncController) ExecuteSyncTask(w http.ResponseWriter, r *http.
 		req.ExecutionType = "manual"
 	}
 
-	// 直接使用强类型的服务层请求
+	// 转换为服务层请求结构
 	execReq := &thematic_library.ExecuteSyncTaskRequest{
 		ExecutionType: req.ExecutionType,
 		Options:       req.Options,

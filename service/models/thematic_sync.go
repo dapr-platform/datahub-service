@@ -39,7 +39,6 @@ type ThematicSyncTask struct {
 	// 处理配置
 	CleansingRules JSONB `json:"cleansing_rules" gorm:"type:jsonb"` // 清洗规则
 	PrivacyRules   JSONB `json:"privacy_rules" gorm:"type:jsonb"`   // 脱敏规则
-	QualityRules   JSONB `json:"quality_rules" gorm:"type:jsonb"`   // 质量规则
 
 	// 调度配置
 	TriggerType     string     `json:"trigger_type" gorm:"not null;size:20"` // manual, once, interval, cron

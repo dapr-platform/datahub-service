@@ -89,7 +89,6 @@ func (tss *ThematicSyncService) CreateSyncTask(ctx context.Context, req *CreateT
 		FieldMappingRules:   structToJSONB(req.FieldMappingRules),
 		CleansingRules:      structToJSONB(req.CleansingRules),
 		PrivacyRules:        structToJSONB(req.PrivacyRules),
-		QualityRules:        structToJSONB(req.QualityRules),
 		Status:              "draft",
 		CreatedAt:           time.Now(),
 		CreatedBy:           req.CreatedBy,
@@ -156,9 +155,6 @@ func (tss *ThematicSyncService) UpdateSyncTask(ctx context.Context, taskID strin
 	}
 	if req.PrivacyRules != nil {
 		task.PrivacyRules = structToJSONB(req.PrivacyRules)
-	}
-	if req.QualityRules != nil {
-		task.QualityRules = structToJSONB(req.QualityRules)
 	}
 
 	task.UpdatedAt = time.Now()
@@ -435,13 +431,6 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 		var privacyRules PrivacyRules
 		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.PrivacyRules)), &privacyRules); err == nil {
 			configMap["privacy_rules"] = privacyRules
-		}
-	}
-
-	if len(task.QualityRules) > 0 {
-		var qualityRules QualityRules
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.QualityRules)), &qualityRules); err == nil {
-			configMap["quality_rules"] = qualityRules
 		}
 	}
 

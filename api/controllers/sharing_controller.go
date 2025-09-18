@@ -707,8 +707,10 @@ func (c *SharingController) GetApiUsageLogs(w http.ResponseWriter, r *http.Reque
 
 // CreateApiKeyRequest 创建ApiKey请求结构
 type CreateApiKeyRequest struct {
-	Description string     `json:"description"`
-	ExpiresAt   *time.Time `json:"expires_at"`
+	Name           string     `json:"name" validate:"required"`
+	Description    string     `json:"description"`
+	ApplicationIDs []string   `json:"application_ids" validate:"required,min=1"` // 关联的应用ID列表
+	ExpiresAt      *time.Time `json:"expires_at"`
 }
 
 // CreateApiKeyResponse 创建ApiKey响应结构
@@ -717,28 +719,30 @@ type CreateApiKeyResponse struct {
 	KeyValue string        `json:"key_value"` // 完整的Key值，仅返回一次
 }
 
-// CreateApiKey 为指定应用生成一个新的ApiKey
+// UpdateApiKeyApplicationsRequest 更新ApiKey关联应用请求结构
+type UpdateApiKeyApplicationsRequest struct {
+	ApplicationIDs []string `json:"application_ids" validate:"required,min=1"` // 关联的应用ID列表
+}
+
+// CreateApiKey 创建一个新的ApiKey并关联到指定的应用
 // @Summary 生成API密钥
-// @Description 为指定应用生成一个新的ApiKey，返回完整的Key值（仅此一次）
+// @Description 创建一个新的ApiKey并关联到指定的应用，返回完整的Key值（仅此一次）
 // @Tags 数据共享服务
 // @Accept json
 // @Produce json
-// @Param app_id path string true "应用ID"
 // @Param key body CreateApiKeyRequest true "ApiKey信息"
 // @Success 201 {object} APIResponse{data=CreateApiKeyResponse} "创建成功"
 // @Failure 400 {object} APIResponse "请求参数错误"
 // @Failure 500 {object} APIResponse "服务器内部错误"
-// @Router /sharing/api-applications/{app_id}/keys [post]
+// @Router /sharing/api-keys [post]
 func (c *SharingController) CreateApiKey(w http.ResponseWriter, r *http.Request) {
-	appID := chi.URLParam(r, "app_id")
-
 	var req CreateApiKeyRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
 		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
-	apiKey, keyValue, err := c.sharingService.CreateApiKey(appID, req.Description, req.ExpiresAt)
+	apiKey, keyValue, err := c.sharingService.CreateApiKey(req.Name, req.Description, req.ApplicationIDs, req.ExpiresAt)
 	if err != nil {
 		render.JSON(w, r, InternalErrorResponse("生成API密钥失败: "+err.Error(), err))
 		return
@@ -750,18 +754,18 @@ func (c *SharingController) CreateApiKey(w http.ResponseWriter, r *http.Request)
 	}))
 }
 
-// GetApiKeys 获取某个应用下的所有ApiKey信息
+// GetApiKeys 获取API密钥列表
 // @Summary 获取API密钥列表
-// @Description 获取某个应用下的所有ApiKey信息（不包含Key本身）
+// @Description 获取API密钥列表（不包含Key本身），可选择按应用过滤
 // @Tags 数据共享服务
 // @Accept json
 // @Produce json
-// @Param app_id path string true "应用ID"
+// @Param app_id query string false "应用ID，用于过滤特定应用的ApiKey"
 // @Success 200 {object} APIResponse{data=[]models.ApiKey} "获取成功"
 // @Failure 500 {object} APIResponse "服务器内部错误"
-// @Router /sharing/api-applications/{app_id}/keys [get]
+// @Router /sharing/api-keys [get]
 func (c *SharingController) GetApiKeys(w http.ResponseWriter, r *http.Request) {
-	appID := chi.URLParam(r, "app_id")
+	appID := r.URL.Query().Get("app_id")
 
 	keys, err := c.sharingService.GetApiKeys(appID)
 	if err != nil {
@@ -772,21 +776,43 @@ func (c *SharingController) GetApiKeys(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, SuccessResponse("获取API密钥列表成功", keys))
 }
 
-// UpdateApiKey 更新ApiKey信息
-// @Summary 更新API密钥
-// @Description 更新ApiKey信息（如描述、状态）
+// GetApiKeyByID 根据ID获取API密钥详情
+// @Summary 获取API密钥详情
+// @Description 根据ID获取API密钥详情（不包含Key本身）
 // @Tags 数据共享服务
 // @Accept json
 // @Produce json
-// @Param app_id path string true "应用ID"
-// @Param key_id path string true "密钥ID"
+// @Param id path string true "密钥ID"
+// @Success 200 {object} APIResponse{data=models.ApiKey} "获取成功"
+// @Failure 404 {object} APIResponse "密钥不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /sharing/api-keys/{id} [get]
+func (c *SharingController) GetApiKeyByID(w http.ResponseWriter, r *http.Request) {
+	keyID := chi.URLParam(r, "id")
+
+	key, err := c.sharingService.GetApiKeyByID(keyID)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("API密钥不存在", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取API密钥成功", key))
+}
+
+// UpdateApiKey 更新ApiKey信息
+// @Summary 更新API密钥
+// @Description 更新ApiKey信息（如名称、描述、状态）
+// @Tags 数据共享服务
+// @Accept json
+// @Produce json
+// @Param id path string true "密钥ID"
 // @Param updates body map[string]interface{} true "更新信息"
 // @Success 200 {object} APIResponse "更新成功"
 // @Failure 400 {object} APIResponse "请求参数错误"
 // @Failure 500 {object} APIResponse "服务器内部错误"
-// @Router /sharing/api-applications/{app_id}/keys/{key_id} [put]
+// @Router /sharing/api-keys/{id} [put]
 func (c *SharingController) UpdateApiKey(w http.ResponseWriter, r *http.Request) {
-	keyID := chi.URLParam(r, "key_id")
+	keyID := chi.URLParam(r, "id")
 
 	var updates map[string]interface{}
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
@@ -802,19 +828,47 @@ func (c *SharingController) UpdateApiKey(w http.ResponseWriter, r *http.Request)
 	render.JSON(w, r, SuccessResponse("更新API密钥成功", nil))
 }
 
+// UpdateApiKeyApplications 更新ApiKey关联的应用
+// @Summary 更新API密钥关联应用
+// @Description 更新ApiKey关联的应用列表
+// @Tags 数据共享服务
+// @Accept json
+// @Produce json
+// @Param id path string true "密钥ID"
+// @Param applications body UpdateApiKeyApplicationsRequest true "关联应用信息"
+// @Success 200 {object} APIResponse "更新成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /sharing/api-keys/{id}/applications [put]
+func (c *SharingController) UpdateApiKeyApplications(w http.ResponseWriter, r *http.Request) {
+	keyID := chi.URLParam(r, "id")
+
+	var req UpdateApiKeyApplicationsRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if err := c.sharingService.UpdateApiKeyApplications(keyID, req.ApplicationIDs); err != nil {
+		render.JSON(w, r, InternalErrorResponse("更新API密钥关联应用失败: "+err.Error(), err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("更新API密钥关联应用成功", nil))
+}
+
 // DeleteApiKey 吊销（删除）一个ApiKey
 // @Summary 删除API密钥
 // @Description 吊销（删除）一个ApiKey
 // @Tags 数据共享服务
 // @Accept json
 // @Produce json
-// @Param app_id path string true "应用ID"
-// @Param key_id path string true "密钥ID"
+// @Param id path string true "密钥ID"
 // @Success 200 {object} APIResponse "删除成功"
 // @Failure 500 {object} APIResponse "服务器内部错误"
-// @Router /sharing/api-applications/{app_id}/keys/{key_id} [delete]
+// @Router /sharing/api-keys/{id} [delete]
 func (c *SharingController) DeleteApiKey(w http.ResponseWriter, r *http.Request) {
-	keyID := chi.URLParam(r, "key_id")
+	keyID := chi.URLParam(r, "id")
 
 	if err := c.sharingService.DeleteApiKey(keyID); err != nil {
 		render.JSON(w, r, InternalErrorResponse("删除API密钥失败", err))

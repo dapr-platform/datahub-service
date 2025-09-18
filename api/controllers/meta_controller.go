@@ -173,3 +173,127 @@ func (c *MetaController) GetThematicLibraryAllMetadata(w http.ResponseWriter, r 
 
 	render.JSON(w, r, SuccessResponse("获取主题库完整元数据成功", response))
 }
+
+// === 数据质量相关元数据接口 ===
+
+// @Summary 获取质量规则类型元数据
+// @Description 获取所有质量规则类型元数据
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=[]meta.QualityRuleType}
+// @Failure 500 {object} APIResponse
+// @Router /meta/data-quality/rule-types [get]
+func (c *MetaController) GetQualityRuleTypes(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取质量规则类型元数据成功", meta.GetQualityRuleTypes()))
+}
+
+// @Summary 获取质量检查状态元数据
+// @Description 获取所有质量检查状态元数据
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=[]meta.QualityCheckStatus}
+// @Failure 500 {object} APIResponse
+// @Router /meta/data-quality/check-statuses [get]
+func (c *MetaController) GetQualityCheckStatuses(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取质量检查状态元数据成功", meta.GetQualityCheckStatuses()))
+}
+
+// @Summary 获取数据脱敏类型元数据
+// @Description 获取所有数据脱敏类型元数据
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=[]meta.DataMaskingType}
+// @Failure 500 {object} APIResponse
+// @Router /meta/data-quality/masking-types [get]
+func (c *MetaController) GetDataMaskingTypes(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取数据脱敏类型元数据成功", meta.GetDataMaskingTypes()))
+}
+
+// @Summary 获取清洗规则类型元数据
+// @Description 获取所有清洗规则类型元数据
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=[]meta.CleansingRuleType}
+// @Failure 500 {object} APIResponse
+// @Router /meta/data-quality/cleansing-rule-types [get]
+func (c *MetaController) GetCleansingRuleTypes(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取清洗规则类型元数据成功", meta.GetCleansingRuleTypes()))
+}
+
+// @Summary 获取质量指标类型元数据
+// @Description 获取所有质量指标类型元数据
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=[]meta.QualityMetricType}
+// @Failure 500 {object} APIResponse
+// @Router /meta/data-quality/metric-types [get]
+func (c *MetaController) GetQualityMetricTypes(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取质量指标类型元数据成功", meta.GetQualityMetricTypes()))
+}
+
+// @Summary 获取质量报告类型元数据
+// @Description 获取所有质量报告类型元数据
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=[]meta.QualityReportType}
+// @Failure 500 {object} APIResponse
+// @Router /meta/data-quality/report-types [get]
+func (c *MetaController) GetQualityReportTypes(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取质量报告类型元数据成功", meta.GetQualityReportTypes()))
+}
+
+// @Summary 获取质量问题严重程度元数据
+// @Description 获取所有质量问题严重程度元数据
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=[]meta.QualityIssueSeverity}
+// @Failure 500 {object} APIResponse
+// @Router /meta/data-quality/issue-severities [get]
+func (c *MetaController) GetQualityIssueSeverities(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取质量问题严重程度元数据成功", meta.GetQualityIssueSeverities()))
+}
+
+// @Summary 获取质量问题状态元数据
+// @Description 获取所有质量问题状态元数据
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=[]meta.QualityIssueStatus}
+// @Failure 500 {object} APIResponse
+// @Router /meta/data-quality/issue-statuses [get]
+func (c *MetaController) GetQualityIssueStatuses(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, SuccessResponse("获取质量问题状态元数据成功", meta.GetQualityIssueStatuses()))
+}
+
+// DataQualityMetadataResponse 数据质量完整元数据响应结构
+type DataQualityMetadataResponse struct {
+	RuleTypes       []meta.QualityRuleType      `json:"rule_types"`
+	CheckStatuses   []meta.QualityCheckStatus   `json:"check_statuses"`
+	MaskingTypes    []meta.DataMaskingType      `json:"masking_types"`
+	CleansingTypes  []meta.CleansingRuleType    `json:"cleansing_types"`
+	MetricTypes     []meta.QualityMetricType    `json:"metric_types"`
+	ReportTypes     []meta.QualityReportType    `json:"report_types"`
+	IssueSeverities []meta.QualityIssueSeverity `json:"issue_severities"`
+	IssueStatuses   []meta.QualityIssueStatus   `json:"issue_statuses"`
+}
+
+// @Summary 获取数据质量完整元数据
+// @Description 获取数据质量相关的所有元数据，包括规则类型、检查状态、脱敏类型等
+// @Tags 元数据
+// @Produce json
+// @Success 200 {object} APIResponse{data=DataQualityMetadataResponse} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /meta/data-quality/all [get]
+func (c *MetaController) GetDataQualityAllMetadata(w http.ResponseWriter, r *http.Request) {
+	response := DataQualityMetadataResponse{
+		RuleTypes:       meta.GetQualityRuleTypes(),
+		CheckStatuses:   meta.GetQualityCheckStatuses(),
+		MaskingTypes:    meta.GetDataMaskingTypes(),
+		CleansingTypes:  meta.GetCleansingRuleTypes(),
+		MetricTypes:     meta.GetQualityMetricTypes(),
+		ReportTypes:     meta.GetQualityReportTypes(),
+		IssueSeverities: meta.GetQualityIssueSeverities(),
+		IssueStatuses:   meta.GetQualityIssueStatuses(),
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据质量完整元数据成功", response))
+}

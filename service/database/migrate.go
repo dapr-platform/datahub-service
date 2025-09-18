@@ -95,6 +95,7 @@ func AutoMigrate(db *gorm.DB) error {
 	err = db.AutoMigrate(
 		&models.ApiApplication{},
 		&models.ApiKey{},
+		&models.ApiKeyApplication{},
 		&models.ApiInterface{},
 		&models.ApiRateLimit{},
 		&models.DataSubscription{},

@@ -35,7 +35,7 @@ type ApiApplication struct {
 
 	// 关联关系
 	ThematicLibrary ThematicLibrary `gorm:"foreignKey:ThematicLibraryID" json:"thematic_library,omitempty"`
-	ApiKeys         []ApiKey        `gorm:"foreignKey:ApiApplicationID" json:"api_keys,omitempty"`
+	ApiKeys         []ApiKey        `gorm:"many2many:api_key_applications;" json:"api_keys,omitempty"`
 	ApiInterfaces   []ApiInterface  `gorm:"foreignKey:ApiApplicationID" json:"api_interfaces,omitempty"`
 }
 
@@ -61,20 +61,24 @@ func (a *ApiApplication) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
-// ApiKey API密钥模型 - 用于实现一个应用可有多个Key
+// ApiKey API密钥模型 - 一个Key可以访问多个应用
 type ApiKey struct {
-	ID               string         `gorm:"type:uuid;primary_key" json:"id"`
-	ApiApplicationID string         `gorm:"not null;index" json:"api_application_id"`
-	KeyPrefix        string         `gorm:"not null;size:8" json:"key_prefix"` // Key的前缀，用于快速识别
-	KeyValueHash     string         `gorm:"not null;unique" json:"-"`          // 存储Hash后的Key值
-	Description      string         `json:"description"`
-	Status           string         `gorm:"not null;default:'active'" json:"status"` // active, inactive, revoked
-	ExpiresAt        *time.Time     `json:"expires_at"`
-	LastUsedAt       *time.Time     `json:"last_used_at"`
-	UsageCount       int64          `gorm:"default:0" json:"usage_count"`
-	CreatedBy        string         `gorm:"size:100" json:"created_by"`
-	CreatedAt        time.Time      `json:"created_at"`
-	ApiApplication   ApiApplication `gorm:"foreignKey:ApiApplicationID" json:"api_application,omitempty"`
+	ID           string     `gorm:"type:uuid;primary_key" json:"id"`
+	Name         string     `gorm:"not null" json:"name"`              // ApiKey名称
+	KeyPrefix    string     `gorm:"not null;size:8" json:"key_prefix"` // Key的前缀，用于快速识别
+	KeyValueHash string     `gorm:"not null;unique" json:"-"`          // 存储Hash后的Key值
+	Description  string     `json:"description"`
+	Status       string     `gorm:"not null;default:'active'" json:"status"` // active, inactive, revoked
+	ExpiresAt    *time.Time `json:"expires_at"`
+	LastUsedAt   *time.Time `json:"last_used_at"`
+	UsageCount   int64      `gorm:"default:0" json:"usage_count"`
+	CreatedBy    string     `gorm:"size:100" json:"created_by"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	UpdatedBy    string     `gorm:"size:100" json:"updated_by"`
+
+	// 多对多关系：一个ApiKey可以访问多个ApiApplication
+	Applications []ApiApplication `gorm:"many2many:api_key_applications;" json:"applications,omitempty"`
 }
 
 // BeforeCreate 创建前钩子
@@ -84,6 +88,37 @@ func (ak *ApiKey) BeforeCreate(tx *gorm.DB) error {
 	}
 	if ak.CreatedBy == "" {
 		ak.CreatedBy = "system"
+	}
+	if ak.UpdatedBy == "" {
+		ak.UpdatedBy = "system"
+	}
+	return nil
+}
+
+// BeforeUpdate 更新前钩子
+func (ak *ApiKey) BeforeUpdate(tx *gorm.DB) error {
+	if ak.UpdatedBy == "" {
+		ak.UpdatedBy = "system"
+	}
+	return nil
+}
+
+// ApiKeyApplication ApiKey和ApiApplication的多对多关联表
+type ApiKeyApplication struct {
+	ApiKeyID         string    `gorm:"type:uuid;primary_key" json:"api_key_id"`
+	ApiApplicationID string    `gorm:"type:uuid;primary_key" json:"api_application_id"`
+	CreatedAt        time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	CreatedBy        string    `gorm:"not null;default:'system';size:100" json:"created_by"`
+
+	// 关联关系
+	ApiKey         ApiKey         `gorm:"foreignKey:ApiKeyID" json:"api_key,omitempty"`
+	ApiApplication ApiApplication `gorm:"foreignKey:ApiApplicationID" json:"api_application,omitempty"`
+}
+
+// BeforeCreate 创建前钩子
+func (aka *ApiKeyApplication) BeforeCreate(tx *gorm.DB) error {
+	if aka.CreatedBy == "" {
+		aka.CreatedBy = "system"
 	}
 	return nil
 }

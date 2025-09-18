@@ -93,6 +93,19 @@ func InitRoute(r *chi.Mux) {
 		// 主题库同步相关元数据
 		r.Get("/thematic-sync-tasks", metaController.GetThematicSyncTaskMeta)
 		r.Get("/thematic-sync-configs", metaController.GetThematicSyncConfigDefinitions)
+
+		// 数据质量相关元数据
+		r.Route("/data-quality", func(r chi.Router) {
+			r.Get("/rule-types", metaController.GetQualityRuleTypes)
+			r.Get("/check-statuses", metaController.GetQualityCheckStatuses)
+			r.Get("/masking-types", metaController.GetDataMaskingTypes)
+			r.Get("/cleansing-rule-types", metaController.GetCleansingRuleTypes)
+			r.Get("/metric-types", metaController.GetQualityMetricTypes)
+			r.Get("/report-types", metaController.GetQualityReportTypes)
+			r.Get("/issue-severities", metaController.GetQualityIssueSeverities)
+			r.Get("/issue-statuses", metaController.GetQualityIssueStatuses)
+			r.Get("/all", metaController.GetDataQualityAllMetadata)
+		})
 	})
 
 	// 基础库管理（保留现有功能接口）
@@ -229,92 +242,48 @@ func InitRoute(r *chi.Mux) {
 		})
 	})
 
-	// 数据质量管理
-	r.Route("/quality", func(r chi.Router) {
-		qualityController := controllers.NewQualityController()
+	// 数据质量管理（统一入口）
+	r.Route("/data-quality", func(r chi.Router) {
+		dataQualityController := controllers.NewDataQualityController(governance.NewGovernanceService(service.DB))
 
 		// 质量规则管理
 		r.Route("/rules", func(r chi.Router) {
-			r.Post("/", qualityController.CreateQualityRule)
-			r.Get("/", qualityController.GetQualityRules)
-			r.Get("/{id}", qualityController.GetQualityRule)
-			r.Put("/{id}", qualityController.UpdateQualityRule)
-			r.Delete("/{id}", qualityController.DeleteQualityRule)
-		})
-
-		// 质量检查
-		r.Route("/checks", func(r chi.Router) {
-			r.Post("/", qualityController.ExecuteQualityCheck)
-			r.Get("/", qualityController.GetQualityChecks)
-			r.Get("/{id}", qualityController.GetQualityCheck)
-		})
-
-		// 清洗规则管理
-		r.Route("/cleansing", func(r chi.Router) {
-			r.Post("/", qualityController.CreateCleansingRule)
-			r.Get("/", qualityController.GetCleansingRules)
-			r.Post("/{id}/execute", qualityController.ExecuteCleansingRule)
-		})
-
-		// 质量报告
-		r.Route("/reports", func(r chi.Router) {
-			r.Get("/", qualityController.GetQualityReports)
-			r.Get("/{id}", qualityController.GetQualityReport)
-			r.Post("/generate", qualityController.GenerateQualityReport)
-		})
-
-		// 问题追踪
-		r.Route("/issues", func(r chi.Router) {
-			r.Get("/", qualityController.GetQualityIssues)
-			r.Post("/{id}/resolve", qualityController.ResolveQualityIssue)
-		})
-
-		// 质量指标
-		r.Get("/metrics", qualityController.GetQualityMetrics)
-	})
-
-	// 数据治理
-	r.Route("/governance", func(r chi.Router) {
-		governanceController := controllers.NewGovernanceController(governance.NewGovernanceService(service.DB))
-
-		// 数据质量规则管理
-		r.Route("/quality-rules", func(r chi.Router) {
-			r.Post("/", governanceController.CreateQualityRule)
-			r.Get("/", governanceController.GetQualityRules)
-			r.Get("/{id}", governanceController.GetQualityRuleByID)
-			r.Put("/{id}", governanceController.UpdateQualityRule)
-			r.Delete("/{id}", governanceController.DeleteQualityRule)
-		})
-
-		// 元数据管理
-		r.Route("/metadata", func(r chi.Router) {
-			r.Post("/", governanceController.CreateMetadata)
-			r.Get("/", governanceController.GetMetadataList)
-			r.Get("/{id}", governanceController.GetMetadataByID)
-			r.Put("/{id}", governanceController.UpdateMetadata)
-			r.Delete("/{id}", governanceController.DeleteMetadata)
+			r.Post("/", dataQualityController.CreateQualityRule)
+			r.Get("/", dataQualityController.GetQualityRules)
+			r.Get("/{id}", dataQualityController.GetQualityRuleByID)
+			r.Put("/{id}", dataQualityController.UpdateQualityRule)
+			r.Delete("/{id}", dataQualityController.DeleteQualityRule)
 		})
 
 		// 数据脱敏规则管理
 		r.Route("/masking-rules", func(r chi.Router) {
-			r.Post("/", governanceController.CreateMaskingRule)
-			r.Get("/", governanceController.GetMaskingRules)
-			r.Get("/{id}", governanceController.GetMaskingRuleByID)
-			r.Put("/{id}", governanceController.UpdateMaskingRule)
-			r.Delete("/{id}", governanceController.DeleteMaskingRule)
+			r.Post("/", dataQualityController.CreateMaskingRule)
+			r.Get("/", dataQualityController.GetMaskingRules)
+			r.Get("/{id}", dataQualityController.GetMaskingRuleByID)
+			r.Put("/{id}", dataQualityController.UpdateMaskingRule)
+			r.Delete("/{id}", dataQualityController.DeleteMaskingRule)
+		})
+
+		// 质量检查
+		r.Post("/checks", dataQualityController.RunQualityCheck)
+
+		// 质量报告
+		r.Route("/reports", func(r chi.Router) {
+			r.Get("/", dataQualityController.GetQualityReports)
+			r.Get("/{id}", dataQualityController.GetQualityReportByID)
+		})
+
+		// 元数据管理
+		r.Route("/metadata", func(r chi.Router) {
+			r.Post("/", dataQualityController.CreateMetadata)
+			r.Get("/", dataQualityController.GetMetadataList)
+			r.Get("/{id}", dataQualityController.GetMetadataByID)
+			r.Put("/{id}", dataQualityController.UpdateMetadata)
+			r.Delete("/{id}", dataQualityController.DeleteMetadata)
 		})
 
 		// 系统日志管理
-		r.Get("/system-logs", governanceController.GetSystemLogs)
-
-		// 数据质量报告
-		r.Route("/quality-reports", func(r chi.Router) {
-			r.Get("/", governanceController.GetQualityReports)
-			r.Get("/{id}", governanceController.GetQualityReportByID)
-		})
-
-		// 数据质量检查
-		r.Post("/quality-check", governanceController.RunQualityCheck)
+		r.Get("/system-logs", dataQualityController.GetSystemLogs)
 	})
 
 	// 数据共享服务
@@ -328,14 +297,16 @@ func InitRoute(r *chi.Mux) {
 			r.Get("/{id}", sharingController.GetApiApplicationByID)
 			r.Put("/{id}", sharingController.UpdateApiApplication)
 			r.Delete("/{id}", sharingController.DeleteApiApplication)
+		})
 
-			// ApiKey管理
-			r.Route("/{app_id}/keys", func(r chi.Router) {
-				r.Post("/", sharingController.CreateApiKey)
-				r.Get("/", sharingController.GetApiKeys)
-				r.Put("/{key_id}", sharingController.UpdateApiKey)
-				r.Delete("/{key_id}", sharingController.DeleteApiKey)
-			})
+		// ApiKey管理（独立路由）
+		r.Route("/api-keys", func(r chi.Router) {
+			r.Post("/", sharingController.CreateApiKey)
+			r.Get("/", sharingController.GetApiKeys)
+			r.Get("/{id}", sharingController.GetApiKeyByID)
+			r.Put("/{id}", sharingController.UpdateApiKey)
+			r.Delete("/{id}", sharingController.DeleteApiKey)
+			r.Put("/{id}/applications", sharingController.UpdateApiKeyApplications)
 		})
 
 		// API限流管理

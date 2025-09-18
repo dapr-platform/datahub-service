@@ -73,82 +73,7 @@ type ConflictValue struct {
 
 // 辅助类定义已在各自的文件中实现
 
-// 质量检查相关类型定义
-
-// QualityDimension 质量维度
-type QualityDimension string
-
-const (
-	CompletenessQuality QualityDimension = "completeness" // 完整性
-	AccuracyQuality     QualityDimension = "accuracy"     // 准确性
-	ConsistencyQuality  QualityDimension = "consistency"  // 一致性
-	ValidityQuality     QualityDimension = "validity"     // 有效性
-	UniquenessQuality   QualityDimension = "uniqueness"   // 唯一性
-	TimelinessQuality   QualityDimension = "timeliness"   // 时效性
-)
-
-// QualityRule 质量规则
-type QualityRule struct {
-	ID           string                 `json:"id"`
-	Name         string                 `json:"name"`
-	Dimension    QualityDimension       `json:"dimension"`
-	Weight       float64                `json:"weight"`     // 权重 (0-1)
-	Threshold    float64                `json:"threshold"`  // 阈值 (0-100)
-	Severity     string                 `json:"severity"`   // critical, major, minor, info
-	CheckType    string                 `json:"check_type"` // field, record, dataset
-	TargetFields []string               `json:"target_fields"`
-	Config       map[string]interface{} `json:"config"`
-	IsEnabled    bool                   `json:"is_enabled"`
-}
-
-// QualityRuleResult 质量规则结果
-type QualityRuleResult struct {
-	RuleID       string           `json:"rule_id"`
-	RuleName     string           `json:"rule_name"`
-	Dimension    QualityDimension `json:"dimension"`
-	Score        float64          `json:"score"`
-	Passed       bool             `json:"passed"`
-	CheckedCount int64            `json:"checked_count"`
-	PassedCount  int64            `json:"passed_count"`
-	FailedCount  int64            `json:"failed_count"`
-	Message      string           `json:"message"`
-}
-
-// QualityIssue 质量问题
-type QualityIssue struct {
-	ID         string           `json:"id"`
-	RuleID     string           `json:"rule_id"`
-	Dimension  QualityDimension `json:"dimension"`
-	Severity   string           `json:"severity"`
-	Field      string           `json:"field"`
-	Value      interface{}      `json:"value"`
-	RecordID   string           `json:"record_id,omitempty"`
-	Message    string           `json:"message"`
-	Suggestion string           `json:"suggestion,omitempty"`
-	DetectedAt time.Time        `json:"detected_at"`
-}
-
-// QualityStatistics 质量统计
-type QualityStatistics struct {
-	TotalRecords     int64            `json:"total_records"`
-	ValidRecords     int64            `json:"valid_records"`
-	InvalidRecords   int64            `json:"invalid_records"`
-	CompletedFields  int64            `json:"completed_fields"`
-	TotalFields      int64            `json:"total_fields"`
-	DuplicateCount   int64            `json:"duplicate_count"`
-	NullValueCount   int64            `json:"null_value_count"`
-	IssuesByType     map[string]int64 `json:"issues_by_type"`
-	IssuesBySeverity map[string]int64 `json:"issues_by_severity"`
-}
-
-// QualityRecommendation 质量建议
-type QualityRecommendation struct {
-	Type        string  `json:"type"`     // cleansing, validation, transformation
-	Priority    string  `json:"priority"` // high, medium, low
-	Description string  `json:"description"`
-	Action      string  `json:"action"`
-	Impact      float64 `json:"impact"` // 预期改善分数
-}
+// 质量检查相关类型定义 - 已移除，后续单独处理
 
 // SyncExecutionOptions 同步执行选项
 type SyncExecutionOptions struct {
@@ -158,7 +83,6 @@ type SyncExecutionOptions struct {
 	SkipValidation     bool                   `json:"skip_validation,omitempty"`
 	SkipCleansing      bool                   `json:"skip_cleansing,omitempty"`
 	SkipPrivacy        bool                   `json:"skip_privacy,omitempty"`
-	SkipQualityCheck   bool                   `json:"skip_quality_check,omitempty"`
 	CustomConfig       map[string]interface{} `json:"custom_config,omitempty"`
 	NotificationConfig *NotificationConfig    `json:"notification_config,omitempty"`
 }
@@ -219,11 +143,6 @@ type PrivacyRules struct {
 	Rules []PrivacyRule `json:"rules"`
 }
 
-// QualityRules 质量规则集
-type QualityRules struct {
-	Rules []QualityRule `json:"rules"`
-}
-
 // ScheduleConfig 调度配置
 type ScheduleConfig struct {
 	Type            string     `json:"type"` // manual, once, interval, cron
@@ -259,7 +178,6 @@ type CreateThematicSyncTaskRequest struct {
 	FieldMappingRules   *FieldMappingRules    `json:"field_mapping_rules,omitempty"`
 	CleansingRules      *CleansingRules       `json:"cleansing_rules,omitempty"`
 	PrivacyRules        *PrivacyRules         `json:"privacy_rules,omitempty"`
-	QualityRules        *QualityRules         `json:"quality_rules,omitempty"`
 	ScheduleConfig      *ScheduleConfig       `json:"schedule_config"`
 	CreatedBy           string                `json:"created_by"`
 }
@@ -275,7 +193,6 @@ type UpdateThematicSyncTaskRequest struct {
 	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`
 	CleansingRules    *CleansingRules    `json:"cleansing_rules,omitempty"`
 	PrivacyRules      *PrivacyRules      `json:"privacy_rules,omitempty"`
-	QualityRules      *QualityRules      `json:"quality_rules,omitempty"`
 	UpdatedBy         string             `json:"updated_by"`
 }
 

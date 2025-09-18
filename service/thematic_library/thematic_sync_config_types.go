@@ -325,48 +325,7 @@ type PrivacyValidation struct {
 }
 
 // ==================== 数据质量规则相关类型 ====================
-
-// QualityRules 数据质量规则
-type QualityRules struct {
-	Rules      []QualityRule      `json:"rules" validate:"required,min=1"`
-	Threshold  float64            `json:"threshold" default:"0.8"`
-	OnFailure  string             `json:"on_failure" default:"warn"` // warn, error, skip
-	Metrics    []QualityMetric    `json:"metrics,omitempty"`
-	Validation *QualityValidation `json:"validation,omitempty"`
-}
-
-// QualityRule 质量规则
-type QualityRule struct {
-	ID          string                 `json:"id" validate:"required"`
-	Name        string                 `json:"name" validate:"required"`
-	Type        string                 `json:"type" validate:"required,oneof=completeness accuracy consistency validity uniqueness timeliness"`
-	Fields      []string               `json:"fields,omitempty"`
-	Expression  string                 `json:"expression,omitempty"`
-	Parameters  map[string]interface{} `json:"parameters,omitempty"`
-	Weight      float64                `json:"weight" default:"1.0"`
-	Threshold   float64                `json:"threshold" default:"0.8"`
-	Enabled     bool                   `json:"enabled" default:"true"`
-	Description string                 `json:"description,omitempty"`
-}
-
-// QualityMetric 质量指标
-type QualityMetric struct {
-	Name        string  `json:"name" validate:"required"`
-	Type        string  `json:"type" validate:"required,oneof=count rate percentage score"`
-	Target      float64 `json:"target"`
-	Warning     float64 `json:"warning"`
-	Critical    float64 `json:"critical"`
-	Description string  `json:"description,omitempty"`
-}
-
-// QualityValidation 质量验证
-type QualityValidation struct {
-	EnablePreCheck   bool     `json:"enable_pre_check" default:"true"`
-	EnablePostCheck  bool     `json:"enable_post_check" default:"true"`
-	CriticalFields   []string `json:"critical_fields,omitempty"`
-	BusinessRules    []string `json:"business_rules,omitempty"`
-	StatisticalCheck bool     `json:"statistical_check" default:"true"`
-}
+// 质量规则相关类型已移除，后续单独处理
 
 // ==================== 执行配置相关类型 ====================
 
@@ -529,21 +488,6 @@ func (pr *PrivacyRules) Scan(value interface{}) error {
 		return fmt.Errorf("cannot scan %T into PrivacyRules", value)
 	}
 	return json.Unmarshal(bytes, pr)
-}
-
-func (qr QualityRules) Value() (driver.Value, error) {
-	return json.Marshal(qr)
-}
-
-func (qr *QualityRules) Scan(value interface{}) error {
-	if value == nil {
-		return nil
-	}
-	bytes, ok := value.([]byte)
-	if !ok {
-		return fmt.Errorf("cannot scan %T into QualityRules", value)
-	}
-	return json.Unmarshal(bytes, qr)
 }
 
 func (ec ExecutionConfig) Value() (driver.Value, error) {

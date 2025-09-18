@@ -41,7 +41,6 @@ type CreateThematicSyncTaskRequest struct {
 	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`
 	CleansingRules    *CleansingRules    `json:"cleansing_rules,omitempty"`
 	PrivacyRules      *PrivacyRules      `json:"privacy_rules,omitempty"`
-	QualityRules      *QualityRules      `json:"quality_rules,omitempty"`
 	ScheduleConfig    *ScheduleConfig    `json:"schedule_config" binding:"required"`
 	CreatedBy         string             `json:"created_by" binding:"required"`
 }
@@ -57,7 +56,6 @@ type UpdateThematicSyncTaskRequest struct {
 	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`
 	CleansingRules    *CleansingRules    `json:"cleansing_rules,omitempty"`
 	PrivacyRules      *PrivacyRules      `json:"privacy_rules,omitempty"`
-	QualityRules      *QualityRules      `json:"quality_rules,omitempty"`
 	UpdatedBy         string             `json:"updated_by" binding:"required"`
 }
 

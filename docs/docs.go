@@ -993,1150 +993,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/quality/checks": {
-            "get": {
-                "description": "分页获取质量检查执行记录",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "获取质量检查记录列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页大小",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "rule_id",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "running",
-                            "passed",
-                            "failed",
-                            "warning"
-                        ],
-                        "type": "string",
-                        "description": "状态筛选",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "开始时间",
-                        "name": "start_time",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "结束时间",
-                        "name": "end_time",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.QualityCheckExecution"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/checks/{id}": {
-            "get": {
-                "description": "获取指定检查ID的质量检查详细信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "获取质量检查详情",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "检查ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.QualityCheckExecution"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/cleansing-rules": {
-            "get": {
-                "description": "分页获取清洗规则列表，支持按类型、状态等条件筛选",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "获取数据清洗规则列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页大小",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "standardization",
-                            "deduplication",
-                            "validation",
-                            "transformation",
-                            "enrichment"
-                        ],
-                        "type": "string",
-                        "description": "规则类型",
-                        "name": "rule_type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "是否启用",
-                        "name": "is_enabled",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.DataCleansingRuleEngine"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "创建新的数据清洗规则",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "创建数据清洗规则",
-                "parameters": [
-                    {
-                        "description": "清洗规则信息",
-                        "name": "rule",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.DataCleansingRuleEngine"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.DataCleansingRuleEngine"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/cleansing-rules/{id}/execute": {
-            "post": {
-                "description": "对指定规则执行数据清洗",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "执行数据清洗规则",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/issues": {
-            "get": {
-                "description": "分页获取质量问题追踪列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "获取数据质量问题列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页大小",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "low",
-                            "medium",
-                            "high",
-                            "critical"
-                        ],
-                        "type": "string",
-                        "description": "严重程度",
-                        "name": "severity",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "open",
-                            "investigating",
-                            "resolved",
-                            "ignored",
-                            "false_positive"
-                        ],
-                        "type": "string",
-                        "description": "状态筛选",
-                        "name": "status",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.QualityIssueTracker"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/issues/{id}/resolve": {
-            "post": {
-                "description": "标记质量问题为已解决并记录解决方案",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "解决数据质量问题",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "问题ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "解决方案信息",
-                        "name": "resolution",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/metrics": {
-            "get": {
-                "description": "获取指定时间范围内的数据质量指标",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "获取数据质量指标",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "表名",
-                        "name": "table_name",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "completeness",
-                            "accuracy",
-                            "consistency",
-                            "validity",
-                            "uniqueness",
-                            "timeliness"
-                        ],
-                        "type": "string",
-                        "description": "指标类型",
-                        "name": "metric_type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "date",
-                        "description": "开始日期",
-                        "name": "start_date",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "date",
-                        "description": "结束日期",
-                        "name": "end_date",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.QualityMetricRecord"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/reports": {
-            "get": {
-                "description": "分页获取质量报告列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "获取数据质量报告列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页大小",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "daily",
-                            "weekly",
-                            "monthly",
-                            "ad_hoc"
-                        ],
-                        "type": "string",
-                        "description": "报告类型",
-                        "name": "report_type",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "draft",
-                            "published",
-                            "archived"
-                        ],
-                        "type": "string",
-                        "description": "状态筛选",
-                        "name": "status",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.QualityDashboardReport"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/reports/generate": {
-            "post": {
-                "description": "生成指定时间范围的数据质量报告",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "生成数据质量报告",
-                "parameters": [
-                    {
-                        "enum": [
-                            "daily",
-                            "weekly",
-                            "monthly",
-                            "ad_hoc"
-                        ],
-                        "type": "string",
-                        "description": "报告类型",
-                        "name": "report_type",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "date",
-                        "description": "开始日期",
-                        "name": "start_date",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "date",
-                        "description": "结束日期",
-                        "name": "end_date",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.QualityDashboardReport"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/reports/{id}": {
-            "get": {
-                "description": "获取指定报告ID的质量报告详细信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "获取质量报告详情",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "报告ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.QualityDashboardReport"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/rules": {
-            "get": {
-                "description": "分页获取质量规则列表，支持按类型、状态等条件筛选",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "获取数据质量规则列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页大小",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "completeness",
-                            "accuracy",
-                            "consistency",
-                            "validity",
-                            "uniqueness"
-                        ],
-                        "type": "string",
-                        "description": "规则类别",
-                        "name": "category",
-                        "in": "query"
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "是否启用",
-                        "name": "is_enabled",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.QualityRule"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "创建新的数据质量检查规则",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "创建数据质量规则",
-                "parameters": [
-                    {
-                        "description": "质量规则信息",
-                        "name": "rule",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.QualityRule"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.QualityRule"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/rules/{id}": {
-            "get": {
-                "description": "根据规则ID获取质量规则的详细信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "获取指定质量规则详情",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.QualityRule"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "更新指定的数据质量规则信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "更新数据质量规则",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "质量规则信息",
-                        "name": "rule",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.QualityRule"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.QualityRule"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "删除指定的数据质量规则（软删除）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "删除数据质量规则",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/quality/rules/{id}/execute": {
-            "post": {
-                "description": "对指定规则执行质量检查",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据质量"
-                ],
-                "summary": "执行数据质量检查",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.QualityCheckExecution"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/share/": {
             "get": {
                 "description": "根据API Key获取该Key所属的API应用详细信息以及该应用下的所有接口信息，包括主题接口的字段定义",
@@ -3478,6 +2334,1134 @@ const docTemplate = `{
                 }
             }
         },
+        "/data-quality/checks": {
+            "post": {
+                "description": "对指定对象执行数据质量检查并生成报告",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "执行数据质量检查",
+                "parameters": [
+                    {
+                        "description": "质量检查请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/governance.RunQualityCheckRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "检查成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.QualityReportResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-quality/masking-rules": {
+            "get": {
+                "description": "分页获取数据脱敏规则列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "获取数据脱敏规则列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "数据源",
+                        "name": "data_source",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "mask",
+                            "replace",
+                            "encrypt",
+                            "pseudonymize"
+                        ],
+                        "type": "string",
+                        "description": "脱敏类型",
+                        "name": "masking_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.MaskingRuleListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的数据脱敏规则",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "创建数据脱敏规则",
+                "parameters": [
+                    {
+                        "description": "数据脱敏规则信息",
+                        "name": "rule",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/governance.CreateMaskingRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.MaskingRuleResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-quality/masking-rules/{id}": {
+            "get": {
+                "description": "根据ID获取数据脱敏规则详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "根据ID获取数据脱敏规则",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "规则ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.MaskingRuleResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "规则不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新数据脱敏规则信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "更新数据脱敏规则",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "规则ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新信息",
+                        "name": "updates",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/governance.UpdateMaskingRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "规则不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除指定的数据脱敏规则",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "删除数据脱敏规则",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "规则ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "规则不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-quality/metadata": {
+            "get": {
+                "description": "分页获取元数据列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "获取元数据列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "technical",
+                            "business",
+                            "management"
+                        ],
+                        "type": "string",
+                        "description": "元数据类型",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "元数据名称",
+                        "name": "name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.MetadataListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的元数据",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "创建元数据",
+                "parameters": [
+                    {
+                        "description": "元数据信息",
+                        "name": "metadata",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/governance.CreateMetadataRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.MetadataResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-quality/metadata/{id}": {
+            "get": {
+                "description": "根据ID获取元数据详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "根据ID获取元数据",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "元数据ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.MetadataResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "元数据不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新元数据信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "更新元数据",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "元数据ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新信息",
+                        "name": "updates",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/governance.UpdateMetadataRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "元数据不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除指定的元数据",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "删除元数据",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "元数据ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "元数据不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-quality/reports": {
+            "get": {
+                "description": "分页获取数据质量报告列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "获取数据质量报告列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "interface",
+                            "thematic_interface"
+                        ],
+                        "type": "string",
+                        "description": "对象类型",
+                        "name": "object_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.QualityReportListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-quality/reports/{id}": {
+            "get": {
+                "description": "根据ID获取数据质量报告详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "根据ID获取数据质量报告",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "报告ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.QualityReportResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "报告不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-quality/rules": {
+            "get": {
+                "description": "分页获取数据质量规则列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "获取数据质量规则列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "completeness",
+                            "accuracy",
+                            "consistency",
+                            "validity",
+                            "uniqueness",
+                            "timeliness",
+                            "standardization"
+                        ],
+                        "type": "string",
+                        "description": "规则类型",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "interface",
+                            "thematic_interface"
+                        ],
+                        "type": "string",
+                        "description": "关联对象类型",
+                        "name": "object_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.QualityRuleListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的数据质量规则",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "创建数据质量规则",
+                "parameters": [
+                    {
+                        "description": "数据质量规则信息",
+                        "name": "rule",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/governance.CreateQualityRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.QualityRuleResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-quality/rules/{id}": {
+            "get": {
+                "description": "根据ID获取数据质量规则详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "根据ID获取数据质量规则",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "规则ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.QualityRuleResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "规则不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新数据质量规则信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "更新数据质量规则",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "规则ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新信息",
+                        "name": "updates",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/governance.UpdateQualityRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "规则不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除指定的数据质量规则",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "删除数据质量规则",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "规则ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "规则不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-quality/system-logs": {
+            "get": {
+                "description": "分页获取系统日志列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "获取系统日志列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "操作类型",
+                        "name": "operation_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "对象类型",
+                        "name": "object_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "开始时间",
+                        "name": "start_time",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "结束时间",
+                        "name": "end_time",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.SystemLogListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/data-view/{library_type}/{library_id}/tables": {
             "get": {
                 "description": "获取指定基础库或主题库的所有数据接口(表)信息",
@@ -3957,1127 +3941,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/governance/masking-rules": {
-            "get": {
-                "description": "分页获取数据脱敏规则列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "获取数据脱敏规则列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页数量",
-                        "name": "page_size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "数据源",
-                        "name": "data_source",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "脱敏类型",
-                        "name": "masking_type",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.DataMaskingRule"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "创建新的数据脱敏规则",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "创建数据脱敏规则",
-                "parameters": [
-                    {
-                        "description": "数据脱敏规则信息",
-                        "name": "rule",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.DataMaskingRule"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "创建成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.DataMaskingRule"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/governance/masking-rules/{id}": {
-            "get": {
-                "description": "根据ID获取数据脱敏规则详情",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "根据ID获取数据脱敏规则",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.DataMaskingRule"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "规则不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "更新数据脱敏规则信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "更新数据脱敏规则",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新信息",
-                        "name": "updates",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新成功",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "规则不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "删除指定的数据脱敏规则",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "删除数据脱敏规则",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "删除成功",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "规则不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/governance/metadata": {
-            "get": {
-                "description": "分页获取元数据列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "获取元数据列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页数量",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "元数据类型",
-                        "name": "type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "元数据名称",
-                        "name": "name",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.Metadata"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "创建新的元数据",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "创建元数据",
-                "parameters": [
-                    {
-                        "description": "元数据信息",
-                        "name": "metadata",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.Metadata"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "创建成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.Metadata"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/governance/metadata/{id}": {
-            "get": {
-                "description": "根据ID获取元数据详情",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "根据ID获取元数据",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "元数据ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.Metadata"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "元数据不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "更新元数据信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "更新元数据",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "元数据ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新信息",
-                        "name": "updates",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新成功",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "元数据不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "删除指定的元数据",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "删除元数据",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "元数据ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "删除成功",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "元数据不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/governance/quality-check": {
-            "post": {
-                "description": "对指定对象执行数据质量检查并生成报告",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "执行数据质量检查",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "对象ID",
-                        "name": "object_id",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "对象类型",
-                        "name": "object_type",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "检查成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.DataQualityReport"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/governance/quality-reports": {
-            "get": {
-                "description": "分页获取数据质量报告列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "获取数据质量报告列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页数量",
-                        "name": "page_size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "对象类型",
-                        "name": "object_type",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.DataQualityReport"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/governance/quality-reports/{id}": {
-            "get": {
-                "description": "根据ID获取数据质量报告详情",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "根据ID获取数据质量报告",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "报告ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.DataQualityReport"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "报告不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/governance/quality-rules": {
-            "get": {
-                "description": "分页获取数据质量规则列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "获取数据质量规则列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页数量",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "规则类型",
-                        "name": "type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关联对象类型",
-                        "name": "object_type",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.QualityRule"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "创建新的数据质量规则",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "创建数据质量规则",
-                "parameters": [
-                    {
-                        "description": "数据质量规则信息",
-                        "name": "rule",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.QualityRule"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "创建成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.QualityRule"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/governance/quality-rules/{id}": {
-            "get": {
-                "description": "根据ID获取数据质量规则详情",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "根据ID获取数据质量规则",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.QualityRule"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "规则不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "更新数据质量规则信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "更新数据质量规则",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新信息",
-                        "name": "updates",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新成功",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "规则不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "删除指定的数据质量规则",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "删除数据质量规则",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "删除成功",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "规则不存在",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/governance/system-logs": {
-            "get": {
-                "description": "分页获取系统日志列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据治理"
-                ],
-                "summary": "获取系统日志列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页数量",
-                        "name": "page_size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "操作类型",
-                        "name": "operation_type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "对象类型",
-                        "name": "object_type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "开始时间",
-                        "name": "start_time",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "结束时间",
-                        "name": "end_time",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.SystemLog"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/health": {
             "get": {
                 "description": "检查服务健康状态",
@@ -5164,6 +4027,372 @@ const docTemplate = `{
                                             "type": "object",
                                             "additionalProperties": {
                                                 "$ref": "#/definitions/meta.DataSourceTypeDefinition"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/data-quality/all": {
+            "get": {
+                "description": "获取数据质量相关的所有元数据，包括规则类型、检查状态、脱敏类型等",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取数据质量完整元数据",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.DataQualityMetadataResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/data-quality/check-statuses": {
+            "get": {
+                "description": "获取所有质量检查状态元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取质量检查状态元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/meta.QualityCheckStatus"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/data-quality/cleansing-rule-types": {
+            "get": {
+                "description": "获取所有清洗规则类型元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取清洗规则类型元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/meta.CleansingRuleType"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/data-quality/issue-severities": {
+            "get": {
+                "description": "获取所有质量问题严重程度元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取质量问题严重程度元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/meta.QualityIssueSeverity"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/data-quality/issue-statuses": {
+            "get": {
+                "description": "获取所有质量问题状态元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取质量问题状态元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/meta.QualityIssueStatus"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/data-quality/masking-types": {
+            "get": {
+                "description": "获取所有数据脱敏类型元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取数据脱敏类型元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/meta.DataMaskingType"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/data-quality/metric-types": {
+            "get": {
+                "description": "获取所有质量指标类型元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取质量指标类型元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/meta.QualityMetricType"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/data-quality/report-types": {
+            "get": {
+                "description": "获取所有质量报告类型元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取质量报告类型元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/meta.QualityReportType"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/meta/data-quality/rule-types": {
+            "get": {
+                "description": "获取所有质量规则类型元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "元数据"
+                ],
+                "summary": "获取质量规则类型元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/meta.QualityRuleType"
                                             }
                                         }
                                     }
@@ -5722,226 +4951,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/sharing/api-applications/{app_id}/keys": {
-            "get": {
-                "description": "获取某个应用下的所有ApiKey信息（不包含Key本身）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据共享服务"
-                ],
-                "summary": "获取API密钥列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "应用ID",
-                        "name": "app_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.ApiKey"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "为指定应用生成一个新的ApiKey，返回完整的Key值（仅此一次）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据共享服务"
-                ],
-                "summary": "生成API密钥",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "应用ID",
-                        "name": "app_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "ApiKey信息",
-                        "name": "key",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/controllers.CreateApiKeyRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "创建成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/controllers.CreateApiKeyResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/sharing/api-applications/{app_id}/keys/{key_id}": {
-            "put": {
-                "description": "更新ApiKey信息（如描述、状态）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据共享服务"
-                ],
-                "summary": "更新API密钥",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "应用ID",
-                        "name": "app_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "密钥ID",
-                        "name": "key_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新信息",
-                        "name": "updates",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新成功",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "吊销（删除）一个ApiKey",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "数据共享服务"
-                ],
-                "summary": "删除API密钥",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "应用ID",
-                        "name": "app_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "密钥ID",
-                        "name": "key_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "删除成功",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/sharing/api-applications/{id}": {
             "get": {
                 "description": "根据ID获取API应用详情",
@@ -6231,6 +5240,311 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sharing/api-keys": {
+            "get": {
+                "description": "获取API密钥列表（不包含Key本身），可选择按应用过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "获取API密钥列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用ID，用于过滤特定应用的ApiKey",
+                        "name": "app_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.ApiKey"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建一个新的ApiKey并关联到指定的应用，返回完整的Key值（仅此一次）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "生成API密钥",
+                "parameters": [
+                    {
+                        "description": "ApiKey信息",
+                        "name": "key",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.CreateApiKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.CreateApiKeyResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sharing/api-keys/{id}": {
+            "get": {
+                "description": "根据ID获取API密钥详情（不包含Key本身）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "获取API密钥详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "密钥ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.ApiKey"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "密钥不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新ApiKey信息（如名称、描述、状态）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "更新API密钥",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "密钥ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新信息",
+                        "name": "updates",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "吊销（删除）一个ApiKey",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "删除API密钥",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "密钥ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sharing/api-keys/{id}/applications": {
+            "put": {
+                "description": "更新ApiKey关联的应用列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "更新API密钥关联应用",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "密钥ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "关联应用信息",
+                        "name": "applications",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateApiKeyApplicationsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -9178,7 +8492,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/controllers.CreateSyncTaskRequest"
+                            "$ref": "#/definitions/thematic_library.CreateThematicSyncTaskRequest"
                         }
                     }
                 ],
@@ -9310,7 +8624,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/controllers.UpdateSyncTaskRequest"
+                            "$ref": "#/definitions/controllers.UpdateThematicSyncTaskRequest"
                         }
                     }
                 ],
@@ -9963,11 +9277,26 @@ const docTemplate = `{
         },
         "controllers.CreateApiKeyRequest": {
             "type": "object",
+            "required": [
+                "application_ids",
+                "name"
+            ],
             "properties": {
+                "application_ids": {
+                    "description": "关联的应用ID列表",
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
                 "expires_at": {
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 }
             }
@@ -9983,9 +9312,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "controllers.CreateSyncTaskRequest": {
-            "type": "object"
         },
         "controllers.CreateThematicInterfaceViewRequest": {
             "type": "object",
@@ -10041,6 +9367,59 @@ const docTemplate = `{
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "controllers.DataQualityMetadataResponse": {
+            "type": "object",
+            "properties": {
+                "check_statuses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.QualityCheckStatus"
+                    }
+                },
+                "cleansing_types": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.CleansingRuleType"
+                    }
+                },
+                "issue_severities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.QualityIssueSeverity"
+                    }
+                },
+                "issue_statuses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.QualityIssueStatus"
+                    }
+                },
+                "masking_types": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.DataMaskingType"
+                    }
+                },
+                "metric_types": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.QualityMetricType"
+                    }
+                },
+                "report_types": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.QualityReportType"
+                    }
+                },
+                "rule_types": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.QualityRuleType"
+                    }
                 }
             }
         },
@@ -10708,6 +10087,22 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.UpdateApiKeyApplicationsRequest": {
+            "type": "object",
+            "required": [
+                "application_ids"
+            ],
+            "properties": {
+                "application_ids": {
+                    "description": "关联的应用ID列表",
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "controllers.UpdateBasicLibraryRequest": {
             "type": "object",
             "required": [
@@ -10852,52 +10247,6 @@ const docTemplate = `{
                 }
             }
         },
-        "controllers.UpdateSyncTaskRequest": {
-            "type": "object",
-            "required": [
-                "updated_by"
-            ],
-            "properties": {
-                "aggregation_config": {
-                    "$ref": "#/definitions/thematic_library.AggregationConfig"
-                },
-                "cleansing_rules": {
-                    "$ref": "#/definitions/thematic_library.CleansingRules"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "更新后的描述"
-                },
-                "field_mapping_rules": {
-                    "$ref": "#/definitions/thematic_library.FieldMappingRules"
-                },
-                "key_matching_rules": {
-                    "$ref": "#/definitions/thematic_library.KeyMatchingRules"
-                },
-                "privacy_rules": {
-                    "$ref": "#/definitions/thematic_library.PrivacyRules"
-                },
-                "quality_rules": {
-                    "$ref": "#/definitions/thematic_library.QualityRules"
-                },
-                "schedule_config": {
-                    "$ref": "#/definitions/thematic_library.ScheduleConfig"
-                },
-                "status": {
-                    "description": "active, inactive, paused",
-                    "type": "string",
-                    "example": "active"
-                },
-                "task_name": {
-                    "type": "string",
-                    "example": "更新后的用户数据同步任务"
-                },
-                "updated_by": {
-                    "type": "string",
-                    "example": "admin"
-                }
-            }
-        },
         "controllers.UpdateThematicInterfaceFieldsRequest": {
             "type": "object",
             "required": [
@@ -10931,6 +10280,497 @@ const docTemplate = `{
                 "view_sql": {
                     "type": "string",
                     "example": "SELECT * FROM users WHERE status = 'active'"
+                }
+            }
+        },
+        "controllers.UpdateThematicSyncTaskRequest": {
+            "type": "object",
+            "required": [
+                "updated_by"
+            ],
+            "properties": {
+                "aggregation_config": {
+                    "$ref": "#/definitions/thematic_library.AggregationConfig"
+                },
+                "cleansing_rules": {
+                    "$ref": "#/definitions/thematic_library.CleansingRules"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "更新后的描述"
+                },
+                "field_mapping_rules": {
+                    "$ref": "#/definitions/thematic_library.FieldMappingRules"
+                },
+                "key_matching_rules": {
+                    "$ref": "#/definitions/thematic_library.KeyMatchingRules"
+                },
+                "privacy_rules": {
+                    "$ref": "#/definitions/thematic_library.PrivacyRules"
+                },
+                "schedule_config": {
+                    "$ref": "#/definitions/thematic_library.ScheduleConfig"
+                },
+                "status": {
+                    "description": "active, inactive, paused",
+                    "type": "string",
+                    "example": "active"
+                },
+                "task_name": {
+                    "type": "string",
+                    "example": "更新后的用户数据同步任务"
+                },
+                "updated_by": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "governance.CreateMaskingRuleRequest": {
+            "type": "object"
+        },
+        "governance.CreateMetadataRequest": {
+            "type": "object",
+            "required": [
+                "content",
+                "name",
+                "type"
+            ],
+            "properties": {
+                "content": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "description": {
+                    "type": "string",
+                    "example": "用户表的技术元数据信息"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "用户表技术元数据"
+                },
+                "related_object_id": {
+                    "type": "string",
+                    "example": "uuid-123"
+                },
+                "related_object_type": {
+                    "type": "string",
+                    "example": "interface"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "technical",
+                        "business",
+                        "management"
+                    ],
+                    "example": "technical"
+                }
+            }
+        },
+        "governance.CreateQualityRuleRequest": {
+            "type": "object"
+        },
+        "governance.MaskingRuleListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/governance.MaskingRuleResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 50
+                }
+            }
+        },
+        "governance.MaskingRuleResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "created_by": {
+                    "type": "string",
+                    "example": "admin"
+                },
+                "data_source": {
+                    "type": "string",
+                    "example": "user_db"
+                },
+                "data_table": {
+                    "type": "string",
+                    "example": "users"
+                },
+                "field_name": {
+                    "type": "string",
+                    "example": "mobile"
+                },
+                "field_type": {
+                    "type": "string",
+                    "example": "varchar"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "uuid-123"
+                },
+                "is_enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "masking_config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "masking_type": {
+                    "type": "string",
+                    "example": "mask"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "手机号脱敏规则"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "updated_by": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "governance.MetadataListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/governance.MetadataResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 80
+                }
+            }
+        },
+        "governance.MetadataResponse": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "created_by": {
+                    "type": "string",
+                    "example": "admin"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "uuid-123"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "用户表技术元数据"
+                },
+                "related_object_id": {
+                    "type": "string",
+                    "example": "uuid-456"
+                },
+                "related_object_type": {
+                    "type": "string",
+                    "example": "interface"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "technical"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "updated_by": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "governance.QualityReportListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/governance.QualityReportResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 20
+                }
+            }
+        },
+        "governance.QualityReportResponse": {
+            "type": "object",
+            "properties": {
+                "generated_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "generated_by": {
+                    "type": "string",
+                    "example": "system"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "uuid-123"
+                },
+                "issues": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "quality_metrics": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "quality_score": {
+                    "type": "number",
+                    "example": 85.5
+                },
+                "recommendations": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "related_object_id": {
+                    "type": "string",
+                    "example": "uuid-456"
+                },
+                "related_object_type": {
+                    "type": "string",
+                    "example": "interface"
+                },
+                "report_name": {
+                    "type": "string",
+                    "example": "2024年1月数据质量月报"
+                }
+            }
+        },
+        "governance.QualityRuleListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/governance.QualityRuleResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "governance.QualityRuleResponse": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "created_by": {
+                    "type": "string",
+                    "example": "admin"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "uuid-123"
+                },
+                "is_enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "完整性检查规则"
+                },
+                "related_object_id": {
+                    "type": "string",
+                    "example": "uuid-456"
+                },
+                "related_object_type": {
+                    "type": "string",
+                    "example": "interface"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "completeness"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "updated_by": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "governance.RunQualityCheckRequest": {
+            "type": "object",
+            "required": [
+                "object_id",
+                "object_type"
+            ],
+            "properties": {
+                "object_id": {
+                    "type": "string",
+                    "example": "uuid-123"
+                },
+                "object_type": {
+                    "type": "string",
+                    "enum": [
+                        "interface",
+                        "thematic_interface"
+                    ],
+                    "example": "interface"
+                }
+            }
+        },
+        "governance.SystemLogListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/governance.SystemLogResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 1000
+                }
+            }
+        },
+        "governance.SystemLogResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "uuid-123"
+                },
+                "object_id": {
+                    "type": "string",
+                    "example": "uuid-456"
+                },
+                "object_type": {
+                    "type": "string",
+                    "example": "quality_rule"
+                },
+                "operation_content": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "operation_result": {
+                    "type": "string",
+                    "example": "success"
+                },
+                "operation_time": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "operation_type": {
+                    "type": "string",
+                    "example": "create"
+                },
+                "operator_id": {
+                    "type": "string",
+                    "example": "uuid-789"
+                },
+                "operator_ip": {
+                    "type": "string",
+                    "example": "192.168.1.1"
+                },
+                "operator_name": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "governance.UpdateMaskingRuleRequest": {
+            "type": "object"
+        },
+        "governance.UpdateMetadataRequest": {
+            "type": "object"
+        },
+        "governance.UpdateQualityRuleRequest": {
+            "type": "object"
+        },
+        "meta.CleansingRuleType": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -11058,6 +10898,23 @@ const docTemplate = `{
                 },
                 "type": {
                     "description": "number,timestamp,db_field",
+                    "type": "string"
+                }
+            }
+        },
+        "meta.DataMaskingType": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "example": {
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 }
             }
@@ -11239,6 +11096,108 @@ const docTemplate = `{
                 },
                 "value": {
                     "description": "条件值"
+                }
+            }
+        },
+        "meta.QualityCheckStatus": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "meta.QualityIssueSeverity": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                }
+            }
+        },
+        "meta.QualityIssueStatus": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "meta.QualityMetricType": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "unit": {
+                    "type": "string"
+                }
+            }
+        },
+        "meta.QualityReportType": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "meta.QualityRuleType": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -11797,11 +11756,12 @@ const docTemplate = `{
         "models.ApiKey": {
             "type": "object",
             "properties": {
-                "api_application": {
-                    "$ref": "#/definitions/models.ApiApplication"
-                },
-                "api_application_id": {
-                    "type": "string"
+                "applications": {
+                    "description": "多对多关系：一个ApiKey可以访问多个ApiApplication",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ApiApplication"
+                    }
                 },
                 "created_at": {
                     "type": "string"
@@ -11825,8 +11785,18 @@ const docTemplate = `{
                 "last_used_at": {
                     "type": "string"
                 },
+                "name": {
+                    "description": "ApiKey名称",
+                    "type": "string"
+                },
                 "status": {
                     "description": "active, inactive, revoked",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
                     "type": "string"
                 },
                 "usage_count": {
@@ -12055,105 +12025,6 @@ const docTemplate = `{
                 }
             }
         },
-        "models.DataCleansingRuleEngine": {
-            "type": "object",
-            "properties": {
-                "backup_original": {
-                    "description": "是否备份原始数据",
-                    "type": "boolean"
-                },
-                "cleansing_action": {
-                    "description": "清洗动作配置",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "deleted_at": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "error_handling": {
-                    "description": "错误处理策略",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "execution_order": {
-                    "description": "执行顺序",
-                    "type": "integer"
-                },
-                "failure_count": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_enabled": {
-                    "type": "boolean"
-                },
-                "last_executed": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "post_condition": {
-                    "description": "后置条件",
-                    "type": "string"
-                },
-                "pre_condition": {
-                    "description": "前置条件",
-                    "type": "string"
-                },
-                "priority": {
-                    "description": "优先级 (1-100)",
-                    "type": "integer"
-                },
-                "rule_type": {
-                    "description": "standardization, deduplication, validation, transformation, enrichment",
-                    "type": "string"
-                },
-                "success_count": {
-                    "type": "integer"
-                },
-                "target_column": {
-                    "type": "string"
-                },
-                "target_table": {
-                    "type": "string"
-                },
-                "trigger_condition": {
-                    "description": "触发条件",
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "string"
-                },
-                "validation_rules": {
-                    "description": "验证规则",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                }
-            }
-        },
         "models.DataInterface": {
             "type": "object",
             "properties": {
@@ -12227,102 +12098,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updated_by": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.DataMaskingRule": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "creator_id": {
-                    "type": "string"
-                },
-                "creator_name": {
-                    "type": "string"
-                },
-                "data_source": {
-                    "type": "string"
-                },
-                "data_table": {
-                    "type": "string"
-                },
-                "field_name": {
-                    "type": "string"
-                },
-                "field_type": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_enabled": {
-                    "type": "boolean"
-                },
-                "masking_config": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "masking_type": {
-                    "description": "mask/replace/encrypt/pseudonymize",
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.DataQualityReport": {
-            "type": "object",
-            "properties": {
-                "created_by": {
-                    "type": "string"
-                },
-                "generated_at": {
-                    "type": "string"
-                },
-                "generated_by": {
-                    "type": "string"
-                },
-                "generator_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "issues": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "quality_metrics": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "quality_score": {
-                    "type": "number"
-                },
-                "recommendations": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "related_object_id": {
-                    "type": "string"
-                },
-                "related_object_type": {
-                    "type": "string"
-                },
-                "report_name": {
                     "type": "string"
                 }
             }
@@ -12630,44 +12405,6 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": true
         },
-        "models.Metadata": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "related_object_id": {
-                    "type": "string"
-                },
-                "related_object_type": {
-                    "description": "basic_library/data_interface/thematic_library等",
-                    "type": "string"
-                },
-                "type": {
-                    "description": "technical/business/management",
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "string"
-                }
-            }
-        },
         "models.PerformanceSnapshot": {
             "type": "object",
             "properties": {
@@ -12736,436 +12473,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/models.JSONB"
                         }
                     ]
-                }
-            }
-        },
-        "models.QualityCheckExecution": {
-            "type": "object",
-            "properties": {
-                "check_results": {
-                    "description": "检查结果详情",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "check_type": {
-                    "description": "batch, realtime, manual",
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "deleted_at": {
-                    "type": "string"
-                },
-                "duration": {
-                    "description": "检查时长，毫秒",
-                    "type": "integer"
-                },
-                "end_time": {
-                    "type": "string"
-                },
-                "error_message": {
-                    "type": "string"
-                },
-                "execution_id": {
-                    "type": "string"
-                },
-                "failed_records": {
-                    "type": "integer"
-                },
-                "fixed_actions": {
-                    "description": "修复动作记录",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "fixed_records": {
-                    "description": "自动修复记录数",
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "passed_records": {
-                    "type": "integer"
-                },
-                "quality_rule_id": {
-                    "type": "string"
-                },
-                "quality_score": {
-                    "description": "质量评分 (0-1)",
-                    "type": "number"
-                },
-                "recommendations": {
-                    "description": "改进建议",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "sample_data": {
-                    "description": "样本数据",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "status": {
-                    "description": "running, passed, failed, warning",
-                    "type": "string"
-                },
-                "sync_config_id": {
-                    "type": "string"
-                },
-                "threshold_met": {
-                    "description": "是否达到阈值",
-                    "type": "boolean"
-                },
-                "total_records": {
-                    "type": "integer"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.QualityDashboardReport": {
-            "type": "object",
-            "properties": {
-                "accuracy_score": {
-                    "type": "number"
-                },
-                "completeness_score": {
-                    "type": "number"
-                },
-                "consistency_score": {
-                    "type": "number"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "critical_issues": {
-                    "type": "integer"
-                },
-                "deleted_at": {
-                    "type": "string"
-                },
-                "end_date": {
-                    "type": "string"
-                },
-                "generated_by": {
-                    "type": "string"
-                },
-                "high_issues": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "low_issues": {
-                    "type": "integer"
-                },
-                "medium_issues": {
-                    "type": "integer"
-                },
-                "overall_quality_score": {
-                    "type": "number"
-                },
-                "published_at": {
-                    "type": "string"
-                },
-                "recommendations": {
-                    "description": "改进建议",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "report_data": {
-                    "description": "报告详细数据",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "report_name": {
-                    "type": "string"
-                },
-                "report_period": {
-                    "type": "string"
-                },
-                "report_type": {
-                    "description": "daily, weekly, monthly, ad_hoc",
-                    "type": "string"
-                },
-                "reviewed_at": {
-                    "type": "string"
-                },
-                "reviewed_by": {
-                    "type": "string"
-                },
-                "start_date": {
-                    "type": "string"
-                },
-                "status": {
-                    "description": "draft, published, archived",
-                    "type": "string"
-                },
-                "timeliness_score": {
-                    "type": "number"
-                },
-                "total_issues_found": {
-                    "type": "integer"
-                },
-                "total_records_checked": {
-                    "type": "integer"
-                },
-                "total_rules_executed": {
-                    "type": "integer"
-                },
-                "total_tables_checked": {
-                    "type": "integer"
-                },
-                "trend_analysis": {
-                    "description": "趋势分析",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "uniqueness_score": {
-                    "type": "number"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "validity_score": {
-                    "type": "number"
-                }
-            }
-        },
-        "models.QualityIssueTracker": {
-            "type": "object",
-            "properties": {
-                "actual_value": {
-                    "type": "string"
-                },
-                "assigned_to": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "deleted_at": {
-                    "type": "string"
-                },
-                "detection_time": {
-                    "type": "string"
-                },
-                "expected_value": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "issue_context": {
-                    "description": "问题上下文",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "issue_description": {
-                    "type": "string"
-                },
-                "issue_type": {
-                    "type": "string"
-                },
-                "quality_check_id": {
-                    "type": "string"
-                },
-                "quality_rule_id": {
-                    "type": "string"
-                },
-                "record_identifier": {
-                    "description": "记录标识符",
-                    "type": "string"
-                },
-                "reopen_count": {
-                    "type": "integer"
-                },
-                "resolution_action": {
-                    "description": "解决动作",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "resolution_note": {
-                    "type": "string"
-                },
-                "resolved_at": {
-                    "type": "string"
-                },
-                "resolved_by": {
-                    "type": "string"
-                },
-                "severity": {
-                    "description": "low, medium, high, critical",
-                    "type": "string"
-                },
-                "status": {
-                    "description": "open, investigating, resolved, ignored, false_positive",
-                    "type": "string"
-                },
-                "tags": {
-                    "$ref": "#/definitions/models.JSONB"
-                },
-                "target_column": {
-                    "type": "string"
-                },
-                "target_table": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.QualityMetricRecord": {
-            "type": "object",
-            "properties": {
-                "baseline_value": {
-                    "description": "基线值",
-                    "type": "number"
-                },
-                "calculation_time": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "data_source": {
-                    "type": "string"
-                },
-                "deleted_at": {
-                    "type": "string"
-                },
-                "duplicate_count": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "invalid_count": {
-                    "type": "integer"
-                },
-                "metric_date": {
-                    "type": "string"
-                },
-                "metric_details": {
-                    "description": "指标详细信息",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "metric_name": {
-                    "type": "string"
-                },
-                "metric_type": {
-                    "description": "completeness, accuracy, consistency, validity, uniqueness, timeliness",
-                    "type": "string"
-                },
-                "metric_value": {
-                    "description": "指标值",
-                    "type": "number"
-                },
-                "null_count": {
-                    "type": "integer"
-                },
-                "outlier_count": {
-                    "type": "integer"
-                },
-                "target_column": {
-                    "type": "string"
-                },
-                "target_table": {
-                    "type": "string"
-                },
-                "target_value": {
-                    "description": "目标值",
-                    "type": "number"
-                },
-                "total_count": {
-                    "type": "integer"
-                },
-                "trend": {
-                    "description": "improving, stable, declining",
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "valid_count": {
-                    "type": "integer"
-                }
-            }
-        },
-        "models.QualityRule": {
-            "type": "object",
-            "properties": {
-                "config": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_enabled": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "related_object_id": {
-                    "type": "string"
-                },
-                "related_object_type": {
-                    "description": "interface/thematic_interface",
-                    "type": "string"
-                },
-                "type": {
-                    "description": "completeness/standardization/consistency/accuracy/uniqueness/timeliness",
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "string"
                 }
             }
         },
@@ -13657,48 +12964,6 @@ const docTemplate = `{
                     "example": 0
                 },
                 "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.SystemLog": {
-            "type": "object",
-            "properties": {
-                "created_by": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "object_id": {
-                    "type": "string"
-                },
-                "object_type": {
-                    "description": "basic_library/thematic_library/interface/user等",
-                    "type": "string"
-                },
-                "operation_content": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "operation_result": {
-                    "description": "success/failure",
-                    "type": "string"
-                },
-                "operation_time": {
-                    "type": "string"
-                },
-                "operation_type": {
-                    "description": "create/update/delete/query等",
-                    "type": "string"
-                },
-                "operator_id": {
-                    "type": "string"
-                },
-                "operator_ip": {
-                    "type": "string"
-                },
-                "operator_name": {
                     "type": "string"
                 }
             }
@@ -14267,6 +13532,64 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "to_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "thematic_library.CreateThematicSyncTaskRequest": {
+            "type": "object",
+            "required": [
+                "created_by",
+                "schedule_config",
+                "task_name",
+                "thematic_interface_id",
+                "thematic_library_id"
+            ],
+            "properties": {
+                "aggregation_config": {
+                    "$ref": "#/definitions/thematic_library.AggregationConfig"
+                },
+                "cleansing_rules": {
+                    "$ref": "#/definitions/thematic_library.CleansingRules"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "data_source_sql": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.SQLDataSourceConfig"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "field_mapping_rules": {
+                    "$ref": "#/definitions/thematic_library.FieldMappingRules"
+                },
+                "key_matching_rules": {
+                    "$ref": "#/definitions/thematic_library.KeyMatchingRules"
+                },
+                "privacy_rules": {
+                    "$ref": "#/definitions/thematic_library.PrivacyRules"
+                },
+                "schedule_config": {
+                    "$ref": "#/definitions/thematic_library.ScheduleConfig"
+                },
+                "source_libraries": {
+                    "description": "数据源配置 - 两种方式二选一，SQL数据源优先级更高",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.SourceLibraryConfig"
+                    }
+                },
+                "task_name": {
+                    "type": "string"
+                },
+                "thematic_interface_id": {
+                    "type": "string"
+                },
+                "thematic_library_id": {
                     "type": "string"
                 }
             }
@@ -14944,153 +14267,27 @@ const docTemplate = `{
                 }
             }
         },
-        "thematic_library.QualityMetric": {
+        "thematic_library.SQLDataSourceConfig": {
             "type": "object",
-            "required": [
-                "name",
-                "type"
-            ],
             "properties": {
-                "critical": {
-                    "type": "number"
-                },
-                "description": {
+                "interface_id": {
                     "type": "string"
                 },
-                "name": {
+                "library_id": {
                     "type": "string"
                 },
-                "target": {
-                    "type": "number"
-                },
-                "type": {
-                    "type": "string",
-                    "enum": [
-                        "count",
-                        "rate",
-                        "percentage",
-                        "score"
-                    ]
-                },
-                "warning": {
-                    "type": "number"
-                }
-            }
-        },
-        "thematic_library.QualityRule": {
-            "type": "object",
-            "required": [
-                "id",
-                "name",
-                "type"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "enabled": {
-                    "type": "boolean",
-                    "default": true
-                },
-                "expression": {
-                    "type": "string"
-                },
-                "fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
+                "max_rows": {
+                    "type": "integer"
                 },
                 "parameters": {
                     "type": "object",
                     "additionalProperties": true
                 },
-                "threshold": {
-                    "type": "number",
-                    "default": 0.8
+                "sql_query": {
+                    "type": "string"
                 },
-                "type": {
-                    "type": "string",
-                    "enum": [
-                        "completeness",
-                        "accuracy",
-                        "consistency",
-                        "validity",
-                        "uniqueness",
-                        "timeliness"
-                    ]
-                },
-                "weight": {
-                    "type": "number",
-                    "default": 1
-                }
-            }
-        },
-        "thematic_library.QualityRules": {
-            "type": "object",
-            "required": [
-                "rules"
-            ],
-            "properties": {
-                "metrics": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/thematic_library.QualityMetric"
-                    }
-                },
-                "on_failure": {
-                    "description": "warn, error, skip",
-                    "type": "string",
-                    "default": "warn"
-                },
-                "rules": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "$ref": "#/definitions/thematic_library.QualityRule"
-                    }
-                },
-                "threshold": {
-                    "type": "number",
-                    "default": 0.8
-                },
-                "validation": {
-                    "$ref": "#/definitions/thematic_library.QualityValidation"
-                }
-            }
-        },
-        "thematic_library.QualityValidation": {
-            "type": "object",
-            "properties": {
-                "business_rules": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "critical_fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "enable_post_check": {
-                    "type": "boolean",
-                    "default": true
-                },
-                "enable_pre_check": {
-                    "type": "boolean",
-                    "default": true
-                },
-                "statistical_check": {
-                    "type": "boolean",
-                    "default": true
+                "timeout": {
+                    "type": "integer"
                 }
             }
         },

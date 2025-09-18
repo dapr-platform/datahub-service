@@ -225,10 +225,21 @@ definitions:
     type: object
   controllers.CreateApiKeyRequest:
     properties:
+      application_ids:
+        description: 关联的应用ID列表
+        items:
+          type: string
+        minItems: 1
+        type: array
       description:
         type: string
       expires_at:
         type: string
+      name:
+        type: string
+    required:
+    - application_ids
+    - name
     type: object
   controllers.CreateApiKeyResponse:
     properties:
@@ -237,8 +248,6 @@ definitions:
       key_value:
         description: 完整的Key值，仅返回一次
         type: string
-    type: object
-  controllers.CreateSyncTaskRequest:
     type: object
   controllers.CreateThematicInterfaceViewRequest:
     properties:
@@ -277,6 +286,41 @@ definitions:
         type: integer
       total:
         type: integer
+    type: object
+  controllers.DataQualityMetadataResponse:
+    properties:
+      check_statuses:
+        items:
+          $ref: '#/definitions/meta.QualityCheckStatus'
+        type: array
+      cleansing_types:
+        items:
+          $ref: '#/definitions/meta.CleansingRuleType'
+        type: array
+      issue_severities:
+        items:
+          $ref: '#/definitions/meta.QualityIssueSeverity'
+        type: array
+      issue_statuses:
+        items:
+          $ref: '#/definitions/meta.QualityIssueStatus'
+        type: array
+      masking_types:
+        items:
+          $ref: '#/definitions/meta.DataMaskingType'
+        type: array
+      metric_types:
+        items:
+          $ref: '#/definitions/meta.QualityMetricType'
+        type: array
+      report_types:
+        items:
+          $ref: '#/definitions/meta.QualityReportType'
+        type: array
+      rule_types:
+        items:
+          $ref: '#/definitions/meta.QualityRuleType'
+        type: array
     type: object
   controllers.DataSourceListResponse:
     properties:
@@ -740,6 +784,17 @@ definitions:
           $ref: '#/definitions/meta.ThematicLibraryStatus'
         type: array
     type: object
+  controllers.UpdateApiKeyApplicationsRequest:
+    properties:
+      application_ids:
+        description: 关联的应用ID列表
+        items:
+          type: string
+        minItems: 1
+        type: array
+    required:
+    - application_ids
+    type: object
   controllers.UpdateBasicLibraryRequest:
     properties:
       description:
@@ -844,38 +899,6 @@ definitions:
     - fields
     - interface_id
     type: object
-  controllers.UpdateSyncTaskRequest:
-    properties:
-      aggregation_config:
-        $ref: '#/definitions/thematic_library.AggregationConfig'
-      cleansing_rules:
-        $ref: '#/definitions/thematic_library.CleansingRules'
-      description:
-        example: 更新后的描述
-        type: string
-      field_mapping_rules:
-        $ref: '#/definitions/thematic_library.FieldMappingRules'
-      key_matching_rules:
-        $ref: '#/definitions/thematic_library.KeyMatchingRules'
-      privacy_rules:
-        $ref: '#/definitions/thematic_library.PrivacyRules'
-      quality_rules:
-        $ref: '#/definitions/thematic_library.QualityRules'
-      schedule_config:
-        $ref: '#/definitions/thematic_library.ScheduleConfig'
-      status:
-        description: active, inactive, paused
-        example: active
-        type: string
-      task_name:
-        example: 更新后的用户数据同步任务
-        type: string
-      updated_by:
-        example: admin
-        type: string
-    required:
-    - updated_by
-    type: object
   controllers.UpdateThematicInterfaceFieldsRequest:
     properties:
       fields:
@@ -900,6 +923,358 @@ definitions:
     required:
     - interface_id
     - view_sql
+    type: object
+  controllers.UpdateThematicSyncTaskRequest:
+    properties:
+      aggregation_config:
+        $ref: '#/definitions/thematic_library.AggregationConfig'
+      cleansing_rules:
+        $ref: '#/definitions/thematic_library.CleansingRules'
+      description:
+        example: 更新后的描述
+        type: string
+      field_mapping_rules:
+        $ref: '#/definitions/thematic_library.FieldMappingRules'
+      key_matching_rules:
+        $ref: '#/definitions/thematic_library.KeyMatchingRules'
+      privacy_rules:
+        $ref: '#/definitions/thematic_library.PrivacyRules'
+      schedule_config:
+        $ref: '#/definitions/thematic_library.ScheduleConfig'
+      status:
+        description: active, inactive, paused
+        example: active
+        type: string
+      task_name:
+        example: 更新后的用户数据同步任务
+        type: string
+      updated_by:
+        example: admin
+        type: string
+    required:
+    - updated_by
+    type: object
+  governance.CreateMaskingRuleRequest:
+    type: object
+  governance.CreateMetadataRequest:
+    properties:
+      content:
+        additionalProperties: true
+        type: object
+      description:
+        example: 用户表的技术元数据信息
+        type: string
+      name:
+        example: 用户表技术元数据
+        type: string
+      related_object_id:
+        example: uuid-123
+        type: string
+      related_object_type:
+        example: interface
+        type: string
+      type:
+        enum:
+        - technical
+        - business
+        - management
+        example: technical
+        type: string
+    required:
+    - content
+    - name
+    - type
+    type: object
+  governance.CreateQualityRuleRequest:
+    type: object
+  governance.MaskingRuleListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/governance.MaskingRuleResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 50
+        type: integer
+    type: object
+  governance.MaskingRuleResponse:
+    properties:
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      created_by:
+        example: admin
+        type: string
+      data_source:
+        example: user_db
+        type: string
+      data_table:
+        example: users
+        type: string
+      field_name:
+        example: mobile
+        type: string
+      field_type:
+        example: varchar
+        type: string
+      id:
+        example: uuid-123
+        type: string
+      is_enabled:
+        example: true
+        type: boolean
+      masking_config:
+        additionalProperties: true
+        type: object
+      masking_type:
+        example: mask
+        type: string
+      name:
+        example: 手机号脱敏规则
+        type: string
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      updated_by:
+        example: admin
+        type: string
+    type: object
+  governance.MetadataListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/governance.MetadataResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 80
+        type: integer
+    type: object
+  governance.MetadataResponse:
+    properties:
+      content:
+        additionalProperties: true
+        type: object
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      created_by:
+        example: admin
+        type: string
+      id:
+        example: uuid-123
+        type: string
+      name:
+        example: 用户表技术元数据
+        type: string
+      related_object_id:
+        example: uuid-456
+        type: string
+      related_object_type:
+        example: interface
+        type: string
+      type:
+        example: technical
+        type: string
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      updated_by:
+        example: admin
+        type: string
+    type: object
+  governance.QualityReportListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/governance.QualityReportResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 20
+        type: integer
+    type: object
+  governance.QualityReportResponse:
+    properties:
+      generated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      generated_by:
+        example: system
+        type: string
+      id:
+        example: uuid-123
+        type: string
+      issues:
+        additionalProperties: true
+        type: object
+      quality_metrics:
+        additionalProperties: true
+        type: object
+      quality_score:
+        example: 85.5
+        type: number
+      recommendations:
+        additionalProperties: true
+        type: object
+      related_object_id:
+        example: uuid-456
+        type: string
+      related_object_type:
+        example: interface
+        type: string
+      report_name:
+        example: 2024年1月数据质量月报
+        type: string
+    type: object
+  governance.QualityRuleListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/governance.QualityRuleResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 100
+        type: integer
+    type: object
+  governance.QualityRuleResponse:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      created_by:
+        example: admin
+        type: string
+      id:
+        example: uuid-123
+        type: string
+      is_enabled:
+        example: true
+        type: boolean
+      name:
+        example: 完整性检查规则
+        type: string
+      related_object_id:
+        example: uuid-456
+        type: string
+      related_object_type:
+        example: interface
+        type: string
+      type:
+        example: completeness
+        type: string
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      updated_by:
+        example: admin
+        type: string
+    type: object
+  governance.RunQualityCheckRequest:
+    properties:
+      object_id:
+        example: uuid-123
+        type: string
+      object_type:
+        enum:
+        - interface
+        - thematic_interface
+        example: interface
+        type: string
+    required:
+    - object_id
+    - object_type
+    type: object
+  governance.SystemLogListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/governance.SystemLogResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 1000
+        type: integer
+    type: object
+  governance.SystemLogResponse:
+    properties:
+      id:
+        example: uuid-123
+        type: string
+      object_id:
+        example: uuid-456
+        type: string
+      object_type:
+        example: quality_rule
+        type: string
+      operation_content:
+        additionalProperties: true
+        type: object
+      operation_result:
+        example: success
+        type: string
+      operation_time:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      operation_type:
+        example: create
+        type: string
+      operator_id:
+        example: uuid-789
+        type: string
+      operator_ip:
+        example: 192.168.1.1
+        type: string
+      operator_name:
+        example: admin
+        type: string
+    type: object
+  governance.UpdateMaskingRuleRequest:
+    type: object
+  governance.UpdateMetadataRequest:
+    type: object
+  governance.UpdateQualityRuleRequest:
+    type: object
+  meta.CleansingRuleType:
+    properties:
+      category:
+        type: string
+      code:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
     type: object
   meta.DataInterfaceConfigDefinition:
     properties:
@@ -989,6 +1364,17 @@ definitions:
         type: string
       type:
         description: number,timestamp,db_field
+        type: string
+    type: object
+  meta.DataMaskingType:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      example:
+        type: string
+      name:
         type: string
     type: object
   meta.DataSourceConfigField:
@@ -1116,6 +1502,72 @@ definitions:
         type: string
       value:
         description: 条件值
+    type: object
+  meta.QualityCheckStatus:
+    properties:
+      code:
+        type: string
+      color:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  meta.QualityIssueSeverity:
+    properties:
+      code:
+        type: string
+      color:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      priority:
+        type: integer
+    type: object
+  meta.QualityIssueStatus:
+    properties:
+      code:
+        type: string
+      color:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  meta.QualityMetricType:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      unit:
+        type: string
+    type: object
+  meta.QualityReportType:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  meta.QualityRuleType:
+    properties:
+      category:
+        type: string
+      code:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
     type: object
   meta.ThematicInterfaceStatus:
     properties:
@@ -1492,10 +1944,11 @@ definitions:
     type: object
   models.ApiKey:
     properties:
-      api_application:
-        $ref: '#/definitions/models.ApiApplication'
-      api_application_id:
-        type: string
+      applications:
+        description: 多对多关系：一个ApiKey可以访问多个ApiApplication
+        items:
+          $ref: '#/definitions/models.ApiApplication'
+        type: array
       created_at:
         type: string
       created_by:
@@ -1511,8 +1964,15 @@ definitions:
         type: string
       last_used_at:
         type: string
+      name:
+        description: ApiKey名称
+        type: string
       status:
         description: active, inactive, revoked
+        type: string
+      updated_at:
+        type: string
+      updated_by:
         type: string
       usage_count:
         type: integer
@@ -1667,70 +2127,6 @@ definitions:
       valid_until:
         type: string
     type: object
-  models.DataCleansingRuleEngine:
-    properties:
-      backup_original:
-        description: 是否备份原始数据
-        type: boolean
-      cleansing_action:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 清洗动作配置
-      created_at:
-        type: string
-      created_by:
-        type: string
-      deleted_at:
-        type: string
-      description:
-        type: string
-      error_handling:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 错误处理策略
-      execution_order:
-        description: 执行顺序
-        type: integer
-      failure_count:
-        type: integer
-      id:
-        type: string
-      is_enabled:
-        type: boolean
-      last_executed:
-        type: string
-      name:
-        type: string
-      post_condition:
-        description: 后置条件
-        type: string
-      pre_condition:
-        description: 前置条件
-        type: string
-      priority:
-        description: 优先级 (1-100)
-        type: integer
-      rule_type:
-        description: standardization, deduplication, validation, transformation, enrichment
-        type: string
-      success_count:
-        type: integer
-      target_column:
-        type: string
-      target_table:
-        type: string
-      trigger_condition:
-        description: 触发条件
-        type: string
-      updated_at:
-        type: string
-      updated_by:
-        type: string
-      validation_rules:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 验证规则
-    type: object
   models.DataInterface:
     properties:
       basic_library:
@@ -1779,71 +2175,6 @@ definitions:
       updated_at:
         type: string
       updated_by:
-        type: string
-    type: object
-  models.DataMaskingRule:
-    properties:
-      created_at:
-        type: string
-      created_by:
-        type: string
-      creator_id:
-        type: string
-      creator_name:
-        type: string
-      data_source:
-        type: string
-      data_table:
-        type: string
-      field_name:
-        type: string
-      field_type:
-        type: string
-      id:
-        type: string
-      is_enabled:
-        type: boolean
-      masking_config:
-        additionalProperties: true
-        type: object
-      masking_type:
-        description: mask/replace/encrypt/pseudonymize
-        type: string
-      name:
-        type: string
-      updated_at:
-        type: string
-      updated_by:
-        type: string
-    type: object
-  models.DataQualityReport:
-    properties:
-      created_by:
-        type: string
-      generated_at:
-        type: string
-      generated_by:
-        type: string
-      generator_name:
-        type: string
-      id:
-        type: string
-      issues:
-        additionalProperties: true
-        type: object
-      quality_metrics:
-        additionalProperties: true
-        type: object
-      quality_score:
-        type: number
-      recommendations:
-        additionalProperties: true
-        type: object
-      related_object_id:
-        type: string
-      related_object_type:
-        type: string
-      report_name:
         type: string
     type: object
   models.DataSource:
@@ -2056,32 +2387,6 @@ definitions:
   models.JSONB:
     additionalProperties: true
     type: object
-  models.Metadata:
-    properties:
-      content:
-        additionalProperties: true
-        type: object
-      created_at:
-        type: string
-      created_by:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      related_object_id:
-        type: string
-      related_object_type:
-        description: basic_library/data_interface/thematic_library等
-        type: string
-      type:
-        description: technical/business/management
-        type: string
-      updated_at:
-        type: string
-      updated_by:
-        type: string
-    type: object
   models.PerformanceSnapshot:
     properties:
       alerts_summary:
@@ -2121,284 +2426,6 @@ definitions:
         allOf:
         - $ref: '#/definitions/models.JSONB'
         description: 趋势数据
-    type: object
-  models.QualityCheckExecution:
-    properties:
-      check_results:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 检查结果详情
-      check_type:
-        description: batch, realtime, manual
-        type: string
-      created_at:
-        type: string
-      deleted_at:
-        type: string
-      duration:
-        description: 检查时长，毫秒
-        type: integer
-      end_time:
-        type: string
-      error_message:
-        type: string
-      execution_id:
-        type: string
-      failed_records:
-        type: integer
-      fixed_actions:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 修复动作记录
-      fixed_records:
-        description: 自动修复记录数
-        type: integer
-      id:
-        type: string
-      passed_records:
-        type: integer
-      quality_rule_id:
-        type: string
-      quality_score:
-        description: 质量评分 (0-1)
-        type: number
-      recommendations:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 改进建议
-      sample_data:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 样本数据
-      start_time:
-        type: string
-      status:
-        description: running, passed, failed, warning
-        type: string
-      sync_config_id:
-        type: string
-      threshold_met:
-        description: 是否达到阈值
-        type: boolean
-      total_records:
-        type: integer
-      updated_at:
-        type: string
-    type: object
-  models.QualityDashboardReport:
-    properties:
-      accuracy_score:
-        type: number
-      completeness_score:
-        type: number
-      consistency_score:
-        type: number
-      created_at:
-        type: string
-      critical_issues:
-        type: integer
-      deleted_at:
-        type: string
-      end_date:
-        type: string
-      generated_by:
-        type: string
-      high_issues:
-        type: integer
-      id:
-        type: string
-      low_issues:
-        type: integer
-      medium_issues:
-        type: integer
-      overall_quality_score:
-        type: number
-      published_at:
-        type: string
-      recommendations:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 改进建议
-      report_data:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 报告详细数据
-      report_name:
-        type: string
-      report_period:
-        type: string
-      report_type:
-        description: daily, weekly, monthly, ad_hoc
-        type: string
-      reviewed_at:
-        type: string
-      reviewed_by:
-        type: string
-      start_date:
-        type: string
-      status:
-        description: draft, published, archived
-        type: string
-      timeliness_score:
-        type: number
-      total_issues_found:
-        type: integer
-      total_records_checked:
-        type: integer
-      total_rules_executed:
-        type: integer
-      total_tables_checked:
-        type: integer
-      trend_analysis:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 趋势分析
-      uniqueness_score:
-        type: number
-      updated_at:
-        type: string
-      validity_score:
-        type: number
-    type: object
-  models.QualityIssueTracker:
-    properties:
-      actual_value:
-        type: string
-      assigned_to:
-        type: string
-      created_at:
-        type: string
-      deleted_at:
-        type: string
-      detection_time:
-        type: string
-      expected_value:
-        type: string
-      id:
-        type: string
-      issue_context:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 问题上下文
-      issue_description:
-        type: string
-      issue_type:
-        type: string
-      quality_check_id:
-        type: string
-      quality_rule_id:
-        type: string
-      record_identifier:
-        description: 记录标识符
-        type: string
-      reopen_count:
-        type: integer
-      resolution_action:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 解决动作
-      resolution_note:
-        type: string
-      resolved_at:
-        type: string
-      resolved_by:
-        type: string
-      severity:
-        description: low, medium, high, critical
-        type: string
-      status:
-        description: open, investigating, resolved, ignored, false_positive
-        type: string
-      tags:
-        $ref: '#/definitions/models.JSONB'
-      target_column:
-        type: string
-      target_table:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  models.QualityMetricRecord:
-    properties:
-      baseline_value:
-        description: 基线值
-        type: number
-      calculation_time:
-        type: string
-      created_at:
-        type: string
-      data_source:
-        type: string
-      deleted_at:
-        type: string
-      duplicate_count:
-        type: integer
-      id:
-        type: string
-      invalid_count:
-        type: integer
-      metric_date:
-        type: string
-      metric_details:
-        allOf:
-        - $ref: '#/definitions/models.JSONB'
-        description: 指标详细信息
-      metric_name:
-        type: string
-      metric_type:
-        description: completeness, accuracy, consistency, validity, uniqueness, timeliness
-        type: string
-      metric_value:
-        description: 指标值
-        type: number
-      null_count:
-        type: integer
-      outlier_count:
-        type: integer
-      target_column:
-        type: string
-      target_table:
-        type: string
-      target_value:
-        description: 目标值
-        type: number
-      total_count:
-        type: integer
-      trend:
-        description: improving, stable, declining
-        type: string
-      updated_at:
-        type: string
-      valid_count:
-        type: integer
-    type: object
-  models.QualityRule:
-    properties:
-      config:
-        additionalProperties: true
-        type: object
-      created_at:
-        type: string
-      created_by:
-        type: string
-      id:
-        type: string
-      is_enabled:
-        type: boolean
-      name:
-        type: string
-      related_object_id:
-        type: string
-      related_object_type:
-        description: interface/thematic_interface
-        type: string
-      type:
-        description: completeness/standardization/consistency/accuracy/uniqueness/timeliness
-        type: string
-      updated_at:
-        type: string
-      updated_by:
-        type: string
     type: object
   models.SSEConnection:
     properties:
@@ -2731,35 +2758,6 @@ definitions:
         example: 0
         type: integer
       updated_at:
-        type: string
-    type: object
-  models.SystemLog:
-    properties:
-      created_by:
-        type: string
-      id:
-        type: string
-      object_id:
-        type: string
-      object_type:
-        description: basic_library/thematic_library/interface/user等
-        type: string
-      operation_content:
-        additionalProperties: true
-        type: object
-      operation_result:
-        description: success/failure
-        type: string
-      operation_time:
-        type: string
-      operation_type:
-        description: create/update/delete/query等
-        type: string
-      operator_id:
-        type: string
-      operator_ip:
-        type: string
-      operator_name:
         type: string
     type: object
   models.SystemMetrics:
@@ -3158,6 +3156,46 @@ definitions:
     - from_type
     - rule
     - to_type
+    type: object
+  thematic_library.CreateThematicSyncTaskRequest:
+    properties:
+      aggregation_config:
+        $ref: '#/definitions/thematic_library.AggregationConfig'
+      cleansing_rules:
+        $ref: '#/definitions/thematic_library.CleansingRules'
+      created_by:
+        type: string
+      data_source_sql:
+        items:
+          $ref: '#/definitions/thematic_library.SQLDataSourceConfig'
+        type: array
+      description:
+        type: string
+      field_mapping_rules:
+        $ref: '#/definitions/thematic_library.FieldMappingRules'
+      key_matching_rules:
+        $ref: '#/definitions/thematic_library.KeyMatchingRules'
+      privacy_rules:
+        $ref: '#/definitions/thematic_library.PrivacyRules'
+      schedule_config:
+        $ref: '#/definitions/thematic_library.ScheduleConfig'
+      source_libraries:
+        description: 数据源配置 - 两种方式二选一，SQL数据源优先级更高
+        items:
+          $ref: '#/definitions/thematic_library.SourceLibraryConfig'
+        type: array
+      task_name:
+        type: string
+      thematic_interface_id:
+        type: string
+      thematic_library_id:
+        type: string
+    required:
+    - created_by
+    - schedule_config
+    - task_name
+    - thematic_interface_id
+    - thematic_library_id
     type: object
   thematic_library.CustomAggregateRule:
     properties:
@@ -3639,111 +3677,21 @@ definitions:
         default: true
         type: boolean
     type: object
-  thematic_library.QualityMetric:
+  thematic_library.SQLDataSourceConfig:
     properties:
-      critical:
-        type: number
-      description:
+      interface_id:
         type: string
-      name:
+      library_id:
         type: string
-      target:
-        type: number
-      type:
-        enum:
-        - count
-        - rate
-        - percentage
-        - score
-        type: string
-      warning:
-        type: number
-    required:
-    - name
-    - type
-    type: object
-  thematic_library.QualityRule:
-    properties:
-      description:
-        type: string
-      enabled:
-        default: true
-        type: boolean
-      expression:
-        type: string
-      fields:
-        items:
-          type: string
-        type: array
-      id:
-        type: string
-      name:
-        type: string
+      max_rows:
+        type: integer
       parameters:
         additionalProperties: true
         type: object
-      threshold:
-        default: 0.8
-        type: number
-      type:
-        enum:
-        - completeness
-        - accuracy
-        - consistency
-        - validity
-        - uniqueness
-        - timeliness
+      sql_query:
         type: string
-      weight:
-        default: 1
-        type: number
-    required:
-    - id
-    - name
-    - type
-    type: object
-  thematic_library.QualityRules:
-    properties:
-      metrics:
-        items:
-          $ref: '#/definitions/thematic_library.QualityMetric'
-        type: array
-      on_failure:
-        default: warn
-        description: warn, error, skip
-        type: string
-      rules:
-        items:
-          $ref: '#/definitions/thematic_library.QualityRule'
-        minItems: 1
-        type: array
-      threshold:
-        default: 0.8
-        type: number
-      validation:
-        $ref: '#/definitions/thematic_library.QualityValidation'
-    required:
-    - rules
-    type: object
-  thematic_library.QualityValidation:
-    properties:
-      business_rules:
-        items:
-          type: string
-        type: array
-      critical_fields:
-        items:
-          type: string
-        type: array
-      enable_post_check:
-        default: true
-        type: boolean
-      enable_pre_check:
-        default: true
-        type: boolean
-      statistical_check:
-        default: true
-        type: boolean
+      timeout:
+        type: integer
     type: object
   thematic_library.ScheduleConfig:
     properties:
@@ -4562,736 +4510,6 @@ paths:
       summary: 获取系统监控指标
       tags:
       - 系统监控
-  /api/quality/checks:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取质量检查执行记录
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页大小
-        in: query
-        name: size
-        type: integer
-      - description: 规则ID
-        in: query
-        name: rule_id
-        type: string
-      - description: 状态筛选
-        enum:
-        - running
-        - passed
-        - failed
-        - warning
-        in: query
-        name: status
-        type: string
-      - description: 开始时间
-        format: datetime
-        in: query
-        name: start_time
-        type: string
-      - description: 结束时间
-        format: datetime
-        in: query
-        name: end_time
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.QualityCheckExecution'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取质量检查记录列表
-      tags:
-      - 数据质量
-  /api/quality/checks/{id}:
-    get:
-      consumes:
-      - application/json
-      description: 获取指定检查ID的质量检查详细信息
-      parameters:
-      - description: 检查ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.QualityCheckExecution'
-              type: object
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取质量检查详情
-      tags:
-      - 数据质量
-  /api/quality/cleansing-rules:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取清洗规则列表，支持按类型、状态等条件筛选
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页大小
-        in: query
-        name: size
-        type: integer
-      - description: 规则类型
-        enum:
-        - standardization
-        - deduplication
-        - validation
-        - transformation
-        - enrichment
-        in: query
-        name: rule_type
-        type: string
-      - description: 是否启用
-        in: query
-        name: is_enabled
-        type: boolean
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.DataCleansingRuleEngine'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据清洗规则列表
-      tags:
-      - 数据质量
-    post:
-      consumes:
-      - application/json
-      description: 创建新的数据清洗规则
-      parameters:
-      - description: 清洗规则信息
-        in: body
-        name: rule
-        required: true
-        schema:
-          $ref: '#/definitions/models.DataCleansingRuleEngine'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.DataCleansingRuleEngine'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 创建数据清洗规则
-      tags:
-      - 数据质量
-  /api/quality/cleansing-rules/{id}/execute:
-    post:
-      consumes:
-      - application/json
-      description: 对指定规则执行数据清洗
-      parameters:
-      - description: 规则ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 执行数据清洗规则
-      tags:
-      - 数据质量
-  /api/quality/issues:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取质量问题追踪列表
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页大小
-        in: query
-        name: size
-        type: integer
-      - description: 严重程度
-        enum:
-        - low
-        - medium
-        - high
-        - critical
-        in: query
-        name: severity
-        type: string
-      - description: 状态筛选
-        enum:
-        - open
-        - investigating
-        - resolved
-        - ignored
-        - false_positive
-        in: query
-        name: status
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.QualityIssueTracker'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据质量问题列表
-      tags:
-      - 数据质量
-  /api/quality/issues/{id}/resolve:
-    post:
-      consumes:
-      - application/json
-      description: 标记质量问题为已解决并记录解决方案
-      parameters:
-      - description: 问题ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 解决方案信息
-        in: body
-        name: resolution
-        required: true
-        schema:
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 解决数据质量问题
-      tags:
-      - 数据质量
-  /api/quality/metrics:
-    get:
-      consumes:
-      - application/json
-      description: 获取指定时间范围内的数据质量指标
-      parameters:
-      - description: 表名
-        in: query
-        name: table_name
-        type: string
-      - description: 指标类型
-        enum:
-        - completeness
-        - accuracy
-        - consistency
-        - validity
-        - uniqueness
-        - timeliness
-        in: query
-        name: metric_type
-        type: string
-      - description: 开始日期
-        format: date
-        in: query
-        name: start_date
-        type: string
-      - description: 结束日期
-        format: date
-        in: query
-        name: end_date
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.QualityMetricRecord'
-                  type: array
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据质量指标
-      tags:
-      - 数据质量
-  /api/quality/reports:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取质量报告列表
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页大小
-        in: query
-        name: size
-        type: integer
-      - description: 报告类型
-        enum:
-        - daily
-        - weekly
-        - monthly
-        - ad_hoc
-        in: query
-        name: report_type
-        type: string
-      - description: 状态筛选
-        enum:
-        - draft
-        - published
-        - archived
-        in: query
-        name: status
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.QualityDashboardReport'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据质量报告列表
-      tags:
-      - 数据质量
-  /api/quality/reports/{id}:
-    get:
-      consumes:
-      - application/json
-      description: 获取指定报告ID的质量报告详细信息
-      parameters:
-      - description: 报告ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.QualityDashboardReport'
-              type: object
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取质量报告详情
-      tags:
-      - 数据质量
-  /api/quality/reports/generate:
-    post:
-      consumes:
-      - application/json
-      description: 生成指定时间范围的数据质量报告
-      parameters:
-      - description: 报告类型
-        enum:
-        - daily
-        - weekly
-        - monthly
-        - ad_hoc
-        in: query
-        name: report_type
-        required: true
-        type: string
-      - description: 开始日期
-        format: date
-        in: query
-        name: start_date
-        required: true
-        type: string
-      - description: 结束日期
-        format: date
-        in: query
-        name: end_date
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.QualityDashboardReport'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 生成数据质量报告
-      tags:
-      - 数据质量
-  /api/quality/rules:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取质量规则列表，支持按类型、状态等条件筛选
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页大小
-        in: query
-        name: size
-        type: integer
-      - description: 规则类别
-        enum:
-        - completeness
-        - accuracy
-        - consistency
-        - validity
-        - uniqueness
-        in: query
-        name: category
-        type: string
-      - description: 是否启用
-        in: query
-        name: is_enabled
-        type: boolean
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.QualityRule'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据质量规则列表
-      tags:
-      - 数据质量
-    post:
-      consumes:
-      - application/json
-      description: 创建新的数据质量检查规则
-      parameters:
-      - description: 质量规则信息
-        in: body
-        name: rule
-        required: true
-        schema:
-          $ref: '#/definitions/models.QualityRule'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.QualityRule'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 创建数据质量规则
-      tags:
-      - 数据质量
-  /api/quality/rules/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: 删除指定的数据质量规则（软删除）
-      parameters:
-      - description: 规则ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 删除数据质量规则
-      tags:
-      - 数据质量
-    get:
-      consumes:
-      - application/json
-      description: 根据规则ID获取质量规则的详细信息
-      parameters:
-      - description: 规则ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.QualityRule'
-              type: object
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取指定质量规则详情
-      tags:
-      - 数据质量
-    put:
-      consumes:
-      - application/json
-      description: 更新指定的数据质量规则信息
-      parameters:
-      - description: 规则ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 质量规则信息
-        in: body
-        name: rule
-        required: true
-        schema:
-          $ref: '#/definitions/models.QualityRule'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.QualityRule'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 更新数据质量规则
-      tags:
-      - 数据质量
-  /api/quality/rules/{id}/execute:
-    post:
-      consumes:
-      - application/json
-      description: 对指定规则执行质量检查
-      parameters:
-      - description: 规则ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.QualityCheckExecution'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 执行数据质量检查
-      tags:
-      - 数据质量
   /api/v1/{app_path}:
     get:
       consumes:
@@ -6164,6 +5382,721 @@ paths:
       summary: 更新接口字段配置
       tags:
       - 数据基础库
+  /data-quality/checks:
+    post:
+      consumes:
+      - application/json
+      description: 对指定对象执行数据质量检查并生成报告
+      parameters:
+      - description: 质量检查请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/governance.RunQualityCheckRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 检查成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityReportResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 执行数据质量检查
+      tags:
+      - 数据质量
+  /data-quality/masking-rules:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据脱敏规则列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 数据源
+        in: query
+        name: data_source
+        type: string
+      - description: 脱敏类型
+        enum:
+        - mask
+        - replace
+        - encrypt
+        - pseudonymize
+        in: query
+        name: masking_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.MaskingRuleListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据脱敏规则列表
+      tags:
+      - 数据质量
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据脱敏规则
+      parameters:
+      - description: 数据脱敏规则信息
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/governance.CreateMaskingRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.MaskingRuleResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据脱敏规则
+      tags:
+      - 数据质量
+  /data-quality/masking-rules/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的数据脱敏规则
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除数据脱敏规则
+      tags:
+      - 数据质量
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据脱敏规则详情
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.MaskingRuleResponse'
+              type: object
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据脱敏规则
+      tags:
+      - 数据质量
+    put:
+      consumes:
+      - application/json
+      description: 更新数据脱敏规则信息
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          $ref: '#/definitions/governance.UpdateMaskingRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新数据脱敏规则
+      tags:
+      - 数据质量
+  /data-quality/metadata:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取元数据列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 元数据类型
+        enum:
+        - technical
+        - business
+        - management
+        in: query
+        name: type
+        type: string
+      - description: 元数据名称
+        in: query
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.MetadataListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取元数据列表
+      tags:
+      - 数据质量
+    post:
+      consumes:
+      - application/json
+      description: 创建新的元数据
+      parameters:
+      - description: 元数据信息
+        in: body
+        name: metadata
+        required: true
+        schema:
+          $ref: '#/definitions/governance.CreateMetadataRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.MetadataResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建元数据
+      tags:
+      - 数据质量
+  /data-quality/metadata/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的元数据
+      parameters:
+      - description: 元数据ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 元数据不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除元数据
+      tags:
+      - 数据质量
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取元数据详情
+      parameters:
+      - description: 元数据ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.MetadataResponse'
+              type: object
+        "404":
+          description: 元数据不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取元数据
+      tags:
+      - 数据质量
+    put:
+      consumes:
+      - application/json
+      description: 更新元数据信息
+      parameters:
+      - description: 元数据ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          $ref: '#/definitions/governance.UpdateMetadataRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 元数据不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新元数据
+      tags:
+      - 数据质量
+  /data-quality/reports:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据质量报告列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 对象类型
+        enum:
+        - interface
+        - thematic_interface
+        in: query
+        name: object_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityReportListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据质量报告列表
+      tags:
+      - 数据质量
+  /data-quality/reports/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据质量报告详情
+      parameters:
+      - description: 报告ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityReportResponse'
+              type: object
+        "404":
+          description: 报告不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据质量报告
+      tags:
+      - 数据质量
+  /data-quality/rules:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据质量规则列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 规则类型
+        enum:
+        - completeness
+        - accuracy
+        - consistency
+        - validity
+        - uniqueness
+        - timeliness
+        - standardization
+        in: query
+        name: type
+        type: string
+      - description: 关联对象类型
+        enum:
+        - interface
+        - thematic_interface
+        in: query
+        name: object_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityRuleListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据质量规则列表
+      tags:
+      - 数据质量
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据质量规则
+      parameters:
+      - description: 数据质量规则信息
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/governance.CreateQualityRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityRuleResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据质量规则
+      tags:
+      - 数据质量
+  /data-quality/rules/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的数据质量规则
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除数据质量规则
+      tags:
+      - 数据质量
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据质量规则详情
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityRuleResponse'
+              type: object
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据质量规则
+      tags:
+      - 数据质量
+    put:
+      consumes:
+      - application/json
+      description: 更新数据质量规则信息
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          $ref: '#/definitions/governance.UpdateQualityRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新数据质量规则
+      tags:
+      - 数据质量
+  /data-quality/system-logs:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取系统日志列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 操作类型
+        in: query
+        name: operation_type
+        type: string
+      - description: 对象类型
+        in: query
+        name: object_type
+        type: string
+      - description: 开始时间
+        format: date-time
+        in: query
+        name: start_time
+        type: string
+      - description: 结束时间
+        format: date-time
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.SystemLogListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取系统日志列表
+      tags:
+      - 数据质量
   /data-view/{library_type}/{library_id}/tables:
     get:
       consumes:
@@ -6478,713 +6411,6 @@ paths:
       summary: 发送事件
       tags:
       - 事件管理
-  /governance/masking-rules:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取数据脱敏规则列表
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页数量
-        in: query
-        name: page_size
-        type: integer
-      - description: 数据源
-        in: query
-        name: data_source
-        type: string
-      - description: 脱敏类型
-        in: query
-        name: masking_type
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.DataMaskingRule'
-                  type: array
-              type: object
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据脱敏规则列表
-      tags:
-      - 数据治理
-    post:
-      consumes:
-      - application/json
-      description: 创建新的数据脱敏规则
-      parameters:
-      - description: 数据脱敏规则信息
-        in: body
-        name: rule
-        required: true
-        schema:
-          $ref: '#/definitions/models.DataMaskingRule'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: 创建成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.DataMaskingRule'
-              type: object
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 创建数据脱敏规则
-      tags:
-      - 数据治理
-  /governance/masking-rules/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: 删除指定的数据脱敏规则
-      parameters:
-      - description: 规则ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 删除成功
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: 规则不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 删除数据脱敏规则
-      tags:
-      - 数据治理
-    get:
-      consumes:
-      - application/json
-      description: 根据ID获取数据脱敏规则详情
-      parameters:
-      - description: 规则ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.DataMaskingRule'
-              type: object
-        "404":
-          description: 规则不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 根据ID获取数据脱敏规则
-      tags:
-      - 数据治理
-    put:
-      consumes:
-      - application/json
-      description: 更新数据脱敏规则信息
-      parameters:
-      - description: 规则ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 更新信息
-        in: body
-        name: updates
-        required: true
-        schema:
-          additionalProperties: true
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 更新成功
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: 规则不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 更新数据脱敏规则
-      tags:
-      - 数据治理
-  /governance/metadata:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取元数据列表
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页数量
-        in: query
-        name: size
-        type: integer
-      - description: 元数据类型
-        in: query
-        name: type
-        type: string
-      - description: 元数据名称
-        in: query
-        name: name
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.Metadata'
-                  type: array
-              type: object
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取元数据列表
-      tags:
-      - 数据治理
-    post:
-      consumes:
-      - application/json
-      description: 创建新的元数据
-      parameters:
-      - description: 元数据信息
-        in: body
-        name: metadata
-        required: true
-        schema:
-          $ref: '#/definitions/models.Metadata'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: 创建成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.Metadata'
-              type: object
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 创建元数据
-      tags:
-      - 数据治理
-  /governance/metadata/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: 删除指定的元数据
-      parameters:
-      - description: 元数据ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 删除成功
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: 元数据不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 删除元数据
-      tags:
-      - 数据治理
-    get:
-      consumes:
-      - application/json
-      description: 根据ID获取元数据详情
-      parameters:
-      - description: 元数据ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.Metadata'
-              type: object
-        "404":
-          description: 元数据不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 根据ID获取元数据
-      tags:
-      - 数据治理
-    put:
-      consumes:
-      - application/json
-      description: 更新元数据信息
-      parameters:
-      - description: 元数据ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 更新信息
-        in: body
-        name: updates
-        required: true
-        schema:
-          additionalProperties: true
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 更新成功
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: 元数据不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 更新元数据
-      tags:
-      - 数据治理
-  /governance/quality-check:
-    post:
-      consumes:
-      - application/json
-      description: 对指定对象执行数据质量检查并生成报告
-      parameters:
-      - description: 对象ID
-        in: query
-        name: object_id
-        required: true
-        type: string
-      - description: 对象类型
-        in: query
-        name: object_type
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 检查成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.DataQualityReport'
-              type: object
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 执行数据质量检查
-      tags:
-      - 数据治理
-  /governance/quality-reports:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取数据质量报告列表
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页数量
-        in: query
-        name: page_size
-        type: integer
-      - description: 对象类型
-        in: query
-        name: object_type
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.DataQualityReport'
-                  type: array
-              type: object
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据质量报告列表
-      tags:
-      - 数据治理
-  /governance/quality-reports/{id}:
-    get:
-      consumes:
-      - application/json
-      description: 根据ID获取数据质量报告详情
-      parameters:
-      - description: 报告ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.DataQualityReport'
-              type: object
-        "404":
-          description: 报告不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 根据ID获取数据质量报告
-      tags:
-      - 数据治理
-  /governance/quality-rules:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取数据质量规则列表
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页数量
-        in: query
-        name: size
-        type: integer
-      - description: 规则类型
-        in: query
-        name: type
-        type: string
-      - description: 关联对象类型
-        in: query
-        name: object_type
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.QualityRule'
-                  type: array
-              type: object
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据质量规则列表
-      tags:
-      - 数据治理
-    post:
-      consumes:
-      - application/json
-      description: 创建新的数据质量规则
-      parameters:
-      - description: 数据质量规则信息
-        in: body
-        name: rule
-        required: true
-        schema:
-          $ref: '#/definitions/models.QualityRule'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: 创建成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.QualityRule'
-              type: object
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 创建数据质量规则
-      tags:
-      - 数据治理
-  /governance/quality-rules/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: 删除指定的数据质量规则
-      parameters:
-      - description: 规则ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 删除成功
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: 规则不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 删除数据质量规则
-      tags:
-      - 数据治理
-    get:
-      consumes:
-      - application/json
-      description: 根据ID获取数据质量规则详情
-      parameters:
-      - description: 规则ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.QualityRule'
-              type: object
-        "404":
-          description: 规则不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 根据ID获取数据质量规则
-      tags:
-      - 数据治理
-    put:
-      consumes:
-      - application/json
-      description: 更新数据质量规则信息
-      parameters:
-      - description: 规则ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 更新信息
-        in: body
-        name: updates
-        required: true
-        schema:
-          additionalProperties: true
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 更新成功
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "404":
-          description: 规则不存在
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 更新数据质量规则
-      tags:
-      - 数据治理
-  /governance/system-logs:
-    get:
-      consumes:
-      - application/json
-      description: 分页获取系统日志列表
-      parameters:
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        type: integer
-      - default: 10
-        description: 每页数量
-        in: query
-        name: page_size
-        type: integer
-      - description: 操作类型
-        in: query
-        name: operation_type
-        type: string
-      - description: 对象类型
-        in: query
-        name: object_type
-        type: string
-      - description: 开始时间
-        in: query
-        name: start_time
-        type: string
-      - description: 结束时间
-        in: query
-        name: end_time
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.SystemLog'
-                  type: array
-              type: object
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取系统日志列表
-      tags:
-      - 数据治理
   /health:
     get:
       description: 检查服务健康状态
@@ -7244,6 +6470,220 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取所有数据源类型元数据
+      tags:
+      - 元数据
+  /meta/data-quality/all:
+    get:
+      description: 获取数据质量相关的所有元数据，包括规则类型、检查状态、脱敏类型等
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.DataQualityMetadataResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据质量完整元数据
+      tags:
+      - 元数据
+  /meta/data-quality/check-statuses:
+    get:
+      description: 获取所有质量检查状态元数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/meta.QualityCheckStatus'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取质量检查状态元数据
+      tags:
+      - 元数据
+  /meta/data-quality/cleansing-rule-types:
+    get:
+      description: 获取所有清洗规则类型元数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/meta.CleansingRuleType'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取清洗规则类型元数据
+      tags:
+      - 元数据
+  /meta/data-quality/issue-severities:
+    get:
+      description: 获取所有质量问题严重程度元数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/meta.QualityIssueSeverity'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取质量问题严重程度元数据
+      tags:
+      - 元数据
+  /meta/data-quality/issue-statuses:
+    get:
+      description: 获取所有质量问题状态元数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/meta.QualityIssueStatus'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取质量问题状态元数据
+      tags:
+      - 元数据
+  /meta/data-quality/masking-types:
+    get:
+      description: 获取所有数据脱敏类型元数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/meta.DataMaskingType'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据脱敏类型元数据
+      tags:
+      - 元数据
+  /meta/data-quality/metric-types:
+    get:
+      description: 获取所有质量指标类型元数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/meta.QualityMetricType'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取质量指标类型元数据
+      tags:
+      - 元数据
+  /meta/data-quality/report-types:
+    get:
+      description: 获取所有质量报告类型元数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/meta.QualityReportType'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取质量报告类型元数据
+      tags:
+      - 元数据
+  /meta/data-quality/rule-types:
+    get:
+      description: 获取所有质量规则类型元数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/meta.QualityRuleType'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取质量规则类型元数据
       tags:
       - 元数据
   /meta/sync-tasks:
@@ -7568,147 +7008,6 @@ paths:
       summary: 创建API应用
       tags:
       - 数据共享服务
-  /sharing/api-applications/{app_id}/keys:
-    get:
-      consumes:
-      - application/json
-      description: 获取某个应用下的所有ApiKey信息（不包含Key本身）
-      parameters:
-      - description: 应用ID
-        in: path
-        name: app_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.ApiKey'
-                  type: array
-              type: object
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取API密钥列表
-      tags:
-      - 数据共享服务
-    post:
-      consumes:
-      - application/json
-      description: 为指定应用生成一个新的ApiKey，返回完整的Key值（仅此一次）
-      parameters:
-      - description: 应用ID
-        in: path
-        name: app_id
-        required: true
-        type: string
-      - description: ApiKey信息
-        in: body
-        name: key
-        required: true
-        schema:
-          $ref: '#/definitions/controllers.CreateApiKeyRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: 创建成功
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/controllers.CreateApiKeyResponse'
-              type: object
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 生成API密钥
-      tags:
-      - 数据共享服务
-  /sharing/api-applications/{app_id}/keys/{key_id}:
-    delete:
-      consumes:
-      - application/json
-      description: 吊销（删除）一个ApiKey
-      parameters:
-      - description: 应用ID
-        in: path
-        name: app_id
-        required: true
-        type: string
-      - description: 密钥ID
-        in: path
-        name: key_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 删除成功
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 删除API密钥
-      tags:
-      - 数据共享服务
-    put:
-      consumes:
-      - application/json
-      description: 更新ApiKey信息（如描述、状态）
-      parameters:
-      - description: 应用ID
-        in: path
-        name: app_id
-        required: true
-        type: string
-      - description: 密钥ID
-        in: path
-        name: key_id
-        required: true
-        type: string
-      - description: 更新信息
-        in: body
-        name: updates
-        required: true
-        schema:
-          additionalProperties: true
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 更新成功
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-        "500":
-          description: 服务器内部错误
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 更新API密钥
-      tags:
-      - 数据共享服务
   /sharing/api-applications/{id}:
     delete:
       consumes:
@@ -7898,6 +7197,199 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 删除共享接口
+      tags:
+      - 数据共享服务
+  /sharing/api-keys:
+    get:
+      consumes:
+      - application/json
+      description: 获取API密钥列表（不包含Key本身），可选择按应用过滤
+      parameters:
+      - description: 应用ID，用于过滤特定应用的ApiKey
+        in: query
+        name: app_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.ApiKey'
+                  type: array
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取API密钥列表
+      tags:
+      - 数据共享服务
+    post:
+      consumes:
+      - application/json
+      description: 创建一个新的ApiKey并关联到指定的应用，返回完整的Key值（仅此一次）
+      parameters:
+      - description: ApiKey信息
+        in: body
+        name: key
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateApiKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.CreateApiKeyResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 生成API密钥
+      tags:
+      - 数据共享服务
+  /sharing/api-keys/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 吊销（删除）一个ApiKey
+      parameters:
+      - description: 密钥ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除API密钥
+      tags:
+      - 数据共享服务
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取API密钥详情（不包含Key本身）
+      parameters:
+      - description: 密钥ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ApiKey'
+              type: object
+        "404":
+          description: 密钥不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取API密钥详情
+      tags:
+      - 数据共享服务
+    put:
+      consumes:
+      - application/json
+      description: 更新ApiKey信息（如名称、描述、状态）
+      parameters:
+      - description: 密钥ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新API密钥
+      tags:
+      - 数据共享服务
+  /sharing/api-keys/{id}/applications:
+    put:
+      consumes:
+      - application/json
+      description: 更新ApiKey关联的应用列表
+      parameters:
+      - description: 密钥ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 关联应用信息
+        in: body
+        name: applications
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateApiKeyApplicationsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新API密钥关联应用
       tags:
       - 数据共享服务
   /sharing/api-rate-limits:
@@ -9783,7 +9275,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/controllers.CreateSyncTaskRequest'
+          $ref: '#/definitions/thematic_library.CreateThematicSyncTaskRequest'
       produces:
       - application/json
       responses:
@@ -9878,7 +9370,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/controllers.UpdateSyncTaskRequest'
+          $ref: '#/definitions/controllers.UpdateThematicSyncTaskRequest'
       produces:
       - application/json
       responses:
