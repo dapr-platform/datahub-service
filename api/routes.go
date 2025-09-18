@@ -94,18 +94,8 @@ func InitRoute(r *chi.Mux) {
 		r.Get("/thematic-sync-tasks", metaController.GetThematicSyncTaskMeta)
 		r.Get("/thematic-sync-configs", metaController.GetThematicSyncConfigDefinitions)
 
-		// 数据质量相关元数据
-		r.Route("/data-quality", func(r chi.Router) {
-			r.Get("/rule-types", metaController.GetQualityRuleTypes)
-			r.Get("/check-statuses", metaController.GetQualityCheckStatuses)
-			r.Get("/masking-types", metaController.GetDataMaskingTypes)
-			r.Get("/cleansing-rule-types", metaController.GetCleansingRuleTypes)
-			r.Get("/metric-types", metaController.GetQualityMetricTypes)
-			r.Get("/report-types", metaController.GetQualityReportTypes)
-			r.Get("/issue-severities", metaController.GetQualityIssueSeverities)
-			r.Get("/issue-statuses", metaController.GetQualityIssueStatuses)
-			r.Get("/all", metaController.GetDataQualityAllMetadata)
-		})
+		// 数据治理相关元数据（统一接口）
+		r.Get("/data-governance", metaController.GetDataGovernanceMetadata)
 	})
 
 	// 基础库管理（保留现有功能接口）
@@ -262,6 +252,52 @@ func InitRoute(r *chi.Mux) {
 			r.Get("/{id}", dataQualityController.GetMaskingRuleByID)
 			r.Put("/{id}", dataQualityController.UpdateMaskingRule)
 			r.Delete("/{id}", dataQualityController.DeleteMaskingRule)
+		})
+
+		// 数据清洗规则管理
+		r.Route("/cleansing-rules", func(r chi.Router) {
+			r.Post("/", dataQualityController.CreateCleansingRule)
+			r.Get("/", dataQualityController.GetCleansingRules)
+			r.Get("/{id}", dataQualityController.GetCleansingRuleByID)
+			r.Put("/{id}", dataQualityController.UpdateCleansingRule)
+			r.Delete("/{id}", dataQualityController.DeleteCleansingRule)
+			r.Post("/{id}/execute", dataQualityController.ExecuteCleansingRule)
+		})
+
+		// 数据转换规则管理
+		r.Route("/transformation-rules", func(r chi.Router) {
+			r.Post("/", dataQualityController.CreateTransformationRule)
+			r.Get("/", dataQualityController.GetTransformationRules)
+			r.Get("/{id}", dataQualityController.GetTransformationRuleByID)
+			r.Put("/{id}", dataQualityController.UpdateTransformationRule)
+			r.Delete("/{id}", dataQualityController.DeleteTransformationRule)
+			r.Post("/{id}/execute", dataQualityController.ExecuteTransformationRule)
+		})
+
+		// 数据校验规则管理
+		r.Route("/validation-rules", func(r chi.Router) {
+			r.Post("/", dataQualityController.CreateValidationRule)
+			r.Get("/", dataQualityController.GetValidationRules)
+			r.Get("/{id}", dataQualityController.GetValidationRuleByID)
+			r.Put("/{id}", dataQualityController.UpdateValidationRule)
+			r.Delete("/{id}", dataQualityController.DeleteValidationRule)
+			r.Post("/{id}/execute", dataQualityController.ExecuteValidationRule)
+		})
+
+		// 数据质量检测任务管理
+		r.Route("/quality-tasks", func(r chi.Router) {
+			r.Post("/", dataQualityController.CreateQualityTask)
+			r.Get("/", dataQualityController.GetQualityTasks)
+			r.Get("/{id}", dataQualityController.GetQualityTaskByID)
+			r.Post("/{id}/start", dataQualityController.StartQualityTask)
+			r.Post("/{id}/stop", dataQualityController.StopQualityTask)
+			r.Get("/{id}/executions", dataQualityController.GetQualityTaskExecutions)
+		})
+
+		// 数据血缘管理
+		r.Route("/data-lineage", func(r chi.Router) {
+			r.Post("/", dataQualityController.CreateDataLineage)
+			r.Get("/", dataQualityController.GetDataLineage)
 		})
 
 		// 质量检查

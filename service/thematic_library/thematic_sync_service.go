@@ -1,18 +1,19 @@
 /*
  * @module service/thematic_sync_service
- * @description 主题同步服务，提供主题数据同步的业务逻辑和服务接口
- * @architecture 服务层 - 封装业务逻辑，提供统一的服务接口
+ * @description 主题同步服务，提供主题数据同步的业务逻辑和服务接口，集成数据治理功能
+ * @architecture 服务层 - 封装业务逻辑，提供统一的服务接口，集成数据治理
  * @documentReference ai_docs/thematic_sync_design.md
- * @stateFlow 任务管理 -> 同步执行 -> 状态跟踪 -> 结果处理
- * @rules 确保业务逻辑的完整性和一致性，支持事务性操作
- * @dependencies gorm.io/gorm, context, service/models
- * @refs service/thematic_sync/sync_engine.go, service/models/thematic_sync.go
+ * @stateFlow 任务管理 -> 同步执行 -> 数据治理处理 -> 状态跟踪 -> 结果处理
+ * @rules 确保业务逻辑的完整性和一致性，支持事务性操作，集成数据治理规则
+ * @dependencies gorm.io/gorm, context, service/models, service/governance
+ * @refs service/thematic_sync/sync_engine.go, service/models/thematic_sync.go, governance_integration.go
  */
 
 package thematic_library
 
 import (
 	"context"
+	"datahub-service/service/governance"
 	"datahub-service/service/models"
 	"datahub-service/service/thematic_library/thematic_sync"
 	"encoding/json"
@@ -23,22 +24,79 @@ import (
 	"gorm.io/gorm"
 )
 
+// GovernanceIntegrationAdapter 适配器，用于解决类型不匹配问题
+type GovernanceIntegrationAdapter struct {
+	service *GovernanceIntegrationService
+}
+
+// ApplyGovernanceRules 适配器方法，转换类型并调用实际服务
+func (adapter *GovernanceIntegrationAdapter) ApplyGovernanceRules(
+	ctx context.Context,
+	records []map[string]interface{},
+	task *models.ThematicSyncTask,
+	config *thematic_sync.GovernanceExecutionConfig,
+) (*thematic_sync.GovernanceExecutionResult, error) {
+
+	// 类型转换：从 thematic_sync 包的类型转换为 thematic_library 包的类型
+	libraryConfig := &GovernanceExecutionConfig{
+		EnableQualityCheck:      config.EnableQualityCheck,
+		EnableCleansing:         config.EnableCleansing,
+		EnableMasking:           config.EnableMasking,
+		EnableTransformation:    config.EnableTransformation,
+		EnableValidation:        config.EnableValidation,
+		StopOnQualityFailure:    config.StopOnQualityFailure,
+		StopOnValidationFailure: config.StopOnValidationFailure,
+		QualityThreshold:        config.QualityThreshold,
+		BatchSize:               config.BatchSize,
+		MaxRetries:              config.MaxRetries,
+		TimeoutSeconds:          config.TimeoutSeconds,
+		CustomConfig:            config.CustomConfig,
+	}
+
+	// 调用实际服务
+	libraryResult, err := adapter.service.ApplyGovernanceRules(ctx, records, task, libraryConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// 类型转换：从 thematic_library 包的类型转换为 thematic_sync 包的类型
+	syncResult := &thematic_sync.GovernanceExecutionResult{
+		OverallQualityScore:   libraryResult.OverallQualityScore,
+		TotalProcessedRecords: libraryResult.TotalProcessedRecords,
+		TotalCleansingApplied: libraryResult.TotalCleansingApplied,
+		TotalMaskingApplied:   libraryResult.TotalMaskingApplied,
+		TotalValidationErrors: libraryResult.TotalValidationErrors,
+		ExecutionTime:         libraryResult.ExecutionTime,
+		ComplianceStatus:      libraryResult.ComplianceStatus,
+	}
+
+	return syncResult, nil
+}
+
 // ThematicSyncService 主题同步服务
 type ThematicSyncService struct {
-	db         *gorm.DB
-	syncEngine *thematic_sync.ThematicSyncEngine
+	db                           *gorm.DB
+	syncEngine                   *thematic_sync.ThematicSyncEngine
+	governanceService            *governance.GovernanceService
+	governanceIntegrationService *GovernanceIntegrationService
 }
 
 // NewThematicSyncService 创建主题同步服务
 func NewThematicSyncService(db *gorm.DB,
 	basicLibraryService thematic_sync.BasicLibraryServiceInterface,
-	thematicLibraryService thematic_sync.ThematicLibraryServiceInterface) *ThematicSyncService {
+	thematicLibraryService thematic_sync.ThematicLibraryServiceInterface,
+	governanceService *governance.GovernanceService) *ThematicSyncService {
 
-	syncEngine := thematic_sync.NewThematicSyncEngine(db, basicLibraryService, thematicLibraryService)
+	governanceIntegrationService := NewGovernanceIntegrationService(db, governanceService)
+	// 创建适配器来解决类型不匹配问题
+	governanceAdapter := &GovernanceIntegrationAdapter{service: governanceIntegrationService}
+	syncEngine := thematic_sync.NewThematicSyncEngine(db, basicLibraryService, thematicLibraryService, governanceAdapter)
 
 	return &ThematicSyncService{
-		db:         db,
-		syncEngine: syncEngine,
+		db:                           db,
+		syncEngine:                   syncEngine,
+		governanceService:            governanceService,
+		governanceIntegrationService: governanceIntegrationService,
 	}
 }
 
@@ -87,13 +145,20 @@ func (tss *ThematicSyncService) CreateSyncTask(ctx context.Context, req *CreateT
 		AggregationConfig:   structToJSONB(req.AggregationConfig),
 		KeyMatchingRules:    structToJSONB(req.KeyMatchingRules),
 		FieldMappingRules:   structToJSONB(req.FieldMappingRules),
-		CleansingRules:      structToJSONB(req.CleansingRules),
-		PrivacyRules:        structToJSONB(req.PrivacyRules),
-		Status:              "draft",
-		CreatedAt:           time.Now(),
-		CreatedBy:           req.CreatedBy,
-		UpdatedAt:           time.Now(),
-		UpdatedBy:           req.CreatedBy,
+
+		// 数据治理规则配置
+		QualityRuleIDs:    structToJSONB(req.QualityRuleIDs),
+		CleansingRuleIDs:  structToJSONB(req.CleansingRuleIDs),
+		MaskingRuleIDs:    structToJSONB(req.MaskingRuleIDs),
+		TransformRuleIDs:  structToJSONB(req.TransformRuleIDs),
+		ValidationRuleIDs: structToJSONB(req.ValidationRuleIDs),
+		GovernanceConfig:  structToJSONB(req.GovernanceConfig),
+
+		Status:    "draft",
+		CreatedAt: time.Now(),
+		CreatedBy: req.CreatedBy,
+		UpdatedAt: time.Now(),
+		UpdatedBy: req.CreatedBy,
 	}
 
 	// 处理调度配置
@@ -150,11 +215,25 @@ func (tss *ThematicSyncService) UpdateSyncTask(ctx context.Context, taskID strin
 	if req.FieldMappingRules != nil {
 		task.FieldMappingRules = structToJSONB(req.FieldMappingRules)
 	}
-	if req.CleansingRules != nil {
-		task.CleansingRules = structToJSONB(req.CleansingRules)
+
+	// 更新数据治理规则配置
+	if req.QualityRuleIDs != nil {
+		task.QualityRuleIDs = structToJSONB(req.QualityRuleIDs)
 	}
-	if req.PrivacyRules != nil {
-		task.PrivacyRules = structToJSONB(req.PrivacyRules)
+	if req.CleansingRuleIDs != nil {
+		task.CleansingRuleIDs = structToJSONB(req.CleansingRuleIDs)
+	}
+	if req.MaskingRuleIDs != nil {
+		task.MaskingRuleIDs = structToJSONB(req.MaskingRuleIDs)
+	}
+	if req.TransformRuleIDs != nil {
+		task.TransformRuleIDs = structToJSONB(req.TransformRuleIDs)
+	}
+	if req.ValidationRuleIDs != nil {
+		task.ValidationRuleIDs = structToJSONB(req.ValidationRuleIDs)
+	}
+	if req.GovernanceConfig != nil {
+		task.GovernanceConfig = structToJSONB(req.GovernanceConfig)
 	}
 
 	task.UpdatedAt = time.Now()
@@ -420,17 +499,46 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 		}
 	}
 
-	if len(task.CleansingRules) > 0 {
-		var cleansingRules CleansingRules
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.CleansingRules)), &cleansingRules); err == nil {
-			configMap["cleansing_rules"] = cleansingRules
+	// 添加数据治理规则配置
+	if len(task.QualityRuleIDs) > 0 {
+		var qualityRuleIDs []string
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.QualityRuleIDs)), &qualityRuleIDs); err == nil {
+			configMap["quality_rule_ids"] = qualityRuleIDs
 		}
 	}
 
-	if len(task.PrivacyRules) > 0 {
-		var privacyRules PrivacyRules
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.PrivacyRules)), &privacyRules); err == nil {
-			configMap["privacy_rules"] = privacyRules
+	if len(task.CleansingRuleIDs) > 0 {
+		var cleansingRuleIDs []string
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.CleansingRuleIDs)), &cleansingRuleIDs); err == nil {
+			configMap["cleansing_rule_ids"] = cleansingRuleIDs
+		}
+	}
+
+	if len(task.MaskingRuleIDs) > 0 {
+		var maskingRuleIDs []string
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.MaskingRuleIDs)), &maskingRuleIDs); err == nil {
+			configMap["masking_rule_ids"] = maskingRuleIDs
+		}
+	}
+
+	if len(task.TransformRuleIDs) > 0 {
+		var transformRuleIDs []string
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.TransformRuleIDs)), &transformRuleIDs); err == nil {
+			configMap["transform_rule_ids"] = transformRuleIDs
+		}
+	}
+
+	if len(task.ValidationRuleIDs) > 0 {
+		var validationRuleIDs []string
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.ValidationRuleIDs)), &validationRuleIDs); err == nil {
+			configMap["validation_rule_ids"] = validationRuleIDs
+		}
+	}
+
+	if len(task.GovernanceConfig) > 0 {
+		var governanceConfig GovernanceExecutionConfig
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.GovernanceConfig)), &governanceConfig); err == nil {
+			configMap["governance_config"] = governanceConfig
 		}
 	}
 

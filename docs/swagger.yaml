@@ -274,6 +274,76 @@ definitions:
       total:
         type: integer
     type: object
+  controllers.DataGovernanceMetadataResponse:
+    properties:
+      cleansing_rule_types:
+        items:
+          $ref: '#/definitions/meta.CleansingRuleType'
+        type: array
+      lineage_relation_types:
+        description: 血缘关系相关
+        items:
+          $ref: '#/definitions/meta.LineageRelationType'
+        type: array
+      masking_types:
+        description: 脱敏和清洗相关
+        items:
+          $ref: '#/definitions/meta.DataMaskingType'
+        type: array
+      metadata_types:
+        items:
+          $ref: '#/definitions/meta.MetadataType'
+        type: array
+      object_types:
+        description: 对象和任务相关
+        items:
+          $ref: '#/definitions/meta.DataGovernanceObjectType'
+        type: array
+      quality_check_statuses:
+        items:
+          $ref: '#/definitions/meta.QualityCheckStatus'
+        type: array
+      quality_issue_severities:
+        description: 问题管理相关
+        items:
+          $ref: '#/definitions/meta.QualityIssueSeverity'
+        type: array
+      quality_issue_statuses:
+        items:
+          $ref: '#/definitions/meta.QualityIssueStatus'
+        type: array
+      quality_metric_types:
+        description: 质量指标和报告相关
+        items:
+          $ref: '#/definitions/meta.QualityMetricType'
+        type: array
+      quality_report_types:
+        items:
+          $ref: '#/definitions/meta.QualityReportType'
+        type: array
+      quality_rule_types:
+        description: 质量规则相关
+        items:
+          $ref: '#/definitions/meta.QualityRuleType'
+        type: array
+      task_statuses:
+        items:
+          $ref: '#/definitions/meta.TaskStatus'
+        type: array
+      task_types:
+        items:
+          $ref: '#/definitions/meta.TaskType'
+        type: array
+      transformation_rule_types:
+        description: 转换和校验相关
+        items:
+          $ref: '#/definitions/meta.TransformationRuleType'
+        type: array
+      validation_rule_types:
+        items:
+          $ref: '#/definitions/meta.ValidationRuleType'
+        type: array
+    type: object
   controllers.DataInterfaceListResponse:
     properties:
       list:
@@ -286,41 +356,6 @@ definitions:
         type: integer
       total:
         type: integer
-    type: object
-  controllers.DataQualityMetadataResponse:
-    properties:
-      check_statuses:
-        items:
-          $ref: '#/definitions/meta.QualityCheckStatus'
-        type: array
-      cleansing_types:
-        items:
-          $ref: '#/definitions/meta.CleansingRuleType'
-        type: array
-      issue_severities:
-        items:
-          $ref: '#/definitions/meta.QualityIssueSeverity'
-        type: array
-      issue_statuses:
-        items:
-          $ref: '#/definitions/meta.QualityIssueStatus'
-        type: array
-      masking_types:
-        items:
-          $ref: '#/definitions/meta.DataMaskingType'
-        type: array
-      metric_types:
-        items:
-          $ref: '#/definitions/meta.QualityMetricType'
-        type: array
-      report_types:
-        items:
-          $ref: '#/definitions/meta.QualityReportType'
-        type: array
-      rule_types:
-        items:
-          $ref: '#/definitions/meta.QualityRuleType'
-        type: array
     type: object
   controllers.DataSourceListResponse:
     properties:
@@ -928,17 +963,32 @@ definitions:
     properties:
       aggregation_config:
         $ref: '#/definitions/thematic_library.AggregationConfig'
-      cleansing_rules:
-        $ref: '#/definitions/thematic_library.CleansingRules'
+      cleansing_rule_ids:
+        description: 清洗规则ID列表
+        items:
+          type: string
+        type: array
       description:
         example: 更新后的描述
         type: string
       field_mapping_rules:
         $ref: '#/definitions/thematic_library.FieldMappingRules'
+      governance_config:
+        allOf:
+        - $ref: '#/definitions/thematic_library.GovernanceExecutionConfig'
+        description: 数据治理执行配置
       key_matching_rules:
         $ref: '#/definitions/thematic_library.KeyMatchingRules'
-      privacy_rules:
-        $ref: '#/definitions/thematic_library.PrivacyRules'
+      masking_rule_ids:
+        description: 脱敏规则ID列表
+        items:
+          type: string
+        type: array
+      quality_rule_ids:
+        description: 数据治理规则配置 - 使用数据治理中定义的规则ID
+        items:
+          type: string
+        type: array
       schedule_config:
         $ref: '#/definitions/thematic_library.ScheduleConfig'
       status:
@@ -948,13 +998,268 @@ definitions:
       task_name:
         example: 更新后的用户数据同步任务
         type: string
+      transform_rule_ids:
+        description: 转换规则ID列表
+        items:
+          type: string
+        type: array
       updated_by:
         example: admin
         type: string
+      validation_rule_ids:
+        description: 校验规则ID列表
+        items:
+          type: string
+        type: array
     required:
     - updated_by
     type: object
+  governance.CleansingExecutionResponse:
+    properties:
+      cleaned_records:
+        example: 8000
+        type: integer
+      cleansing_rate:
+        example: 0.8
+        type: number
+      duration:
+        example: 120000
+        type: integer
+      end_time:
+        example: "2024-01-01T00:02:00Z"
+        type: string
+      error_message:
+        type: string
+      execution_result:
+        type: object
+      id:
+        example: uuid-123
+        type: string
+      rule_id:
+        example: uuid-456
+        type: string
+      skipped_records:
+        example: 2000
+        type: integer
+      start_time:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      status:
+        example: completed
+        type: string
+      total_records:
+        example: 10000
+        type: integer
+    type: object
+  governance.CleansingRuleListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/governance.CleansingRuleResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 30
+        type: integer
+    type: object
+  governance.CleansingRuleResponse:
+    properties:
+      category:
+        example: data_format
+        type: string
+      cleansing_logic:
+        additionalProperties: true
+        type: object
+      complexity_level:
+        example: medium
+        type: string
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      created_by:
+        example: admin
+        type: string
+      default_config:
+        additionalProperties: true
+        type: object
+      description:
+        example: 统一邮箱格式为小写的通用模板
+        type: string
+      id:
+        example: uuid-123
+        type: string
+      is_built_in:
+        example: false
+        type: boolean
+      is_enabled:
+        example: true
+        type: boolean
+      name:
+        example: 邮箱格式标准化模板
+        type: string
+      parameters:
+        additionalProperties: true
+        type: object
+      rule_type:
+        example: standardization
+        type: string
+      tags:
+        additionalProperties: true
+        type: object
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      updated_by:
+        example: admin
+        type: string
+      version:
+        example: "1.0"
+        type: string
+    type: object
+  governance.CreateCleansingRuleRequest:
+    properties:
+      category:
+        enum:
+        - data_format
+        - data_quality
+        - data_integrity
+        example: data_format
+        type: string
+      cleansing_logic:
+        type: object
+      complexity_level:
+        enum:
+        - low
+        - medium
+        - high
+        example: medium
+        type: string
+      default_config:
+        type: object
+      description:
+        example: 统一邮箱格式为小写的通用模板
+        type: string
+      is_enabled:
+        example: true
+        type: boolean
+      name:
+        example: 邮箱格式标准化模板
+        type: string
+      parameters:
+        type: object
+      rule_type:
+        enum:
+        - standardization
+        - deduplication
+        - validation
+        - transformation
+        - enrichment
+        example: standardization
+        type: string
+      tags:
+        type: object
+    required:
+    - category
+    - cleansing_logic
+    - name
+    - rule_type
+    type: object
+  governance.CreateDataLineageRequest:
+    properties:
+      column_mapping:
+        type: object
+      confidence:
+        example: 0.95
+        type: number
+      description:
+        example: 用户表到用户接口的直接血缘关系
+        type: string
+      relation_type:
+        enum:
+        - direct
+        - derived
+        - aggregated
+        - transformed
+        example: direct
+        type: string
+      source_object_id:
+        example: uuid-123
+        type: string
+      source_object_type:
+        enum:
+        - table
+        - interface
+        - thematic_interface
+        example: table
+        type: string
+      target_object_id:
+        example: uuid-456
+        type: string
+      target_object_type:
+        example: interface
+        type: string
+      transform_rule:
+        type: object
+    required:
+    - relation_type
+    - source_object_id
+    - source_object_type
+    - target_object_id
+    - target_object_type
+    type: object
   governance.CreateMaskingRuleRequest:
+    properties:
+      category:
+        enum:
+        - personal_info
+        - financial
+        - medical
+        - business
+        - custom
+        example: personal_info
+        type: string
+      description:
+        example: 手机号脱敏的通用模板
+        type: string
+      is_enabled:
+        example: true
+        type: boolean
+      masking_logic:
+        type: object
+      masking_type:
+        enum:
+        - mask
+        - replace
+        - encrypt
+        - pseudonymize
+        example: mask
+        type: string
+      name:
+        example: 手机号脱敏模板
+        type: string
+      parameters:
+        type: object
+      security_level:
+        enum:
+        - low
+        - medium
+        - high
+        - critical
+        example: medium
+        type: string
+      tags:
+        type: object
+    required:
+    - category
+    - masking_logic
+    - masking_type
+    - name
+    - security_level
     type: object
   governance.CreateMetadataRequest:
     properties:
@@ -986,6 +1291,305 @@ definitions:
     - type
     type: object
   governance.CreateQualityRuleRequest:
+    properties:
+      category:
+        enum:
+        - basic_quality
+        - data_cleansing
+        - data_validation
+        example: basic_quality
+        type: string
+      default_config:
+        type: object
+      description:
+        example: 检查数据完整性的通用模板
+        type: string
+      is_enabled:
+        example: true
+        type: boolean
+      name:
+        example: 完整性检查模板
+        type: string
+      parameters:
+        type: object
+      rule_logic:
+        type: object
+      tags:
+        type: object
+      type:
+        enum:
+        - completeness
+        - accuracy
+        - consistency
+        - validity
+        - uniqueness
+        - timeliness
+        - standardization
+        example: completeness
+        type: string
+    required:
+    - category
+    - name
+    - rule_logic
+    - type
+    type: object
+  governance.CreateQualityTaskRequest:
+    properties:
+      description:
+        example: 定期检测用户表数据质量
+        type: string
+      is_enabled:
+        example: true
+        type: boolean
+      name:
+        example: 用户表质量检测任务
+        type: string
+      notification_config:
+        type: object
+      priority:
+        example: 50
+        type: integer
+      quality_rule_ids:
+        example:
+        - '["uuid-456"'
+        - '"uuid-789"]'
+        items:
+          type: string
+        type: array
+      schedule_config:
+        type: object
+      target_object_id:
+        example: uuid-123
+        type: string
+      target_object_type:
+        enum:
+        - interface
+        - thematic_interface
+        - table
+        example: interface
+        type: string
+      task_type:
+        enum:
+        - scheduled
+        - manual
+        - realtime
+        example: scheduled
+        type: string
+    required:
+    - name
+    - target_object_id
+    - target_object_type
+    - task_type
+    type: object
+  governance.CreateTransformationRuleRequest:
+    properties:
+      description:
+        example: 将用户原始数据转换为标准格式
+        type: string
+      error_handling:
+        type: object
+      execution_order:
+        example: 1
+        type: integer
+      input_schema:
+        type: object
+      is_enabled:
+        example: true
+        type: boolean
+      name:
+        example: 用户数据转换规则
+        type: string
+      output_schema:
+        type: object
+      rule_type:
+        enum:
+        - format
+        - calculate
+        - aggregate
+        - filter
+        - join
+        example: format
+        type: string
+      source_object_id:
+        example: uuid-123
+        type: string
+      source_object_type:
+        example: table
+        type: string
+      target_object_id:
+        example: uuid-456
+        type: string
+      target_object_type:
+        example: interface
+        type: string
+      transform_logic:
+        type: object
+      validation_rules:
+        type: object
+    required:
+    - name
+    - rule_type
+    - source_object_id
+    - source_object_type
+    - target_object_id
+    - target_object_type
+    - transform_logic
+    type: object
+  governance.CreateValidationRuleRequest:
+    properties:
+      description:
+        example: 验证邮箱字段格式是否正确
+        type: string
+      error_message:
+        example: 邮箱格式不正确
+        type: string
+      is_enabled:
+        example: true
+        type: boolean
+      name:
+        example: 邮箱格式校验
+        type: string
+      priority:
+        example: 50
+        type: integer
+      rule_type:
+        enum:
+        - format
+        - range
+        - enum
+        - regex
+        - custom
+        - reference
+        example: regex
+        type: string
+      severity:
+        enum:
+        - low
+        - medium
+        - high
+        - critical
+        example: medium
+        type: string
+      stop_on_failure:
+        example: false
+        type: boolean
+      target_column:
+        example: email
+        type: string
+      target_object_id:
+        example: uuid-123
+        type: string
+      target_object_type:
+        example: interface
+        type: string
+      validation_logic:
+        type: object
+    required:
+    - name
+    - rule_type
+    - target_object_id
+    - target_object_type
+    - validation_logic
+    type: object
+  governance.DataLineageEdge:
+    properties:
+      id:
+        example: uuid-456
+        type: string
+      properties:
+        type: object
+      relation_type:
+        example: direct
+        type: string
+      source_id:
+        example: uuid-123
+        type: string
+      target_id:
+        example: uuid-789
+        type: string
+    type: object
+  governance.DataLineageGraphResponse:
+    properties:
+      edges:
+        items:
+          $ref: '#/definitions/governance.DataLineageEdge'
+        type: array
+      nodes:
+        items:
+          $ref: '#/definitions/governance.DataLineageNode'
+        type: array
+      stats:
+        properties:
+          max_depth:
+            example: 3
+            type: integer
+          total_edges:
+            example: 8
+            type: integer
+          total_nodes:
+            example: 10
+            type: integer
+        type: object
+    type: object
+  governance.DataLineageNode:
+    properties:
+      id:
+        example: uuid-123
+        type: string
+      name:
+        example: users
+        type: string
+      properties:
+        type: object
+      type:
+        example: table
+        type: string
+    type: object
+  governance.DataLineageResponse:
+    properties:
+      column_mapping:
+        type: object
+      confidence:
+        example: 0.95
+        type: number
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      created_by:
+        example: admin
+        type: string
+      description:
+        example: 用户表到用户接口的直接血缘关系
+        type: string
+      id:
+        example: uuid-123
+        type: string
+      is_active:
+        example: true
+        type: boolean
+      relation_type:
+        example: direct
+        type: string
+      source_object_id:
+        example: uuid-456
+        type: string
+      source_object_type:
+        example: table
+        type: string
+      target_object_id:
+        example: uuid-789
+        type: string
+      target_object_type:
+        example: interface
+        type: string
+      transform_rule:
+        type: object
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      updated_by:
+        example: admin
+        type: string
     type: object
   governance.MaskingRuleListResponse:
     properties:
@@ -1005,44 +1609,53 @@ definitions:
     type: object
   governance.MaskingRuleResponse:
     properties:
+      category:
+        example: personal_info
+        type: string
       created_at:
         example: "2024-01-01T00:00:00Z"
         type: string
       created_by:
         example: admin
         type: string
-      data_source:
-        example: user_db
-        type: string
-      data_table:
-        example: users
-        type: string
-      field_name:
-        example: mobile
-        type: string
-      field_type:
-        example: varchar
+      description:
+        example: 手机号脱敏的通用模板
         type: string
       id:
         example: uuid-123
         type: string
+      is_built_in:
+        example: false
+        type: boolean
       is_enabled:
         example: true
         type: boolean
-      masking_config:
+      masking_logic:
         additionalProperties: true
         type: object
       masking_type:
         example: mask
         type: string
       name:
-        example: 手机号脱敏规则
+        example: 手机号脱敏模板
         type: string
+      parameters:
+        additionalProperties: true
+        type: object
+      security_level:
+        example: medium
+        type: string
+      tags:
+        additionalProperties: true
+        type: object
       updated_at:
         example: "2024-01-01T00:00:00Z"
         type: string
       updated_by:
         example: admin
+        type: string
+      version:
+        example: "1.0"
         type: string
     type: object
   governance.MetadataListResponse:
@@ -1161,32 +1774,190 @@ definitions:
     type: object
   governance.QualityRuleResponse:
     properties:
-      config:
-        additionalProperties: true
-        type: object
+      category:
+        example: basic_quality
+        type: string
       created_at:
         example: "2024-01-01T00:00:00Z"
         type: string
       created_by:
         example: admin
         type: string
+      default_config:
+        additionalProperties: true
+        type: object
+      description:
+        example: 检查数据完整性的通用模板
+        type: string
+      id:
+        example: uuid-123
+        type: string
+      is_built_in:
+        example: false
+        type: boolean
+      is_enabled:
+        example: true
+        type: boolean
+      name:
+        example: 完整性检查模板
+        type: string
+      parameters:
+        additionalProperties: true
+        type: object
+      rule_logic:
+        additionalProperties: true
+        type: object
+      tags:
+        additionalProperties: true
+        type: object
+      type:
+        example: completeness
+        type: string
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      updated_by:
+        example: admin
+        type: string
+      version:
+        example: "1.0"
+        type: string
+    type: object
+  governance.QualityTaskExecutionListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/governance.QualityTaskExecutionResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 50
+        type: integer
+    type: object
+  governance.QualityTaskExecutionResponse:
+    properties:
+      duration:
+        example: 300000
+        type: integer
+      end_time:
+        example: "2024-01-01T00:05:00Z"
+        type: string
+      executed_by:
+        example: admin
+        type: string
+      execution_results:
+        type: object
+      execution_type:
+        example: manual
+        type: string
+      failed_rules:
+        example: 1
+        type: integer
+      id:
+        example: uuid-123
+        type: string
+      overall_score:
+        example: 0.8
+        type: number
+      passed_rules:
+        example: 4
+        type: integer
+      start_time:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      status:
+        example: completed
+        type: string
+      task_id:
+        example: uuid-456
+        type: string
+      total_rules_executed:
+        example: 5
+        type: integer
+      trigger_source:
+        example: manual
+        type: string
+    type: object
+  governance.QualityTaskListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/governance.QualityTaskResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 25
+        type: integer
+    type: object
+  governance.QualityTaskResponse:
+    properties:
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      created_by:
+        example: admin
+        type: string
+      description:
+        example: 定期检测用户表数据质量
+        type: string
+      execution_count:
+        example: 10
+        type: integer
+      failure_count:
+        example: 2
+        type: integer
       id:
         example: uuid-123
         type: string
       is_enabled:
         example: true
         type: boolean
-      name:
-        example: 完整性检查规则
+      last_executed:
+        example: "2024-01-01T00:00:00Z"
         type: string
-      related_object_id:
+      name:
+        example: 用户表质量检测任务
+        type: string
+      next_execution:
+        example: "2024-01-02T02:00:00Z"
+        type: string
+      notification_config:
+        type: object
+      priority:
+        example: 50
+        type: integer
+      quality_rule_ids:
+        example:
+        - '["uuid-789"]'
+        items:
+          type: string
+        type: array
+      schedule_config:
+        type: object
+      status:
+        example: pending
+        type: string
+      success_count:
+        example: 8
+        type: integer
+      target_object_id:
         example: uuid-456
         type: string
-      related_object_type:
+      target_object_type:
         example: interface
         type: string
-      type:
-        example: completeness
+      task_type:
+        example: scheduled
         type: string
       updated_at:
         example: "2024-01-01T00:00:00Z"
@@ -1259,16 +2030,364 @@ definitions:
         example: admin
         type: string
     type: object
+  governance.TransformationExecutionResponse:
+    properties:
+      duration:
+        example: 60000
+        type: integer
+      end_time:
+        example: "2024-01-01T00:01:00Z"
+        type: string
+      error_message:
+        type: string
+      execution_result:
+        type: object
+      failure_count:
+        example: 50
+        type: integer
+      id:
+        example: uuid-123
+        type: string
+      processed_count:
+        example: 1000
+        type: integer
+      rule_id:
+        example: uuid-456
+        type: string
+      start_time:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      status:
+        example: completed
+        type: string
+      success_count:
+        example: 950
+        type: integer
+    type: object
+  governance.TransformationRuleListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/governance.TransformationRuleResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 15
+        type: integer
+    type: object
+  governance.TransformationRuleResponse:
+    properties:
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      created_by:
+        example: admin
+        type: string
+      description:
+        example: 将用户原始数据转换为标准格式
+        type: string
+      error_handling:
+        type: object
+      execution_order:
+        example: 1
+        type: integer
+      failure_count:
+        example: 10
+        type: integer
+      id:
+        example: uuid-123
+        type: string
+      input_schema:
+        type: object
+      is_enabled:
+        example: true
+        type: boolean
+      last_executed:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      name:
+        example: 用户数据转换规则
+        type: string
+      output_schema:
+        type: object
+      rule_type:
+        example: format
+        type: string
+      source_object_id:
+        example: uuid-456
+        type: string
+      source_object_type:
+        example: table
+        type: string
+      success_count:
+        example: 1000
+        type: integer
+      target_object_id:
+        example: uuid-789
+        type: string
+      target_object_type:
+        example: interface
+        type: string
+      transform_logic:
+        type: object
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      updated_by:
+        example: admin
+        type: string
+      validation_rules:
+        type: object
+    type: object
+  governance.UpdateCleansingRuleRequest:
+    properties:
+      cleansing_logic:
+        type: object
+      default_config:
+        type: object
+      description:
+        example: 更新后的描述
+        type: string
+      is_enabled:
+        example: false
+        type: boolean
+      name:
+        example: 更新后的清洗规则模板
+        type: string
+      parameters:
+        type: object
+      tags:
+        type: object
+    type: object
   governance.UpdateMaskingRuleRequest:
+    properties:
+      description:
+        example: 更新后的描述
+        type: string
+      is_enabled:
+        example: false
+        type: boolean
+      masking_logic:
+        type: object
+      name:
+        example: 更新后的脱敏模板
+        type: string
+      parameters:
+        type: object
+      tags:
+        type: object
     type: object
   governance.UpdateMetadataRequest:
+    properties:
+      content:
+        type: object
+      description:
+        example: 更新后的描述
+        type: string
+      name:
+        example: 更新后的元数据名称
+        type: string
     type: object
   governance.UpdateQualityRuleRequest:
+    properties:
+      default_config:
+        type: object
+      description:
+        example: 更新后的描述
+        type: string
+      is_enabled:
+        example: false
+        type: boolean
+      name:
+        example: 更新后的模板名称
+        type: string
+      parameters:
+        type: object
+      rule_logic:
+        type: object
+      tags:
+        type: object
+    type: object
+  governance.UpdateTransformationRuleRequest:
+    properties:
+      description:
+        example: 更新后的描述
+        type: string
+      error_handling:
+        type: object
+      execution_order:
+        example: 2
+        type: integer
+      is_enabled:
+        example: false
+        type: boolean
+      name:
+        example: 更新后的转换规则
+        type: string
+      transform_logic:
+        type: object
+      validation_rules:
+        type: object
+    type: object
+  governance.UpdateValidationRuleRequest:
+    properties:
+      description:
+        example: 更新后的描述
+        type: string
+      error_message:
+        example: 更新后的错误消息
+        type: string
+      is_enabled:
+        example: false
+        type: boolean
+      name:
+        example: 更新后的校验规则
+        type: string
+      priority:
+        example: 80
+        type: integer
+      severity:
+        example: high
+        type: string
+      stop_on_failure:
+        example: true
+        type: boolean
+      validation_logic:
+        type: object
+    type: object
+  governance.ValidationExecutionResponse:
+    properties:
+      duration:
+        example: 30000
+        type: integer
+      end_time:
+        example: "2024-01-01T00:00:30Z"
+        type: string
+      error_message:
+        type: string
+      execution_result:
+        type: object
+      id:
+        example: uuid-123
+        type: string
+      invalid_records:
+        example: 500
+        type: integer
+      rule_id:
+        example: uuid-456
+        type: string
+      start_time:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      status:
+        example: completed
+        type: string
+      total_records:
+        example: 10000
+        type: integer
+      valid_records:
+        example: 9500
+        type: integer
+      validation_rate:
+        example: 0.95
+        type: number
+    type: object
+  governance.ValidationRuleListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/governance.ValidationRuleResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 40
+        type: integer
+    type: object
+  governance.ValidationRuleResponse:
+    properties:
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      created_by:
+        example: admin
+        type: string
+      description:
+        example: 验证邮箱字段格式是否正确
+        type: string
+      error_message:
+        example: 邮箱格式不正确
+        type: string
+      failure_count:
+        example: 100
+        type: integer
+      id:
+        example: uuid-123
+        type: string
+      is_enabled:
+        example: true
+        type: boolean
+      last_executed:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      name:
+        example: 邮箱格式校验
+        type: string
+      priority:
+        example: 50
+        type: integer
+      rule_type:
+        example: regex
+        type: string
+      severity:
+        example: medium
+        type: string
+      stop_on_failure:
+        example: false
+        type: boolean
+      success_count:
+        example: 5000
+        type: integer
+      target_column:
+        example: email
+        type: string
+      target_object_id:
+        example: uuid-456
+        type: string
+      target_object_type:
+        example: interface
+        type: string
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      updated_by:
+        example: admin
+        type: string
+      validation_logic:
+        type: object
     type: object
   meta.CleansingRuleType:
     properties:
       category:
         type: string
+      code:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  meta.DataGovernanceObjectType:
+    properties:
       code:
         type: string
       description:
@@ -1503,6 +2622,24 @@ definitions:
       value:
         description: 条件值
     type: object
+  meta.LineageRelationType:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  meta.MetadataType:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    type: object
   meta.QualityCheckStatus:
     properties:
       code:
@@ -1562,6 +2699,26 @@ definitions:
     properties:
       category:
         type: string
+      code:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  meta.TaskStatus:
+    properties:
+      code:
+        type: string
+      color:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  meta.TaskType:
+    properties:
       code:
         type: string
       description:
@@ -1680,6 +2837,28 @@ definitions:
         type: boolean
       type:
         description: string, number, boolean, array, object, enum
+        type: string
+    type: object
+  meta.TransformationRuleType:
+    properties:
+      category:
+        type: string
+      code:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  meta.ValidationRuleType:
+    properties:
+      category:
+        type: string
+      code:
+        type: string
+      description:
+        type: string
+      name:
         type: string
     type: object
   models.Alert:
@@ -3059,81 +4238,6 @@ definitions:
         default: true
         type: boolean
     type: object
-  thematic_library.CleansingRule:
-    properties:
-      condition:
-        type: string
-      description:
-        type: string
-      enabled:
-        default: true
-        type: boolean
-      fields:
-        items:
-          type: string
-        type: array
-      id:
-        type: string
-      name:
-        type: string
-      parameters:
-        additionalProperties: true
-        type: object
-      priority:
-        default: 1
-        type: integer
-      type:
-        enum:
-        - remove_duplicates
-        - trim
-        - standardize
-        - validate
-        - replace
-        type: string
-    required:
-    - id
-    - name
-    - type
-    type: object
-  thematic_library.CleansingRules:
-    properties:
-      on_error:
-        default: skip
-        description: skip, abort, continue
-        type: string
-      order:
-        items:
-          type: string
-        type: array
-      parallel:
-        default: false
-        type: boolean
-      rules:
-        items:
-          $ref: '#/definitions/thematic_library.CleansingRule'
-        minItems: 1
-        type: array
-      validation:
-        $ref: '#/definitions/thematic_library.CleansingValidation'
-    required:
-    - rules
-    type: object
-  thematic_library.CleansingValidation:
-    properties:
-      quality_threshold:
-        default: 0.8
-        type: number
-      required_fields:
-        items:
-          type: string
-        type: array
-      validate_after_clean:
-        default: true
-        type: boolean
-      validate_before_clean:
-        default: true
-        type: boolean
-    type: object
   thematic_library.ConditionalRule:
     properties:
       condition:
@@ -3161,8 +4265,11 @@ definitions:
     properties:
       aggregation_config:
         $ref: '#/definitions/thematic_library.AggregationConfig'
-      cleansing_rules:
-        $ref: '#/definitions/thematic_library.CleansingRules'
+      cleansing_rule_ids:
+        description: 清洗规则ID列表
+        items:
+          type: string
+        type: array
       created_by:
         type: string
       data_source_sql:
@@ -3173,10 +4280,22 @@ definitions:
         type: string
       field_mapping_rules:
         $ref: '#/definitions/thematic_library.FieldMappingRules'
+      governance_config:
+        allOf:
+        - $ref: '#/definitions/thematic_library.GovernanceExecutionConfig'
+        description: 数据治理执行配置
       key_matching_rules:
         $ref: '#/definitions/thematic_library.KeyMatchingRules'
-      privacy_rules:
-        $ref: '#/definitions/thematic_library.PrivacyRules'
+      masking_rule_ids:
+        description: 脱敏规则ID列表
+        items:
+          type: string
+        type: array
+      quality_rule_ids:
+        description: 数据治理规则配置 - 使用数据治理中定义的规则ID
+        items:
+          type: string
+        type: array
       schedule_config:
         $ref: '#/definitions/thematic_library.ScheduleConfig'
       source_libraries:
@@ -3190,6 +4309,16 @@ definitions:
         type: string
       thematic_library_id:
         type: string
+      transform_rule_ids:
+        description: 转换规则ID列表
+        items:
+          type: string
+        type: array
+      validation_rule_ids:
+        description: 校验规则ID列表
+        items:
+          type: string
+        type: array
     required:
     - created_by
     - schedule_config
@@ -3463,6 +4592,46 @@ definitions:
         default: 0.8
         type: number
     type: object
+  thematic_library.GovernanceExecutionConfig:
+    properties:
+      batch_size:
+        description: 批处理大小
+        type: integer
+      custom_config:
+        additionalProperties: true
+        description: 自定义配置
+        type: object
+      enable_cleansing:
+        description: 启用数据清洗
+        type: boolean
+      enable_masking:
+        description: 启用数据脱敏
+        type: boolean
+      enable_quality_check:
+        description: 启用质量检查
+        type: boolean
+      enable_transformation:
+        description: 启用数据转换
+        type: boolean
+      enable_validation:
+        description: 启用数据校验
+        type: boolean
+      max_retries:
+        description: 最大重试次数
+        type: integer
+      quality_threshold:
+        description: 质量阈值
+        type: number
+      stop_on_quality_failure:
+        description: 质量检查失败时停止
+        type: boolean
+      stop_on_validation_failure:
+        description: 校验失败时停止
+        type: boolean
+      timeout_seconds:
+        description: 超时时间（秒）
+        type: integer
+    type: object
   thematic_library.KeyMatchingRules:
     properties:
       case_sensitive:
@@ -3599,83 +4768,6 @@ definitions:
         type: number
     required:
     - fields
-    type: object
-  thematic_library.PrivacyRule:
-    properties:
-      condition:
-        type: string
-      description:
-        type: string
-      enabled:
-        default: true
-        type: boolean
-      fields:
-        items:
-          type: string
-        minItems: 1
-        type: array
-      id:
-        type: string
-      masking_type:
-        enum:
-        - mask
-        - hash
-        - encrypt
-        - tokenize
-        - anonymize
-        type: string
-      name:
-        type: string
-      parameters:
-        additionalProperties: true
-        type: object
-      priority:
-        default: 1
-        type: integer
-      reversible:
-        default: false
-        type: boolean
-    required:
-    - fields
-    - id
-    - masking_type
-    - name
-    type: object
-  thematic_library.PrivacyRules:
-    properties:
-      audit_log:
-        default: true
-        type: boolean
-      global_mode:
-        default: field
-        description: field, record, table
-        type: string
-      rules:
-        items:
-          $ref: '#/definitions/thematic_library.PrivacyRule'
-        minItems: 1
-        type: array
-      validation:
-        $ref: '#/definitions/thematic_library.PrivacyValidation'
-    required:
-    - rules
-    type: object
-  thematic_library.PrivacyValidation:
-    properties:
-      audit_requirements:
-        default: true
-        type: boolean
-      compliance_rules:
-        items:
-          type: string
-        type: array
-      sensitive_fields:
-        items:
-          type: string
-        type: array
-      validate_patterns:
-        default: true
-        type: boolean
     type: object
   thematic_library.SQLDataSourceConfig:
     properties:
@@ -5417,6 +6509,310 @@ paths:
       summary: 执行数据质量检查
       tags:
       - 数据质量
+  /data-quality/cleansing-rules:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据清洗规则列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 规则类型
+        enum:
+        - standardization
+        - deduplication
+        - validation
+        - transformation
+        - enrichment
+        in: query
+        name: rule_type
+        type: string
+      - description: 目标表
+        in: query
+        name: target_table
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.CleansingRuleListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据清洗规则列表
+      tags:
+      - 数据质量
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据清洗规则
+      parameters:
+      - description: 数据清洗规则信息
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/governance.CreateCleansingRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.CleansingRuleResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据清洗规则
+      tags:
+      - 数据质量
+  /data-quality/cleansing-rules/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的数据清洗规则
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除数据清洗规则
+      tags:
+      - 数据质量
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据清洗规则详情
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.CleansingRuleResponse'
+              type: object
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据清洗规则
+      tags:
+      - 数据质量
+    put:
+      consumes:
+      - application/json
+      description: 更新数据清洗规则信息
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          $ref: '#/definitions/governance.UpdateCleansingRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新数据清洗规则
+      tags:
+      - 数据质量
+  /data-quality/cleansing-rules/{id}/execute:
+    post:
+      consumes:
+      - application/json
+      description: 手动执行指定的数据清洗规则
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 执行成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.CleansingExecutionResponse'
+              type: object
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 执行数据清洗规则
+      tags:
+      - 数据质量
+  /data-quality/data-lineage:
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据血缘关系
+      parameters:
+      - description: 数据血缘信息
+        in: body
+        name: lineage
+        required: true
+        schema:
+          $ref: '#/definitions/governance.CreateDataLineageRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.DataLineageResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据血缘关系
+      tags:
+      - 数据质量
+  /data-quality/data-lineage/{object_id}:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定数据对象的血缘关系图
+      parameters:
+      - description: 数据对象ID
+        in: path
+        name: object_id
+        required: true
+        type: string
+      - description: 对象类型
+        enum:
+        - table
+        - interface
+        - thematic_interface
+        in: query
+        name: object_type
+        type: string
+      - default: both
+        description: 血缘方向
+        enum:
+        - upstream
+        - downstream
+        - both
+        in: query
+        name: direction
+        type: string
+      - default: 3
+        description: 血缘深度
+        in: query
+        name: depth
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.DataLineageGraphResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据血缘图
+      tags:
+      - 数据质量
   /data-quality/masking-rules:
     get:
       consumes:
@@ -6097,6 +7493,674 @@ paths:
       summary: 获取系统日志列表
       tags:
       - 数据质量
+  /data-quality/tasks:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据质量检测任务列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 任务状态
+        enum:
+        - pending
+        - running
+        - completed
+        - failed
+        - cancelled
+        in: query
+        name: status
+        type: string
+      - description: 任务类型
+        enum:
+        - scheduled
+        - manual
+        - realtime
+        in: query
+        name: task_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityTaskListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据质量检测任务列表
+      tags:
+      - 数据质量
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据质量检测任务
+      parameters:
+      - description: 质量检测任务信息
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/governance.CreateQualityTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityTaskResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据质量检测任务
+      tags:
+      - 数据质量
+  /data-quality/tasks/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据质量检测任务详情
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityTaskResponse'
+              type: object
+        "404":
+          description: 任务不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据质量检测任务
+      tags:
+      - 数据质量
+  /data-quality/tasks/{id}/executions:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定任务的执行记录列表
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityTaskExecutionListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据质量检测任务执行记录
+      tags:
+      - 数据质量
+  /data-quality/tasks/{id}/start:
+    post:
+      consumes:
+      - application/json
+      description: 手动启动指定的数据质量检测任务
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 启动成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityTaskExecutionResponse'
+              type: object
+        "404":
+          description: 任务不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 启动数据质量检测任务
+      tags:
+      - 数据质量
+  /data-quality/tasks/{id}/stop:
+    post:
+      consumes:
+      - application/json
+      description: 停止正在运行的数据质量检测任务
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 停止成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 任务不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 停止数据质量检测任务
+      tags:
+      - 数据质量
+  /data-quality/transformation-rules:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据转换规则列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 规则类型
+        enum:
+        - format
+        - calculate
+        - aggregate
+        - filter
+        - join
+        in: query
+        name: rule_type
+        type: string
+      - description: 源对象ID
+        in: query
+        name: source_object_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.TransformationRuleListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据转换规则列表
+      tags:
+      - 数据质量
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据转换规则
+      parameters:
+      - description: 数据转换规则信息
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/governance.CreateTransformationRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.TransformationRuleResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据转换规则
+      tags:
+      - 数据质量
+  /data-quality/transformation-rules/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的数据转换规则
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除数据转换规则
+      tags:
+      - 数据质量
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据转换规则详情
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.TransformationRuleResponse'
+              type: object
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据转换规则
+      tags:
+      - 数据质量
+    put:
+      consumes:
+      - application/json
+      description: 更新数据转换规则信息
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          $ref: '#/definitions/governance.UpdateTransformationRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新数据转换规则
+      tags:
+      - 数据质量
+  /data-quality/transformation-rules/{id}/execute:
+    post:
+      consumes:
+      - application/json
+      description: 手动执行指定的数据转换规则
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 执行成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.TransformationExecutionResponse'
+              type: object
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 执行数据转换规则
+      tags:
+      - 数据质量
+  /data-quality/validation-rules:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取数据校验规则列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 规则类型
+        enum:
+        - format
+        - range
+        - enum
+        - regex
+        - custom
+        - reference
+        in: query
+        name: rule_type
+        type: string
+      - description: 目标对象ID
+        in: query
+        name: target_object_id
+        type: string
+      - description: 严重程度
+        enum:
+        - low
+        - medium
+        - high
+        - critical
+        in: query
+        name: severity
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.ValidationRuleListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据校验规则列表
+      tags:
+      - 数据质量
+    post:
+      consumes:
+      - application/json
+      description: 创建新的数据校验规则
+      parameters:
+      - description: 数据校验规则信息
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/governance.CreateValidationRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.ValidationRuleResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建数据校验规则
+      tags:
+      - 数据质量
+  /data-quality/validation-rules/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的数据校验规则
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除数据校验规则
+      tags:
+      - 数据质量
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取数据校验规则详情
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.ValidationRuleResponse'
+              type: object
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取数据校验规则
+      tags:
+      - 数据质量
+    put:
+      consumes:
+      - application/json
+      description: 更新数据校验规则信息
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          $ref: '#/definitions/governance.UpdateValidationRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新数据校验规则
+      tags:
+      - 数据质量
+  /data-quality/validation-rules/{id}/execute:
+    post:
+      consumes:
+      - application/json
+      description: 手动执行指定的数据校验规则
+      parameters:
+      - description: 规则ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 执行成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.ValidationExecutionResponse'
+              type: object
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 执行数据校验规则
+      tags:
+      - 数据质量
   /data-view/{library_type}/{library_id}/tables:
     get:
       consumes:
@@ -6472,9 +8536,9 @@ paths:
       summary: 获取所有数据源类型元数据
       tags:
       - 元数据
-  /meta/data-quality/all:
+  /meta/data-governance:
     get:
-      description: 获取数据质量相关的所有元数据，包括规则类型、检查状态、脱敏类型等
+      description: 获取数据治理相关的所有元数据，包括质量规则类型、检查状态、脱敏类型、转换规则类型、校验规则类型、任务类型、血缘关系类型等
       produces:
       - application/json
       responses:
@@ -6485,205 +8549,13 @@ paths:
             - $ref: '#/definitions/controllers.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/controllers.DataQualityMetadataResponse'
+                  $ref: '#/definitions/controllers.DataGovernanceMetadataResponse'
               type: object
         "500":
           description: 服务器内部错误
           schema:
             $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据质量完整元数据
-      tags:
-      - 元数据
-  /meta/data-quality/check-statuses:
-    get:
-      description: 获取所有质量检查状态元数据
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/meta.QualityCheckStatus'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取质量检查状态元数据
-      tags:
-      - 元数据
-  /meta/data-quality/cleansing-rule-types:
-    get:
-      description: 获取所有清洗规则类型元数据
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/meta.CleansingRuleType'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取清洗规则类型元数据
-      tags:
-      - 元数据
-  /meta/data-quality/issue-severities:
-    get:
-      description: 获取所有质量问题严重程度元数据
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/meta.QualityIssueSeverity'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取质量问题严重程度元数据
-      tags:
-      - 元数据
-  /meta/data-quality/issue-statuses:
-    get:
-      description: 获取所有质量问题状态元数据
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/meta.QualityIssueStatus'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取质量问题状态元数据
-      tags:
-      - 元数据
-  /meta/data-quality/masking-types:
-    get:
-      description: 获取所有数据脱敏类型元数据
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/meta.DataMaskingType'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取数据脱敏类型元数据
-      tags:
-      - 元数据
-  /meta/data-quality/metric-types:
-    get:
-      description: 获取所有质量指标类型元数据
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/meta.QualityMetricType'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取质量指标类型元数据
-      tags:
-      - 元数据
-  /meta/data-quality/report-types:
-    get:
-      description: 获取所有质量报告类型元数据
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/meta.QualityReportType'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取质量报告类型元数据
-      tags:
-      - 元数据
-  /meta/data-quality/rule-types:
-    get:
-      description: 获取所有质量规则类型元数据
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/controllers.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/meta.QualityRuleType'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/controllers.APIResponse'
-      summary: 获取质量规则类型元数据
+      summary: 获取数据治理完整元数据
       tags:
       - 元数据
   /meta/sync-tasks:

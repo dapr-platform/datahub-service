@@ -29,9 +29,16 @@ type ThematicSyncController struct {
 
 // NewThematicSyncController 创建主题同步控制器实例
 func NewThematicSyncController() *ThematicSyncController {
-	// 临时创建服务实例，避免编译错误
-	// TODO: 使用 GlobalThematicSyncService 当接口适配完成后
-	thematicSyncService := thematic_library.NewThematicSyncService(service.DB, nil, nil)
+	// 使用全局服务实例
+	// TODO: 需要为 BasicLibraryService 和 ThematicLibraryService 创建适配器，
+	// 使其实现 BasicLibraryServiceInterface 和 ThematicLibraryServiceInterface
+	// 暂时传递 nil，在实际使用时需要实现相应的接口方法
+	thematicSyncService := thematic_library.NewThematicSyncService(
+		service.DB,
+		nil, // service.GlobalBasicLibraryService - 需要适配器
+		nil, // service.GlobalThematicLibraryService - 需要适配器
+		service.GlobalGovernanceService,
+	)
 	return &ThematicSyncController{
 		thematicSyncService: thematicSyncService,
 	}
@@ -56,9 +63,16 @@ type UpdateThematicSyncTaskRequest struct {
 	AggregationConfig *thematic_library.AggregationConfig `json:"aggregation_config,omitempty"`
 	KeyMatchingRules  *thematic_library.KeyMatchingRules  `json:"key_matching_rules,omitempty"`
 	FieldMappingRules *thematic_library.FieldMappingRules `json:"field_mapping_rules,omitempty"`
-	CleansingRules    *thematic_library.CleansingRules    `json:"cleansing_rules,omitempty"`
-	PrivacyRules      *thematic_library.PrivacyRules      `json:"privacy_rules,omitempty"`
-	UpdatedBy         string                              `json:"updated_by" validate:"required" example:"admin"`
+
+	// 数据治理规则配置 - 使用数据治理中定义的规则ID
+	QualityRuleIDs    []string                                    `json:"quality_rule_ids,omitempty"`    // 质量规则ID列表
+	CleansingRuleIDs  []string                                    `json:"cleansing_rule_ids,omitempty"`  // 清洗规则ID列表
+	MaskingRuleIDs    []string                                    `json:"masking_rule_ids,omitempty"`    // 脱敏规则ID列表
+	TransformRuleIDs  []string                                    `json:"transform_rule_ids,omitempty"`  // 转换规则ID列表
+	ValidationRuleIDs []string                                    `json:"validation_rule_ids,omitempty"` // 校验规则ID列表
+	GovernanceConfig  *thematic_library.GovernanceExecutionConfig `json:"governance_config,omitempty"`   // 数据治理执行配置
+
+	UpdatedBy string `json:"updated_by" validate:"required" example:"admin"`
 }
 
 // ExecuteSyncTaskRequest 执行同步任务请求结构
@@ -301,9 +315,16 @@ func (c *ThematicSyncController) UpdateSyncTask(w http.ResponseWriter, r *http.R
 		AggregationConfig: req.AggregationConfig,
 		KeyMatchingRules:  req.KeyMatchingRules,
 		FieldMappingRules: req.FieldMappingRules,
-		CleansingRules:    req.CleansingRules,
-		PrivacyRules:      req.PrivacyRules,
-		UpdatedBy:         req.UpdatedBy,
+
+		// 数据治理规则配置
+		QualityRuleIDs:    req.QualityRuleIDs,
+		CleansingRuleIDs:  req.CleansingRuleIDs,
+		MaskingRuleIDs:    req.MaskingRuleIDs,
+		TransformRuleIDs:  req.TransformRuleIDs,
+		ValidationRuleIDs: req.ValidationRuleIDs,
+		GovernanceConfig:  req.GovernanceConfig,
+
+		UpdatedBy: req.UpdatedBy,
 	}
 
 	task, err := c.thematicSyncService.UpdateSyncTask(r.Context(), id, serviceReq)

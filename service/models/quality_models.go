@@ -78,37 +78,46 @@ func (QualityMetricRecord) TableName() string {
 	return "quality_metric_records"
 }
 
-// DataCleansingRuleEngine 数据清洗规则引擎模型
-type DataCleansingRuleEngine struct {
-	ID               string     `gorm:"type:varchar(50);primaryKey" json:"id"`
-	Name             string     `gorm:"type:varchar(100);not null" json:"name"`
-	Description      string     `gorm:"type:text" json:"description"`
-	RuleType         string     `gorm:"type:varchar(30);not null" json:"rule_type"` // standardization, deduplication, validation, transformation, enrichment
-	TargetTable      string     `gorm:"type:varchar(100);not null" json:"target_table"`
-	TargetColumn     string     `gorm:"type:varchar(100)" json:"target_column"`
-	TriggerCondition string     `gorm:"type:text" json:"trigger_condition"`          // 触发条件
-	CleansingAction  JSONB      `gorm:"type:jsonb;not null" json:"cleansing_action"` // 清洗动作配置
-	Priority         int        `gorm:"default:50" json:"priority"`                  // 优先级 (1-100)
-	IsEnabled        bool       `gorm:"default:true" json:"is_enabled"`
-	PreCondition     string     `gorm:"type:text" json:"pre_condition"`       // 前置条件
-	PostCondition    string     `gorm:"type:text" json:"post_condition"`      // 后置条件
-	BackupOriginal   bool       `gorm:"default:false" json:"backup_original"` // 是否备份原始数据
-	ValidationRules  JSONB      `gorm:"type:jsonb" json:"validation_rules"`   // 验证规则
-	ErrorHandling    JSONB      `gorm:"type:jsonb" json:"error_handling"`     // 错误处理策略
-	ExecutionOrder   int        `gorm:"default:1" json:"execution_order"`     // 执行顺序
-	SuccessCount     int64      `gorm:"default:0" json:"success_count"`
-	FailureCount     int64      `gorm:"default:0" json:"failure_count"`
-	LastExecuted     *time.Time `json:"last_executed,omitempty"`
-	CreatedBy        string     `gorm:"type:varchar(50)" json:"created_by"`
-	UpdatedBy        string     `gorm:"type:varchar(50)" json:"updated_by"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	DeletedAt        time.Time  `gorm:"index" json:"deleted_at,omitempty"`
+// DataCleansingTemplate 数据清洗规则模板模型
+type DataCleansingTemplate struct {
+	ID              string    `gorm:"type:varchar(50);primaryKey" json:"id"`
+	Name            string    `gorm:"type:varchar(100);not null" json:"name"`
+	Description     string    `gorm:"type:text" json:"description"`
+	RuleType        string    `gorm:"type:varchar(30);not null" json:"rule_type"`                // standardization, deduplication, validation, transformation, enrichment
+	Category        string    `gorm:"type:varchar(50);not null" json:"category"`                 // data_format/data_quality/data_integrity
+	CleansingLogic  JSONB     `gorm:"type:jsonb;not null" json:"cleansing_logic"`                // 清洗逻辑模板
+	Parameters      JSONB     `gorm:"type:jsonb" json:"parameters"`                              // 可配置参数定义
+	DefaultConfig   JSONB     `gorm:"type:jsonb" json:"default_config"`                          // 默认配置
+	ApplicableTypes JSONB     `gorm:"type:jsonb" json:"applicable_types"`                        // 适用的数据类型
+	ComplexityLevel string    `gorm:"type:varchar(20);default:'medium'" json:"complexity_level"` // low/medium/high
+	IsBuiltIn       bool      `gorm:"default:false" json:"is_built_in"`                          // 是否为内置模板
+	IsEnabled       bool      `gorm:"default:true" json:"is_enabled"`
+	Version         string    `gorm:"type:varchar(20);default:'1.0'" json:"version"`
+	Tags            JSONB     `gorm:"type:jsonb" json:"tags"` // 标签，用于分类和搜索
+	CreatedBy       string    `gorm:"type:varchar(50)" json:"created_by"`
+	UpdatedBy       string    `gorm:"type:varchar(50)" json:"updated_by"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	DeletedAt       time.Time `gorm:"index" json:"deleted_at,omitempty"`
+}
+
+// DataCleansingConfig 数据清洗配置（运行时应用）
+type DataCleansingConfig struct {
+	TemplateID       string                 `json:"template_id"`
+	TargetFields     []string               `json:"target_fields"`     // 目标字段列表
+	TriggerCondition string                 `json:"trigger_condition"` // 触发条件
+	CleansingConfig  map[string]interface{} `json:"cleansing_config"`  // 运行时清洗配置
+	PreCondition     string                 `json:"pre_condition"`     // 前置条件
+	PostCondition    string                 `json:"post_condition"`    // 后置条件
+	BackupOriginal   bool                   `json:"backup_original"`   // 是否备份原始数据
+	ValidationRules  map[string]interface{} `json:"validation_rules"`  // 验证规则
+	ErrorHandling    map[string]interface{} `json:"error_handling"`    // 错误处理策略
+	IsEnabled        bool                   `json:"is_enabled"`
 }
 
 // TableName 指定表名
-func (DataCleansingRuleEngine) TableName() string {
-	return "data_cleansing_rule_engines"
+func (DataCleansingTemplate) TableName() string {
+	return "data_cleansing_templates"
 }
 
 // QualityDashboardReport 质量仪表板报告模型
@@ -183,4 +192,149 @@ type QualityIssueTracker struct {
 // TableName 指定表名
 func (QualityIssueTracker) TableName() string {
 	return "quality_issue_trackers"
+}
+
+// QualityTask 质量检测任务模型
+type QualityTask struct {
+	ID                 string     `gorm:"type:varchar(50);primaryKey" json:"id"`
+	Name               string     `gorm:"type:varchar(100);not null" json:"name"`
+	Description        string     `gorm:"type:text" json:"description"`
+	TaskType           string     `gorm:"type:varchar(30);not null" json:"task_type"` // scheduled, manual, realtime
+	TargetObjectID     string     `gorm:"type:varchar(50);not null" json:"target_object_id"`
+	TargetObjectType   string     `gorm:"type:varchar(30);not null" json:"target_object_type"` // interface, thematic_interface, table
+	QualityRuleIDs     JSONB      `gorm:"type:jsonb" json:"quality_rule_ids"`                  // 关联的质量规则ID列表
+	ScheduleConfig     JSONB      `gorm:"type:jsonb" json:"schedule_config"`                   // 调度配置
+	NotificationConfig JSONB      `gorm:"type:jsonb" json:"notification_config"`               // 通知配置
+	Status             string     `gorm:"type:varchar(20);default:'pending'" json:"status"`    // pending, running, completed, failed, cancelled
+	Priority           int        `gorm:"default:50" json:"priority"`                          // 优先级 (1-100)
+	IsEnabled          bool       `gorm:"default:true" json:"is_enabled"`
+	LastExecuted       *time.Time `json:"last_executed,omitempty"`
+	NextExecution      *time.Time `json:"next_execution,omitempty"`
+	ExecutionCount     int64      `gorm:"default:0" json:"execution_count"`
+	SuccessCount       int64      `gorm:"default:0" json:"success_count"`
+	FailureCount       int64      `gorm:"default:0" json:"failure_count"`
+	CreatedBy          string     `gorm:"type:varchar(50)" json:"created_by"`
+	UpdatedBy          string     `gorm:"type:varchar(50)" json:"updated_by"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+	DeletedAt          time.Time  `gorm:"index" json:"deleted_at,omitempty"`
+}
+
+// TableName 指定表名
+func (QualityTask) TableName() string {
+	return "quality_tasks"
+}
+
+// QualityTaskExecution 质量检测任务执行记录模型
+type QualityTaskExecution struct {
+	ID                 string     `gorm:"type:varchar(50);primaryKey" json:"id"`
+	TaskID             string     `gorm:"type:varchar(50);not null;index" json:"task_id"`
+	ExecutionType      string     `gorm:"type:varchar(30);not null" json:"execution_type"` // scheduled, manual, triggered
+	StartTime          time.Time  `json:"start_time"`
+	EndTime            *time.Time `json:"end_time,omitempty"`
+	Duration           int64      `json:"duration"`                                // 执行时长，毫秒
+	Status             string     `gorm:"type:varchar(20);not null" json:"status"` // running, completed, failed, cancelled
+	TotalRulesExecuted int        `json:"total_rules_executed"`
+	PassedRules        int        `json:"passed_rules"`
+	FailedRules        int        `json:"failed_rules"`
+	OverallScore       float64    `json:"overall_score"`                       // 总体质量评分 (0-1)
+	ExecutionResults   JSONB      `gorm:"type:jsonb" json:"execution_results"` // 执行结果详情
+	ErrorMessage       string     `gorm:"type:text" json:"error_message,omitempty"`
+	TriggerSource      string     `gorm:"type:varchar(50)" json:"trigger_source"` // 触发来源
+	ExecutedBy         string     `gorm:"type:varchar(50)" json:"executed_by"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+	DeletedAt          time.Time  `gorm:"index" json:"deleted_at,omitempty"`
+}
+
+// TableName 指定表名
+func (QualityTaskExecution) TableName() string {
+	return "quality_task_executions"
+}
+
+// DataLineage 数据血缘关系模型
+type DataLineage struct {
+	ID               string    `gorm:"type:varchar(50);primaryKey" json:"id"`
+	SourceObjectID   string    `gorm:"type:varchar(50);not null;index" json:"source_object_id"`
+	SourceObjectType string    `gorm:"type:varchar(30);not null" json:"source_object_type"` // table, interface, thematic_interface
+	TargetObjectID   string    `gorm:"type:varchar(50);not null;index" json:"target_object_id"`
+	TargetObjectType string    `gorm:"type:varchar(30);not null" json:"target_object_type"`
+	RelationType     string    `gorm:"type:varchar(30);not null" json:"relation_type"` // direct, derived, aggregated, transformed
+	TransformRule    JSONB     `gorm:"type:jsonb" json:"transform_rule"`               // 转换规则
+	ColumnMapping    JSONB     `gorm:"type:jsonb" json:"column_mapping"`               // 字段映射关系
+	Confidence       float64   `gorm:"default:1.0" json:"confidence"`                  // 置信度 (0-1)
+	IsActive         bool      `gorm:"default:true" json:"is_active"`
+	Description      string    `gorm:"type:text" json:"description"`
+	CreatedBy        string    `gorm:"type:varchar(50)" json:"created_by"`
+	UpdatedBy        string    `gorm:"type:varchar(50)" json:"updated_by"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	DeletedAt        time.Time `gorm:"index" json:"deleted_at,omitempty"`
+}
+
+// TableName 指定表名
+func (DataLineage) TableName() string {
+	return "data_lineages"
+}
+
+// DataTransformationRule 数据转换规则模型
+type DataTransformationRule struct {
+	ID               string     `gorm:"type:varchar(50);primaryKey" json:"id"`
+	Name             string     `gorm:"type:varchar(100);not null" json:"name"`
+	Description      string     `gorm:"type:text" json:"description"`
+	RuleType         string     `gorm:"type:varchar(30);not null" json:"rule_type"` // format, calculate, aggregate, filter, join
+	SourceObjectID   string     `gorm:"type:varchar(50);not null" json:"source_object_id"`
+	SourceObjectType string     `gorm:"type:varchar(30);not null" json:"source_object_type"`
+	TargetObjectID   string     `gorm:"type:varchar(50);not null" json:"target_object_id"`
+	TargetObjectType string     `gorm:"type:varchar(30);not null" json:"target_object_type"`
+	TransformLogic   JSONB      `gorm:"type:jsonb;not null" json:"transform_logic"` // 转换逻辑配置
+	InputSchema      JSONB      `gorm:"type:jsonb" json:"input_schema"`             // 输入数据模式
+	OutputSchema     JSONB      `gorm:"type:jsonb" json:"output_schema"`            // 输出数据模式
+	ValidationRules  JSONB      `gorm:"type:jsonb" json:"validation_rules"`         // 验证规则
+	ErrorHandling    JSONB      `gorm:"type:jsonb" json:"error_handling"`           // 错误处理策略
+	IsEnabled        bool       `gorm:"default:true" json:"is_enabled"`
+	ExecutionOrder   int        `gorm:"default:1" json:"execution_order"` // 执行顺序
+	SuccessCount     int64      `gorm:"default:0" json:"success_count"`
+	FailureCount     int64      `gorm:"default:0" json:"failure_count"`
+	LastExecuted     *time.Time `json:"last_executed,omitempty"`
+	CreatedBy        string     `gorm:"type:varchar(50)" json:"created_by"`
+	UpdatedBy        string     `gorm:"type:varchar(50)" json:"updated_by"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	DeletedAt        time.Time  `gorm:"index" json:"deleted_at,omitempty"`
+}
+
+// TableName 指定表名
+func (DataTransformationRule) TableName() string {
+	return "data_transformation_rules"
+}
+
+// DataValidationRule 数据校验规则模型
+type DataValidationRule struct {
+	ID               string     `gorm:"type:varchar(50);primaryKey" json:"id"`
+	Name             string     `gorm:"type:varchar(100);not null" json:"name"`
+	Description      string     `gorm:"type:text" json:"description"`
+	RuleType         string     `gorm:"type:varchar(30);not null" json:"rule_type"` // format, range, enum, regex, custom, reference
+	TargetObjectID   string     `gorm:"type:varchar(50);not null" json:"target_object_id"`
+	TargetObjectType string     `gorm:"type:varchar(30);not null" json:"target_object_type"`
+	TargetColumn     string     `gorm:"type:varchar(100)" json:"target_column"`
+	ValidationLogic  JSONB      `gorm:"type:jsonb;not null" json:"validation_logic"`       // 校验逻辑配置
+	ErrorMessage     string     `gorm:"type:text" json:"error_message"`                    // 自定义错误消息
+	Severity         string     `gorm:"type:varchar(20);default:'medium'" json:"severity"` // low, medium, high, critical
+	IsEnabled        bool       `gorm:"default:true" json:"is_enabled"`
+	StopOnFailure    bool       `gorm:"default:false" json:"stop_on_failure"` // 失败时是否停止后续处理
+	Priority         int        `gorm:"default:50" json:"priority"`           // 优先级 (1-100)
+	SuccessCount     int64      `gorm:"default:0" json:"success_count"`
+	FailureCount     int64      `gorm:"default:0" json:"failure_count"`
+	LastExecuted     *time.Time `json:"last_executed,omitempty"`
+	CreatedBy        string     `gorm:"type:varchar(50)" json:"created_by"`
+	UpdatedBy        string     `gorm:"type:varchar(50)" json:"updated_by"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	DeletedAt        time.Time  `gorm:"index" json:"deleted_at,omitempty"`
+}
+
+// TableName 指定表名
+func (DataValidationRule) TableName() string {
+	return "data_validation_rules"
 }

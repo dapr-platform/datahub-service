@@ -18,23 +18,37 @@ import (
 	"gorm.io/gorm"
 )
 
-// QualityRule 数据质量规则模型
-type QualityRule struct {
-	ID                string                 `gorm:"type:uuid;primary_key" json:"id"`
-	Name              string                 `gorm:"not null" json:"name"`
-	Type              string                 `gorm:"not null" json:"type"` // completeness/standardization/consistency/accuracy/uniqueness/timeliness
-	Config            map[string]interface{} `gorm:"type:jsonb;not null" json:"config"`
-	RelatedObjectID   string                 `gorm:"not null" json:"related_object_id"`
-	RelatedObjectType string                 `gorm:"not null" json:"related_object_type"` // interface/thematic_interface
-	IsEnabled         bool                   `gorm:"not null;default:true" json:"is_enabled"`
-	CreatedAt         time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
-	CreatedBy         string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
-	UpdatedAt         time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
-	UpdatedBy         string                 `gorm:"not null;default:'system';size:100" json:"updated_by"`
+// QualityRuleTemplate 数据质量规则模板模型（不绑定具体表字段）
+type QualityRuleTemplate struct {
+	ID            string                 `gorm:"type:uuid;primary_key" json:"id"`
+	Name          string                 `gorm:"not null" json:"name"`
+	Type          string                 `gorm:"not null" json:"type"`     // completeness/standardization/consistency/accuracy/uniqueness/timeliness
+	Category      string                 `gorm:"not null" json:"category"` // basic_quality/data_cleansing/data_validation
+	Description   string                 `gorm:"type:text" json:"description"`
+	RuleLogic     map[string]interface{} `gorm:"type:jsonb;not null" json:"rule_logic"`     // 规则逻辑模板
+	Parameters    map[string]interface{} `gorm:"type:jsonb" json:"parameters"`              // 可配置参数定义
+	DefaultConfig map[string]interface{} `gorm:"type:jsonb" json:"default_config"`          // 默认配置
+	IsBuiltIn     bool                   `gorm:"not null;default:false" json:"is_built_in"` // 是否为内置模板
+	IsEnabled     bool                   `gorm:"not null;default:true" json:"is_enabled"`
+	Version       string                 `gorm:"not null;default:'1.0'" json:"version"`
+	Tags          map[string]interface{} `gorm:"type:jsonb" json:"tags"` // 标签，用于分类和搜索
+	CreatedAt     time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	CreatedBy     string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
+	UpdatedAt     time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	UpdatedBy     string                 `gorm:"not null;default:'system';size:100" json:"updated_by"`
+}
+
+// QualityRuleConfig 数据质量规则配置（运行时应用）
+type QualityRuleConfig struct {
+	RuleTemplateID string                 `json:"rule_template_id"`
+	TargetFields   []string               `json:"target_fields"`  // 目标字段列表
+	RuntimeConfig  map[string]interface{} `json:"runtime_config"` // 运行时配置
+	Threshold      map[string]interface{} `json:"threshold"`      // 阈值配置
+	IsEnabled      bool                   `json:"is_enabled"`
 }
 
 // BeforeCreate 创建前钩子
-func (q *QualityRule) BeforeCreate(tx *gorm.DB) error {
+func (q *QualityRuleTemplate) BeforeCreate(tx *gorm.DB) error {
 	if q.ID == "" {
 		q.ID = uuid.New().String()
 	}
@@ -48,7 +62,7 @@ func (q *QualityRule) BeforeCreate(tx *gorm.DB) error {
 }
 
 // BeforeUpdate 更新前钩子
-func (q *QualityRule) BeforeUpdate(tx *gorm.DB) error {
+func (q *QualityRuleTemplate) BeforeUpdate(tx *gorm.DB) error {
 	if q.UpdatedBy == "" {
 		q.UpdatedBy = "system"
 	}
@@ -91,27 +105,41 @@ func (m *Metadata) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
-// DataMaskingRule 数据脱敏规则模型
-type DataMaskingRule struct {
-	ID            string                 `gorm:"type:uuid;primary_key" json:"id"`
-	Name          string                 `gorm:"not null" json:"name"`
-	DataSource    string                 `gorm:"not null" json:"data_source"`
-	DataTable     string                 `gorm:"not null" json:"data_table"`
-	FieldName     string                 `gorm:"not null" json:"field_name"`
-	FieldType     string                 `gorm:"not null" json:"field_type"`
-	MaskingType   string                 `gorm:"not null" json:"masking_type"` // mask/replace/encrypt/pseudonymize
-	MaskingConfig map[string]interface{} `gorm:"type:jsonb;not null" json:"masking_config"`
-	IsEnabled     bool                   `gorm:"not null;default:true" json:"is_enabled"`
-	CreatorID     string                 `gorm:"not null" json:"creator_id"`
-	CreatorName   string                 `json:"creator_name"`
-	CreatedAt     time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
-	CreatedBy     string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
-	UpdatedAt     time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
-	UpdatedBy     string                 `gorm:"not null;default:'system';size:100" json:"updated_by"`
+// DataMaskingTemplate 数据脱敏规则模板模型
+type DataMaskingTemplate struct {
+	ID              string                 `gorm:"type:uuid;primary_key" json:"id"`
+	Name            string                 `gorm:"not null" json:"name"`
+	MaskingType     string                 `gorm:"not null" json:"masking_type"` // mask/replace/encrypt/pseudonymize
+	Category        string                 `gorm:"not null" json:"category"`     // personal_info/financial/medical/custom
+	Description     string                 `gorm:"type:text" json:"description"`
+	ApplicableTypes []string               `gorm:"type:text[]" json:"applicable_types"`             // 适用的数据类型
+	MaskingLogic    map[string]interface{} `gorm:"type:jsonb;not null" json:"masking_logic"`        // 脱敏逻辑模板
+	Parameters      map[string]interface{} `gorm:"type:jsonb" json:"parameters"`                    // 可配置参数定义
+	DefaultConfig   map[string]interface{} `gorm:"type:jsonb" json:"default_config"`                // 默认配置
+	SecurityLevel   string                 `gorm:"not null;default:'medium'" json:"security_level"` // low/medium/high/critical
+	IsBuiltIn       bool                   `gorm:"not null;default:false" json:"is_built_in"`       // 是否为内置模板
+	IsEnabled       bool                   `gorm:"not null;default:true" json:"is_enabled"`
+	Version         string                 `gorm:"not null;default:'1.0'" json:"version"`
+	Tags            map[string]interface{} `gorm:"type:jsonb" json:"tags"` // 标签，用于分类和搜索
+	CreatedAt       time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	CreatedBy       string                 `gorm:"not null;default:'system';size:100" json:"created_by"`
+	UpdatedAt       time.Time              `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	UpdatedBy       string                 `gorm:"not null;default:'system';size:100" json:"updated_by"`
+}
+
+// DataMaskingConfig 数据脱敏配置（运行时应用）
+type DataMaskingConfig struct {
+	TemplateID       string                 `json:"template_id"`
+	TargetFields     []string               `json:"target_fields"`     // 目标字段列表
+	MaskingConfig    map[string]interface{} `json:"masking_config"`    // 运行时脱敏配置
+	ApplyCondition   string                 `json:"apply_condition"`   // 应用条件
+	PreserveFormat   bool                   `json:"preserve_format"`   // 是否保持格式
+	ReversibleConfig map[string]interface{} `json:"reversible_config"` // 可逆配置（如果支持）
+	IsEnabled        bool                   `json:"is_enabled"`
 }
 
 // BeforeCreate 创建前钩子
-func (d *DataMaskingRule) BeforeCreate(tx *gorm.DB) error {
+func (d *DataMaskingTemplate) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
 		d.ID = uuid.New().String()
 	}
@@ -125,7 +153,7 @@ func (d *DataMaskingRule) BeforeCreate(tx *gorm.DB) error {
 }
 
 // BeforeUpdate 更新前钩子
-func (d *DataMaskingRule) BeforeUpdate(tx *gorm.DB) error {
+func (d *DataMaskingTemplate) BeforeUpdate(tx *gorm.DB) error {
 	if d.UpdatedBy == "" {
 		d.UpdatedBy = "system"
 	}

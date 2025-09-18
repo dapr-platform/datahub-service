@@ -1,12 +1,12 @@
 /*
  * @module service/models/thematic_sync
- * @description 主题库数据同步相关模型定义，包括同步任务、执行记录、数据血缘等核心实体
- * @architecture DDD领域驱动设计 - 实体模型
+ * @description 主题库数据同步相关模型定义，整合数据治理规则，包括同步任务、执行记录、数据血缘等核心实体
+ * @architecture DDD领域驱动设计 - 实体模型，集成数据治理
  * @documentReference ai_docs/thematic_sync_design.md
- * @stateFlow 同步任务创建 -> 调度执行 -> 数据处理 -> 结果记录 -> 血缘追踪
- * @rules 遵循数据库设计规范，支持复杂的数据同步和血缘追踪
+ * @stateFlow 同步任务创建 -> 调度执行 -> 数据治理处理 -> 结果记录 -> 血缘追踪
+ * @rules 遵循数据库设计规范，支持复杂的数据同步和血缘追踪，集成数据治理规则
  * @dependencies gorm.io/gorm, time
- * @refs service/models/thematic_library.go, service/models/basic_library.go
+ * @refs service/models/thematic_library.go, service/models/basic_library.go, service/models/governance.go
  */
 
 package models
@@ -36,9 +36,15 @@ type ThematicSyncTask struct {
 	KeyMatchingRules  JSONB `json:"key_matching_rules" gorm:"type:jsonb"`  // 主键匹配规则
 	FieldMappingRules JSONB `json:"field_mapping_rules" gorm:"type:jsonb"` // 字段映射规则
 
-	// 处理配置
-	CleansingRules JSONB `json:"cleansing_rules" gorm:"type:jsonb"` // 清洗规则
-	PrivacyRules   JSONB `json:"privacy_rules" gorm:"type:jsonb"`   // 脱敏规则
+	// 数据治理配置 - 使用数据治理中定义的规则
+	QualityRuleIDs    JSONB `json:"quality_rule_ids" gorm:"type:jsonb"`    // 质量规则ID列表
+	CleansingRuleIDs  JSONB `json:"cleansing_rule_ids" gorm:"type:jsonb"`  // 清洗规则ID列表
+	MaskingRuleIDs    JSONB `json:"masking_rule_ids" gorm:"type:jsonb"`    // 脱敏规则ID列表
+	TransformRuleIDs  JSONB `json:"transform_rule_ids" gorm:"type:jsonb"`  // 转换规则ID列表
+	ValidationRuleIDs JSONB `json:"validation_rule_ids" gorm:"type:jsonb"` // 校验规则ID列表
+
+	// 治理配置选项
+	GovernanceConfig JSONB `json:"governance_config" gorm:"type:jsonb"` // 数据治理配置
 
 	// 调度配置
 	TriggerType     string     `json:"trigger_type" gorm:"not null;size:20"` // manual, once, interval, cron
@@ -99,6 +105,13 @@ type ThematicSyncExecution struct {
 	ProcessingResult JSONB `json:"processing_result" gorm:"type:jsonb"` // 处理结果详情
 	ErrorDetails     JSONB `json:"error_details" gorm:"type:jsonb"`     // 错误详情
 	QualityReport    JSONB `json:"quality_report" gorm:"type:jsonb"`    // 质量报告
+
+	// 数据治理执行结果
+	GovernanceResult JSONB   `json:"governance_result" gorm:"type:jsonb"` // 数据治理执行结果
+	QualityScore     float64 `json:"quality_score" gorm:"default:0"`      // 数据质量评分
+	CleansingCount   int64   `json:"cleansing_count" gorm:"default:0"`    // 清洗处理记录数
+	MaskingCount     int64   `json:"masking_count" gorm:"default:0"`      // 脱敏处理记录数
+	ValidationErrors int64   `json:"validation_errors" gorm:"default:0"`  // 校验错误数
 
 	// 审计字段
 	CreatedAt time.Time `json:"created_at"`

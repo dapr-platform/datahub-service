@@ -380,3 +380,425 @@ func GetQualityIssueSeverities() []QualityIssueSeverity {
 func GetQualityIssueStatuses() []QualityIssueStatus {
 	return QualityIssueStatuses
 }
+
+// === 新增数据治理元数据类型 ===
+
+// DataGovernanceObjectType 数据治理对象类型定义
+type DataGovernanceObjectType struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// DataGovernanceObjectTypes 数据治理对象类型元数据
+var DataGovernanceObjectTypes = []DataGovernanceObjectType{
+	{
+		Code:        "interface",
+		Name:        "数据接口",
+		Description: "基础数据接口",
+	},
+	{
+		Code:        "thematic_interface",
+		Name:        "主题接口",
+		Description: "主题数据接口",
+	},
+	{
+		Code:        "table",
+		Name:        "数据表",
+		Description: "数据库表",
+	},
+}
+
+// RuleTemplateCategory 规则模板分类定义
+type RuleTemplateCategory struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// RuleTemplateCategories 规则模板分类元数据
+var RuleTemplateCategories = []RuleTemplateCategory{
+	{
+		Code:        "basic_quality",
+		Name:        "基础质量",
+		Description: "基础数据质量检查规则",
+	},
+	{
+		Code:        "data_cleansing",
+		Name:        "数据清洗",
+		Description: "数据清洗和标准化规则",
+	},
+	{
+		Code:        "data_validation",
+		Name:        "数据校验",
+		Description: "数据有效性校验规则",
+	},
+	{
+		Code:        "data_security",
+		Name:        "数据安全",
+		Description: "数据脱敏和安全规则",
+	},
+	{
+		Code:        "data_transformation",
+		Name:        "数据转换",
+		Description: "数据转换和处理规则",
+	},
+}
+
+// MaskingTemplateCategory 脱敏模板分类定义
+type MaskingTemplateCategory struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// MaskingTemplateCategories 脱敏模板分类元数据
+var MaskingTemplateCategories = []MaskingTemplateCategory{
+	{
+		Code:        "personal_info",
+		Name:        "个人信息",
+		Description: "姓名、身份证、手机号等个人信息脱敏",
+	},
+	{
+		Code:        "financial",
+		Name:        "金融信息",
+		Description: "银行卡号、账户信息等金融数据脱敏",
+	},
+	{
+		Code:        "medical",
+		Name:        "医疗信息",
+		Description: "病历、诊断信息等医疗数据脱敏",
+	},
+	{
+		Code:        "business",
+		Name:        "商业信息",
+		Description: "商业机密、合同信息等商业数据脱敏",
+	},
+	{
+		Code:        "custom",
+		Name:        "自定义",
+		Description: "用户自定义脱敏规则",
+	},
+}
+
+// SecurityLevel 安全级别定义
+type SecurityLevel struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Priority    int    `json:"priority"`
+}
+
+// SecurityLevels 安全级别元数据
+var SecurityLevels = []SecurityLevel{
+	{
+		Code:        "low",
+		Name:        "低",
+		Description: "低安全级别，基础脱敏处理",
+		Priority:    1,
+	},
+	{
+		Code:        "medium",
+		Name:        "中",
+		Description: "中等安全级别，标准脱敏处理",
+		Priority:    2,
+	},
+	{
+		Code:        "high",
+		Name:        "高",
+		Description: "高安全级别，严格脱敏处理",
+		Priority:    3,
+	},
+	{
+		Code:        "critical",
+		Name:        "严重",
+		Description: "严重安全级别，最严格脱敏处理",
+		Priority:    4,
+	},
+}
+
+// ComplexityLevel 复杂度级别定义
+type ComplexityLevel struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// ComplexityLevels 复杂度级别元数据
+var ComplexityLevels = []ComplexityLevel{
+	{
+		Code:        "low",
+		Name:        "简单",
+		Description: "简单规则，易于配置和理解",
+	},
+	{
+		Code:        "medium",
+		Name:        "中等",
+		Description: "中等复杂度规则，需要一定配置经验",
+	},
+	{
+		Code:        "high",
+		Name:        "复杂",
+		Description: "复杂规则，需要专业知识配置",
+	},
+}
+
+// MetadataType 元数据类型定义
+type MetadataType struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// MetadataTypes 元数据类型元数据
+var MetadataTypes = []MetadataType{
+	{
+		Code:        "technical",
+		Name:        "技术元数据",
+		Description: "描述数据的技术特征，如字段类型、长度、约束等",
+	},
+	{
+		Code:        "business",
+		Name:        "业务元数据",
+		Description: "描述数据的业务含义，如业务规则、计算逻辑等",
+	},
+	{
+		Code:        "management",
+		Name:        "管理元数据",
+		Description: "描述数据的管理信息，如负责人、更新频率等",
+	},
+}
+
+// TaskType 任务类型定义
+type TaskType struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// TaskTypes 任务类型元数据
+var TaskTypes = []TaskType{
+	{
+		Code:        "scheduled",
+		Name:        "定时任务",
+		Description: "按照设定的时间计划自动执行",
+	},
+	{
+		Code:        "manual",
+		Name:        "手动任务",
+		Description: "需要人工手动触发执行",
+	},
+	{
+		Code:        "realtime",
+		Name:        "实时任务",
+		Description: "数据变化时实时触发执行",
+	},
+}
+
+// TaskStatus 任务状态定义
+type TaskStatus struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Color       string `json:"color"`
+}
+
+// TaskStatuses 任务状态元数据
+var TaskStatuses = []TaskStatus{
+	{
+		Code:        "pending",
+		Name:        "待执行",
+		Description: "任务已创建，等待执行",
+		Color:       "#1890ff",
+	},
+	{
+		Code:        "running",
+		Name:        "执行中",
+		Description: "任务正在执行",
+		Color:       "#52c41a",
+	},
+	{
+		Code:        "completed",
+		Name:        "已完成",
+		Description: "任务执行完成",
+		Color:       "#722ed1",
+	},
+	{
+		Code:        "failed",
+		Name:        "执行失败",
+		Description: "任务执行失败",
+		Color:       "#f5222d",
+	},
+	{
+		Code:        "cancelled",
+		Name:        "已取消",
+		Description: "任务被取消",
+		Color:       "#8c8c8c",
+	},
+}
+
+// TransformationRuleType 转换规则类型定义
+type TransformationRuleType struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+}
+
+// TransformationRuleTypes 转换规则类型元数据
+var TransformationRuleTypes = []TransformationRuleType{
+	{
+		Code:        "format",
+		Name:        "格式转换",
+		Description: "改变数据格式，如日期格式、字符串格式等",
+		Category:    "数据格式",
+	},
+	{
+		Code:        "calculate",
+		Name:        "计算转换",
+		Description: "通过计算生成新的数据值",
+		Category:    "数据计算",
+	},
+	{
+		Code:        "aggregate",
+		Name:        "聚合转换",
+		Description: "对多条记录进行聚合计算",
+		Category:    "数据聚合",
+	},
+	{
+		Code:        "filter",
+		Name:        "过滤转换",
+		Description: "根据条件过滤数据",
+		Category:    "数据过滤",
+	},
+	{
+		Code:        "join",
+		Name:        "关联转换",
+		Description: "关联多个数据源",
+		Category:    "数据关联",
+	},
+}
+
+// ValidationRuleType 校验规则类型定义
+type ValidationRuleType struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+}
+
+// ValidationRuleTypes 校验规则类型元数据
+var ValidationRuleTypes = []ValidationRuleType{
+	{
+		Code:        "format",
+		Name:        "格式校验",
+		Description: "校验数据格式是否符合要求",
+		Category:    "格式校验",
+	},
+	{
+		Code:        "range",
+		Name:        "范围校验",
+		Description: "校验数值是否在指定范围内",
+		Category:    "数值校验",
+	},
+	{
+		Code:        "enum",
+		Name:        "枚举校验",
+		Description: "校验值是否在枚举列表中",
+		Category:    "枚举校验",
+	},
+	{
+		Code:        "regex",
+		Name:        "正则校验",
+		Description: "使用正则表达式校验数据格式",
+		Category:    "格式校验",
+	},
+	{
+		Code:        "custom",
+		Name:        "自定义校验",
+		Description: "使用自定义逻辑校验数据",
+		Category:    "自定义校验",
+	},
+	{
+		Code:        "reference",
+		Name:        "引用校验",
+		Description: "校验数据是否在引用表中存在",
+		Category:    "引用校验",
+	},
+}
+
+// LineageRelationType 血缘关系类型定义
+type LineageRelationType struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// LineageRelationTypes 血缘关系类型元数据
+var LineageRelationTypes = []LineageRelationType{
+	{
+		Code:        "direct",
+		Name:        "直接关系",
+		Description: "数据直接从源到目标",
+	},
+	{
+		Code:        "derived",
+		Name:        "派生关系",
+		Description: "目标数据由源数据派生而来",
+	},
+	{
+		Code:        "aggregated",
+		Name:        "聚合关系",
+		Description: "目标数据是源数据的聚合结果",
+	},
+	{
+		Code:        "transformed",
+		Name:        "转换关系",
+		Description: "目标数据是源数据的转换结果",
+	},
+}
+
+// 获取元数据的函数
+func GetDataGovernanceObjectTypes() []DataGovernanceObjectType {
+	return DataGovernanceObjectTypes
+}
+
+func GetRuleTemplateCategories() []RuleTemplateCategory {
+	return RuleTemplateCategories
+}
+
+func GetMaskingTemplateCategories() []MaskingTemplateCategory {
+	return MaskingTemplateCategories
+}
+
+func GetSecurityLevels() []SecurityLevel {
+	return SecurityLevels
+}
+
+func GetComplexityLevels() []ComplexityLevel {
+	return ComplexityLevels
+}
+
+func GetMetadataTypes() []MetadataType {
+	return MetadataTypes
+}
+
+func GetTaskTypes() []TaskType {
+	return TaskTypes
+}
+
+func GetTaskStatuses() []TaskStatus {
+	return TaskStatuses
+}
+
+func GetTransformationRuleTypes() []TransformationRuleType {
+	return TransformationRuleTypes
+}
+
+func GetValidationRuleTypes() []ValidationRuleType {
+	return ValidationRuleTypes
+}
+
+func GetLineageRelationTypes() []LineageRelationType {
+	return LineageRelationTypes
+}

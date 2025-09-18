@@ -13,6 +13,7 @@ package thematic_library
 
 import (
 	"datahub-service/service/models"
+	"time"
 )
 
 // SQLDataSourceConfig SQL数据源配置
@@ -39,10 +40,17 @@ type CreateThematicSyncTaskRequest struct {
 	AggregationConfig *AggregationConfig `json:"aggregation_config,omitempty"`
 	KeyMatchingRules  *KeyMatchingRules  `json:"key_matching_rules,omitempty"`
 	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`
-	CleansingRules    *CleansingRules    `json:"cleansing_rules,omitempty"`
-	PrivacyRules      *PrivacyRules      `json:"privacy_rules,omitempty"`
-	ScheduleConfig    *ScheduleConfig    `json:"schedule_config" binding:"required"`
-	CreatedBy         string             `json:"created_by" binding:"required"`
+
+	// 数据治理规则配置 - 使用数据治理中定义的规则ID
+	QualityRuleIDs    []string                   `json:"quality_rule_ids,omitempty"`    // 质量规则ID列表
+	CleansingRuleIDs  []string                   `json:"cleansing_rule_ids,omitempty"`  // 清洗规则ID列表
+	MaskingRuleIDs    []string                   `json:"masking_rule_ids,omitempty"`    // 脱敏规则ID列表
+	TransformRuleIDs  []string                   `json:"transform_rule_ids,omitempty"`  // 转换规则ID列表
+	ValidationRuleIDs []string                   `json:"validation_rule_ids,omitempty"` // 校验规则ID列表
+	GovernanceConfig  *GovernanceExecutionConfig `json:"governance_config,omitempty"`   // 数据治理执行配置
+
+	ScheduleConfig *ScheduleConfig `json:"schedule_config" binding:"required"`
+	CreatedBy      string          `json:"created_by" binding:"required"`
 }
 
 // UpdateThematicSyncTaskRequest 更新主题同步任务请求
@@ -54,9 +62,16 @@ type UpdateThematicSyncTaskRequest struct {
 	AggregationConfig *AggregationConfig `json:"aggregation_config,omitempty"`
 	KeyMatchingRules  *KeyMatchingRules  `json:"key_matching_rules,omitempty"`
 	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`
-	CleansingRules    *CleansingRules    `json:"cleansing_rules,omitempty"`
-	PrivacyRules      *PrivacyRules      `json:"privacy_rules,omitempty"`
-	UpdatedBy         string             `json:"updated_by" binding:"required"`
+
+	// 数据治理规则配置 - 使用数据治理中定义的规则ID
+	QualityRuleIDs    []string                   `json:"quality_rule_ids,omitempty"`    // 质量规则ID列表
+	CleansingRuleIDs  []string                   `json:"cleansing_rule_ids,omitempty"`  // 清洗规则ID列表
+	MaskingRuleIDs    []string                   `json:"masking_rule_ids,omitempty"`    // 脱敏规则ID列表
+	TransformRuleIDs  []string                   `json:"transform_rule_ids,omitempty"`  // 转换规则ID列表
+	ValidationRuleIDs []string                   `json:"validation_rule_ids,omitempty"` // 校验规则ID列表
+	GovernanceConfig  *GovernanceExecutionConfig `json:"governance_config,omitempty"`   // 数据治理执行配置
+
+	UpdatedBy string `json:"updated_by" binding:"required"`
 }
 
 // ListSyncTasksRequest 获取同步任务列表请求
@@ -109,4 +124,124 @@ type ThematicSyncTaskStatistics struct {
 	AverageProcessTime int64                          `json:"average_process_time"` // 处理时长（秒）
 	TotalProcessedRows int64                          `json:"total_processed_rows"`
 	RecentExecutions   []models.ThematicSyncExecution `json:"recent_executions"`
+}
+
+// GovernanceExecutionConfig 数据治理执行配置
+type GovernanceExecutionConfig struct {
+	EnableQualityCheck      bool                   `json:"enable_quality_check"`       // 启用质量检查
+	EnableCleansing         bool                   `json:"enable_cleansing"`           // 启用数据清洗
+	EnableMasking           bool                   `json:"enable_masking"`             // 启用数据脱敏
+	EnableTransformation    bool                   `json:"enable_transformation"`      // 启用数据转换
+	EnableValidation        bool                   `json:"enable_validation"`          // 启用数据校验
+	StopOnQualityFailure    bool                   `json:"stop_on_quality_failure"`    // 质量检查失败时停止
+	StopOnValidationFailure bool                   `json:"stop_on_validation_failure"` // 校验失败时停止
+	QualityThreshold        float64                `json:"quality_threshold"`          // 质量阈值
+	BatchSize               int                    `json:"batch_size"`                 // 批处理大小
+	MaxRetries              int                    `json:"max_retries"`                // 最大重试次数
+	TimeoutSeconds          int                    `json:"timeout_seconds"`            // 超时时间（秒）
+	CustomConfig            map[string]interface{} `json:"custom_config,omitempty"`    // 自定义配置
+}
+
+// GovernanceExecutionResult 数据治理执行结果
+type GovernanceExecutionResult struct {
+	QualityCheckResults   []QualityCheckResult   `json:"quality_check_results"`
+	CleansingResults      []CleansingResult      `json:"cleansing_results"`
+	MaskingResults        []MaskingResult        `json:"masking_results"`
+	TransformationResults []TransformationResult `json:"transformation_results"`
+	ValidationResults     []ValidationResult     `json:"validation_results"`
+	OverallQualityScore   float64                `json:"overall_quality_score"`
+	TotalProcessedRecords int64                  `json:"total_processed_records"`
+	TotalCleansingApplied int64                  `json:"total_cleansing_applied"`
+	TotalMaskingApplied   int64                  `json:"total_masking_applied"`
+	TotalValidationErrors int64                  `json:"total_validation_errors"`
+	ExecutionTime         time.Duration          `json:"execution_time"`
+	ComplianceStatus      string                 `json:"compliance_status"`
+	Issues                []GovernanceIssue      `json:"issues,omitempty"`
+}
+
+// QualityCheckResult 质量检查结果
+type QualityCheckResult struct {
+	RuleID          string    `json:"rule_id"`
+	RuleName        string    `json:"rule_name"`
+	RuleType        string    `json:"rule_type"`
+	Status          string    `json:"status"` // passed, failed, warning
+	Score           float64   `json:"score"`  // 0-1
+	TotalRecords    int64     `json:"total_records"`
+	PassedRecords   int64     `json:"passed_records"`
+	FailedRecords   int64     `json:"failed_records"`
+	ThresholdMet    bool      `json:"threshold_met"`
+	ExecutionTime   time.Time `json:"execution_time"`
+	ErrorMessage    string    `json:"error_message,omitempty"`
+	Recommendations []string  `json:"recommendations,omitempty"`
+}
+
+// CleansingResult 清洗结果
+type CleansingResult struct {
+	RuleID           string    `json:"rule_id"`
+	RuleName         string    `json:"rule_name"`
+	RuleType         string    `json:"rule_type"`
+	Status           string    `json:"status"` // completed, failed, skipped
+	ProcessedRecords int64     `json:"processed_records"`
+	CleanedRecords   int64     `json:"cleaned_records"`
+	SkippedRecords   int64     `json:"skipped_records"`
+	ErrorRecords     int64     `json:"error_records"`
+	ExecutionTime    time.Time `json:"execution_time"`
+	ErrorMessage     string    `json:"error_message,omitempty"`
+	CleansingActions []string  `json:"cleansing_actions,omitempty"`
+}
+
+// MaskingResult 脱敏结果
+type MaskingResult struct {
+	RuleID          string    `json:"rule_id"`
+	RuleName        string    `json:"rule_name"`
+	MaskingType     string    `json:"masking_type"` // mask, replace, encrypt, pseudonymize
+	Status          string    `json:"status"`       // completed, failed, skipped
+	ProcessedFields int64     `json:"processed_fields"`
+	MaskedFields    int64     `json:"masked_fields"`
+	SkippedFields   int64     `json:"skipped_fields"`
+	ErrorFields     int64     `json:"error_fields"`
+	ExecutionTime   time.Time `json:"execution_time"`
+	ErrorMessage    string    `json:"error_message,omitempty"`
+	ComplianceLevel string    `json:"compliance_level,omitempty"`
+}
+
+// TransformationResult 转换结果
+type TransformationResult struct {
+	RuleID             string    `json:"rule_id"`
+	RuleName           string    `json:"rule_name"`
+	TransformationType string    `json:"transformation_type"`
+	Status             string    `json:"status"` // completed, failed, skipped
+	ProcessedRecords   int64     `json:"processed_records"`
+	TransformedRecords int64     `json:"transformed_records"`
+	SkippedRecords     int64     `json:"skipped_records"`
+	ErrorRecords       int64     `json:"error_records"`
+	ExecutionTime      time.Time `json:"execution_time"`
+	ErrorMessage       string    `json:"error_message,omitempty"`
+}
+
+// ValidationResult 校验结果
+type ValidationResult struct {
+	RuleID           string    `json:"rule_id"`
+	RuleName         string    `json:"rule_name"`
+	ValidationType   string    `json:"validation_type"`
+	Status           string    `json:"status"` // passed, failed, warning
+	TotalRecords     int64     `json:"total_records"`
+	ValidRecords     int64     `json:"valid_records"`
+	InvalidRecords   int64     `json:"invalid_records"`
+	ValidationRate   float64   `json:"validation_rate"` // 0-1
+	ExecutionTime    time.Time `json:"execution_time"`
+	ErrorMessage     string    `json:"error_message,omitempty"`
+	ValidationErrors []string  `json:"validation_errors,omitempty"`
+}
+
+// GovernanceIssue 数据治理问题
+type GovernanceIssue struct {
+	Type        string                 `json:"type"`     // quality, compliance, security
+	Severity    string                 `json:"severity"` // low, medium, high, critical
+	Description string                 `json:"description"`
+	Field       string                 `json:"field,omitempty"`
+	Record      string                 `json:"record,omitempty"`
+	RuleID      string                 `json:"rule_id,omitempty"`
+	Suggestion  string                 `json:"suggestion,omitempty"`
+	Context     map[string]interface{} `json:"context,omitempty"`
 }

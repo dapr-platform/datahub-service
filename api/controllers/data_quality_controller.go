@@ -54,13 +54,16 @@ func (c *DataQualityController) CreateQualityRule(w http.ResponseWriter, r *http
 		return
 	}
 
-	rule := &models.QualityRule{
-		Name:              req.Name,
-		Type:              req.Type,
-		Config:            req.Config,
-		RelatedObjectID:   req.RelatedObjectID,
-		RelatedObjectType: req.RelatedObjectType,
-		IsEnabled:         req.IsEnabled,
+	rule := &models.QualityRuleTemplate{
+		Name:          req.Name,
+		Type:          req.Type,
+		Category:      req.Category,
+		Description:   req.Description,
+		RuleLogic:     req.RuleLogic,
+		Parameters:    req.Parameters,
+		DefaultConfig: req.DefaultConfig,
+		IsEnabled:     req.IsEnabled,
+		Tags:          req.Tags,
 	}
 
 	if err := c.governanceService.CreateQualityRule(rule); err != nil {
@@ -69,17 +72,22 @@ func (c *DataQualityController) CreateQualityRule(w http.ResponseWriter, r *http
 	}
 
 	response := &governance.QualityRuleResponse{
-		ID:                rule.ID,
-		Name:              rule.Name,
-		Type:              rule.Type,
-		Config:            rule.Config,
-		RelatedObjectID:   rule.RelatedObjectID,
-		RelatedObjectType: rule.RelatedObjectType,
-		IsEnabled:         rule.IsEnabled,
-		CreatedAt:         rule.CreatedAt,
-		CreatedBy:         rule.CreatedBy,
-		UpdatedAt:         rule.UpdatedAt,
-		UpdatedBy:         rule.UpdatedBy,
+		ID:            rule.ID,
+		Name:          rule.Name,
+		Type:          rule.Type,
+		Category:      rule.Category,
+		Description:   rule.Description,
+		RuleLogic:     rule.RuleLogic,
+		Parameters:    rule.Parameters,
+		DefaultConfig: rule.DefaultConfig,
+		IsBuiltIn:     rule.IsBuiltIn,
+		IsEnabled:     rule.IsEnabled,
+		Version:       rule.Version,
+		Tags:          rule.Tags,
+		CreatedAt:     rule.CreatedAt,
+		CreatedBy:     rule.CreatedBy,
+		UpdatedAt:     rule.UpdatedAt,
+		UpdatedBy:     rule.UpdatedBy,
 	}
 
 	render.JSON(w, r, SuccessResponse("创建数据质量规则成功", response))
@@ -120,17 +128,22 @@ func (c *DataQualityController) GetQualityRules(w http.ResponseWriter, r *http.R
 	var ruleResponses []governance.QualityRuleResponse
 	for _, rule := range rules {
 		ruleResponses = append(ruleResponses, governance.QualityRuleResponse{
-			ID:                rule.ID,
-			Name:              rule.Name,
-			Type:              rule.Type,
-			Config:            rule.Config,
-			RelatedObjectID:   rule.RelatedObjectID,
-			RelatedObjectType: rule.RelatedObjectType,
-			IsEnabled:         rule.IsEnabled,
-			CreatedAt:         rule.CreatedAt,
-			CreatedBy:         rule.CreatedBy,
-			UpdatedAt:         rule.UpdatedAt,
-			UpdatedBy:         rule.UpdatedBy,
+			ID:            rule.ID,
+			Name:          rule.Name,
+			Type:          rule.Type,
+			Category:      rule.Category,
+			Description:   rule.Description,
+			RuleLogic:     rule.RuleLogic,
+			Parameters:    rule.Parameters,
+			DefaultConfig: rule.DefaultConfig,
+			IsBuiltIn:     rule.IsBuiltIn,
+			IsEnabled:     rule.IsEnabled,
+			Version:       rule.Version,
+			Tags:          rule.Tags,
+			CreatedAt:     rule.CreatedAt,
+			CreatedBy:     rule.CreatedBy,
+			UpdatedAt:     rule.UpdatedAt,
+			UpdatedBy:     rule.UpdatedBy,
 		})
 	}
 
@@ -165,17 +178,22 @@ func (c *DataQualityController) GetQualityRuleByID(w http.ResponseWriter, r *htt
 	}
 
 	response := &governance.QualityRuleResponse{
-		ID:                rule.ID,
-		Name:              rule.Name,
-		Type:              rule.Type,
-		Config:            rule.Config,
-		RelatedObjectID:   rule.RelatedObjectID,
-		RelatedObjectType: rule.RelatedObjectType,
-		IsEnabled:         rule.IsEnabled,
-		CreatedAt:         rule.CreatedAt,
-		CreatedBy:         rule.CreatedBy,
-		UpdatedAt:         rule.UpdatedAt,
-		UpdatedBy:         rule.UpdatedBy,
+		ID:            rule.ID,
+		Name:          rule.Name,
+		Type:          rule.Type,
+		Category:      rule.Category,
+		Description:   rule.Description,
+		RuleLogic:     rule.RuleLogic,
+		Parameters:    rule.Parameters,
+		DefaultConfig: rule.DefaultConfig,
+		IsBuiltIn:     rule.IsBuiltIn,
+		IsEnabled:     rule.IsEnabled,
+		Version:       rule.Version,
+		Tags:          rule.Tags,
+		CreatedAt:     rule.CreatedAt,
+		CreatedBy:     rule.CreatedBy,
+		UpdatedAt:     rule.UpdatedAt,
+		UpdatedBy:     rule.UpdatedBy,
 	}
 
 	render.JSON(w, r, SuccessResponse("获取数据质量规则成功", response))
@@ -207,8 +225,14 @@ func (c *DataQualityController) UpdateQualityRule(w http.ResponseWriter, r *http
 	if req.Name != "" {
 		updates["name"] = req.Name
 	}
-	if req.Config != nil {
-		updates["config"] = req.Config
+	if req.RuleLogic != nil {
+		updates["rule_logic"] = req.RuleLogic
+	}
+	if req.Parameters != nil {
+		updates["parameters"] = req.Parameters
+	}
+	if req.DefaultConfig != nil {
+		updates["default_config"] = req.DefaultConfig
 	}
 	if req.IsEnabled != nil {
 		updates["is_enabled"] = *req.IsEnabled
@@ -267,15 +291,16 @@ func (c *DataQualityController) CreateMaskingRule(w http.ResponseWriter, r *http
 		return
 	}
 
-	rule := &models.DataMaskingRule{
+	rule := &models.DataMaskingTemplate{
 		Name:          req.Name,
-		DataSource:    req.DataSource,
-		DataTable:     req.DataTable,
-		FieldName:     req.FieldName,
-		FieldType:     req.FieldType,
 		MaskingType:   req.MaskingType,
-		MaskingConfig: req.MaskingConfig,
+		Category:      req.Category,
+		SecurityLevel: req.SecurityLevel,
+		Description:   req.Description,
+		MaskingLogic:  req.MaskingLogic,
+		Parameters:    req.Parameters,
 		IsEnabled:     req.IsEnabled,
+		Tags:          req.Tags,
 	}
 
 	if err := c.governanceService.CreateMaskingRule(rule); err != nil {
@@ -286,12 +311,15 @@ func (c *DataQualityController) CreateMaskingRule(w http.ResponseWriter, r *http
 	response := &governance.MaskingRuleResponse{
 		ID:            rule.ID,
 		Name:          rule.Name,
-		DataSource:    rule.DataSource,
-		DataTable:     rule.DataTable,
-		FieldName:     rule.FieldName,
-		FieldType:     rule.FieldType,
+		Category:      rule.Category,
+		SecurityLevel: rule.SecurityLevel,
 		MaskingType:   rule.MaskingType,
-		MaskingConfig: rule.MaskingConfig,
+		Description:   rule.Description,
+		MaskingLogic:  rule.MaskingLogic,
+		Parameters:    rule.Parameters,
+		IsBuiltIn:     rule.IsBuiltIn,
+		Version:       rule.Version,
+		Tags:          rule.Tags,
 		IsEnabled:     rule.IsEnabled,
 		CreatedAt:     rule.CreatedAt,
 		CreatedBy:     rule.CreatedBy,
@@ -339,12 +367,15 @@ func (c *DataQualityController) GetMaskingRules(w http.ResponseWriter, r *http.R
 		ruleResponses = append(ruleResponses, governance.MaskingRuleResponse{
 			ID:            rule.ID,
 			Name:          rule.Name,
-			DataSource:    rule.DataSource,
-			DataTable:     rule.DataTable,
-			FieldName:     rule.FieldName,
-			FieldType:     rule.FieldType,
+			Category:      rule.Category,
+			SecurityLevel: rule.SecurityLevel,
 			MaskingType:   rule.MaskingType,
-			MaskingConfig: rule.MaskingConfig,
+			Description:   rule.Description,
+			MaskingLogic:  rule.MaskingLogic,
+			Parameters:    rule.Parameters,
+			IsBuiltIn:     rule.IsBuiltIn,
+			Version:       rule.Version,
+			Tags:          rule.Tags,
 			IsEnabled:     rule.IsEnabled,
 			CreatedAt:     rule.CreatedAt,
 			CreatedBy:     rule.CreatedBy,
@@ -386,12 +417,15 @@ func (c *DataQualityController) GetMaskingRuleByID(w http.ResponseWriter, r *htt
 	response := &governance.MaskingRuleResponse{
 		ID:            rule.ID,
 		Name:          rule.Name,
-		DataSource:    rule.DataSource,
-		DataTable:     rule.DataTable,
-		FieldName:     rule.FieldName,
-		FieldType:     rule.FieldType,
+		Category:      rule.Category,
+		SecurityLevel: rule.SecurityLevel,
 		MaskingType:   rule.MaskingType,
-		MaskingConfig: rule.MaskingConfig,
+		Description:   rule.Description,
+		MaskingLogic:  rule.MaskingLogic,
+		Parameters:    rule.Parameters,
+		IsBuiltIn:     rule.IsBuiltIn,
+		Version:       rule.Version,
+		Tags:          rule.Tags,
 		IsEnabled:     rule.IsEnabled,
 		CreatedAt:     rule.CreatedAt,
 		CreatedBy:     rule.CreatedBy,
@@ -428,8 +462,11 @@ func (c *DataQualityController) UpdateMaskingRule(w http.ResponseWriter, r *http
 	if req.Name != "" {
 		updates["name"] = req.Name
 	}
-	if req.MaskingConfig != nil {
-		updates["masking_config"] = req.MaskingConfig
+	if req.MaskingLogic != nil {
+		updates["masking_logic"] = req.MaskingLogic
+	}
+	if req.Parameters != nil {
+		updates["parameters"] = req.Parameters
 	}
 	if req.IsEnabled != nil {
 		updates["is_enabled"] = *req.IsEnabled
@@ -824,6 +861,851 @@ func (c *DataQualityController) DeleteMetadata(w http.ResponseWriter, r *http.Re
 	}
 
 	render.JSON(w, r, SuccessResponse("删除元数据成功", nil))
+}
+
+// === 清洗规则管理 ===
+
+// CreateCleansingRule 创建数据清洗规则
+// @Summary 创建数据清洗规则
+// @Description 创建新的数据清洗规则
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param rule body governance.CreateCleansingRuleRequest true "数据清洗规则信息"
+// @Success 201 {object} APIResponse{data=governance.CleansingRuleResponse} "创建成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/cleansing-rules [post]
+func (c *DataQualityController) CreateCleansingRule(w http.ResponseWriter, r *http.Request) {
+	var req governance.CreateCleansingRuleRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	rule := &models.DataCleansingTemplate{
+		Name:            req.Name,
+		Description:     req.Description,
+		RuleType:        req.RuleType,
+		Category:        req.Category,
+		CleansingLogic:  models.JSONB(req.CleansingLogic),
+		Parameters:      models.JSONB(req.Parameters),
+		DefaultConfig:   models.JSONB(req.DefaultConfig),
+		ComplexityLevel: req.ComplexityLevel,
+		IsEnabled:       req.IsEnabled,
+		Tags:            models.JSONB(req.Tags),
+	}
+
+	if err := c.governanceService.CreateCleansingRule(rule); err != nil {
+		render.JSON(w, r, InternalErrorResponse("创建数据清洗规则失败", err))
+		return
+	}
+
+	response := &governance.CleansingRuleResponse{
+		ID:              rule.ID,
+		Name:            rule.Name,
+		Description:     rule.Description,
+		RuleType:        rule.RuleType,
+		Category:        rule.Category,
+		CleansingLogic:  rule.CleansingLogic,
+		Parameters:      rule.Parameters,
+		DefaultConfig:   rule.DefaultConfig,
+		ComplexityLevel: rule.ComplexityLevel,
+		IsBuiltIn:       rule.IsBuiltIn,
+		IsEnabled:       rule.IsEnabled,
+		Version:         rule.Version,
+		Tags:            rule.Tags,
+		CreatedAt:       rule.CreatedAt,
+		CreatedBy:       rule.CreatedBy,
+		UpdatedAt:       rule.UpdatedAt,
+		UpdatedBy:       rule.UpdatedBy,
+	}
+
+	render.JSON(w, r, SuccessResponse("创建数据清洗规则成功", response))
+}
+
+// GetCleansingRules 获取数据清洗规则列表
+// @Summary 获取数据清洗规则列表
+// @Description 分页获取数据清洗规则列表
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页数量" default(10)
+// @Param rule_type query string false "规则类型" Enums(standardization,deduplication,validation,transformation,enrichment)
+// @Param target_table query string false "目标表"
+// @Success 200 {object} APIResponse{data=governance.CleansingRuleListResponse} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/cleansing-rules [get]
+func (c *DataQualityController) GetCleansingRules(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
+	if size <= 0 {
+		size = 10
+	}
+
+	ruleType := r.URL.Query().Get("rule_type")
+	targetTable := r.URL.Query().Get("target_table")
+
+	rules, total, err := c.governanceService.GetCleansingRules(page, size, ruleType, targetTable)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取数据清洗规则列表失败", err))
+		return
+	}
+
+	var ruleResponses []governance.CleansingRuleResponse
+	for _, rule := range rules {
+		ruleResponses = append(ruleResponses, governance.CleansingRuleResponse{
+			ID:              rule.ID,
+			Name:            rule.Name,
+			Description:     rule.Description,
+			RuleType:        rule.RuleType,
+			Category:        rule.Category,
+			CleansingLogic:  rule.CleansingLogic,
+			Parameters:      rule.Parameters,
+			DefaultConfig:   rule.DefaultConfig,
+			ComplexityLevel: rule.ComplexityLevel,
+			IsBuiltIn:       rule.IsBuiltIn,
+			IsEnabled:       rule.IsEnabled,
+			Version:         rule.Version,
+			Tags:            rule.Tags,
+			CreatedAt:       rule.CreatedAt,
+			CreatedBy:       rule.CreatedBy,
+			UpdatedAt:       rule.UpdatedAt,
+			UpdatedBy:       rule.UpdatedBy,
+		})
+	}
+
+	response := governance.CleansingRuleListResponse{
+		List:  ruleResponses,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据清洗规则列表成功", response))
+}
+
+// GetCleansingRuleByID 根据ID获取数据清洗规则
+// @Summary 根据ID获取数据清洗规则
+// @Description 根据ID获取数据清洗规则详情
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Success 200 {object} APIResponse{data=governance.CleansingRuleResponse} "获取成功"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/cleansing-rules/{id} [get]
+func (c *DataQualityController) GetCleansingRuleByID(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	rule, err := c.governanceService.GetCleansingRuleByID(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("数据清洗规则不存在", err))
+		return
+	}
+
+	response := &governance.CleansingRuleResponse{
+		ID:              rule.ID,
+		Name:            rule.Name,
+		Description:     rule.Description,
+		RuleType:        rule.RuleType,
+		Category:        rule.Category,
+		CleansingLogic:  rule.CleansingLogic,
+		Parameters:      rule.Parameters,
+		DefaultConfig:   rule.DefaultConfig,
+		ComplexityLevel: rule.ComplexityLevel,
+		IsBuiltIn:       rule.IsBuiltIn,
+		IsEnabled:       rule.IsEnabled,
+		Version:         rule.Version,
+		Tags:            rule.Tags,
+		CreatedAt:       rule.CreatedAt,
+		CreatedBy:       rule.CreatedBy,
+		UpdatedAt:       rule.UpdatedAt,
+		UpdatedBy:       rule.UpdatedBy,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据清洗规则成功", response))
+}
+
+// UpdateCleansingRule 更新数据清洗规则
+// @Summary 更新数据清洗规则
+// @Description 更新数据清洗规则信息
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Param updates body governance.UpdateCleansingRuleRequest true "更新信息"
+// @Success 200 {object} APIResponse "更新成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/cleansing-rules/{id} [put]
+func (c *DataQualityController) UpdateCleansingRule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req governance.UpdateCleansingRuleRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	updates := make(map[string]interface{})
+	if req.Name != "" {
+		updates["name"] = req.Name
+	}
+	if req.Description != "" {
+		updates["description"] = req.Description
+	}
+	if req.CleansingLogic != nil {
+		updates["cleansing_logic"] = models.JSONB(req.CleansingLogic)
+	}
+	if req.Parameters != nil {
+		updates["parameters"] = models.JSONB(req.Parameters)
+	}
+	if req.DefaultConfig != nil {
+		updates["default_config"] = models.JSONB(req.DefaultConfig)
+	}
+	if req.IsEnabled != nil {
+		updates["is_enabled"] = *req.IsEnabled
+	}
+
+	if err := c.governanceService.UpdateCleansingRule(id, updates); err != nil {
+		render.JSON(w, r, InternalErrorResponse("更新数据清洗规则失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("更新数据清洗规则成功", nil))
+}
+
+// DeleteCleansingRule 删除数据清洗规则
+// @Summary 删除数据清洗规则
+// @Description 删除指定的数据清洗规则
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Success 200 {object} APIResponse "删除成功"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/cleansing-rules/{id} [delete]
+func (c *DataQualityController) DeleteCleansingRule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	if err := c.governanceService.DeleteCleansingRule(id); err != nil {
+		render.JSON(w, r, InternalErrorResponse("删除数据清洗规则失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("删除数据清洗规则成功", nil))
+}
+
+// ExecuteCleansingRule 执行数据清洗规则
+// @Summary 执行数据清洗规则
+// @Description 手动执行指定的数据清洗规则
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Success 200 {object} APIResponse{data=governance.CleansingExecutionResponse} "执行成功"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/cleansing-rules/{id}/execute [post]
+func (c *DataQualityController) ExecuteCleansingRule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	result, err := c.governanceService.ExecuteCleansingRule(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("执行数据清洗规则失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("执行数据清洗规则成功", result))
+}
+
+// === 数据质量检测任务管理 ===
+
+// CreateQualityTask 创建数据质量检测任务
+// @Summary 创建数据质量检测任务
+// @Description 创建新的数据质量检测任务
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param task body governance.CreateQualityTaskRequest true "质量检测任务信息"
+// @Success 201 {object} APIResponse{data=governance.QualityTaskResponse} "创建成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/tasks [post]
+func (c *DataQualityController) CreateQualityTask(w http.ResponseWriter, r *http.Request) {
+	var req governance.CreateQualityTaskRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	task, err := c.governanceService.CreateQualityTask(&req)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("创建数据质量检测任务失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("创建数据质量检测任务成功", task))
+}
+
+// GetQualityTasks 获取数据质量检测任务列表
+// @Summary 获取数据质量检测任务列表
+// @Description 分页获取数据质量检测任务列表
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页数量" default(10)
+// @Param status query string false "任务状态" Enums(pending,running,completed,failed,cancelled)
+// @Param task_type query string false "任务类型" Enums(scheduled,manual,realtime)
+// @Success 200 {object} APIResponse{data=governance.QualityTaskListResponse} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/tasks [get]
+func (c *DataQualityController) GetQualityTasks(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
+	if size <= 0 {
+		size = 10
+	}
+
+	status := r.URL.Query().Get("status")
+	taskType := r.URL.Query().Get("task_type")
+
+	tasks, total, err := c.governanceService.GetQualityTasks(page, size, status, taskType)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取数据质量检测任务列表失败", err))
+		return
+	}
+
+	response := governance.QualityTaskListResponse{
+		List:  tasks,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据质量检测任务列表成功", response))
+}
+
+// GetQualityTaskByID 根据ID获取数据质量检测任务
+// @Summary 根据ID获取数据质量检测任务
+// @Description 根据ID获取数据质量检测任务详情
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "任务ID"
+// @Success 200 {object} APIResponse{data=governance.QualityTaskResponse} "获取成功"
+// @Failure 404 {object} APIResponse "任务不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/tasks/{id} [get]
+func (c *DataQualityController) GetQualityTaskByID(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	task, err := c.governanceService.GetQualityTaskByID(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("数据质量检测任务不存在", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据质量检测任务成功", task))
+}
+
+// StartQualityTask 启动数据质量检测任务
+// @Summary 启动数据质量检测任务
+// @Description 手动启动指定的数据质量检测任务
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "任务ID"
+// @Success 200 {object} APIResponse{data=governance.QualityTaskExecutionResponse} "启动成功"
+// @Failure 404 {object} APIResponse "任务不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/tasks/{id}/start [post]
+func (c *DataQualityController) StartQualityTask(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	execution, err := c.governanceService.StartQualityTask(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("启动数据质量检测任务失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("启动数据质量检测任务成功", execution))
+}
+
+// StopQualityTask 停止数据质量检测任务
+// @Summary 停止数据质量检测任务
+// @Description 停止正在运行的数据质量检测任务
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "任务ID"
+// @Success 200 {object} APIResponse "停止成功"
+// @Failure 404 {object} APIResponse "任务不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/tasks/{id}/stop [post]
+func (c *DataQualityController) StopQualityTask(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	if err := c.governanceService.StopQualityTask(id); err != nil {
+		render.JSON(w, r, InternalErrorResponse("停止数据质量检测任务失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("停止数据质量检测任务成功", nil))
+}
+
+// GetQualityTaskExecutions 获取数据质量检测任务执行记录
+// @Summary 获取数据质量检测任务执行记录
+// @Description 获取指定任务的执行记录列表
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "任务ID"
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页数量" default(10)
+// @Success 200 {object} APIResponse{data=governance.QualityTaskExecutionListResponse} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/tasks/{id}/executions [get]
+func (c *DataQualityController) GetQualityTaskExecutions(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
+	if size <= 0 {
+		size = 10
+	}
+
+	executions, total, err := c.governanceService.GetQualityTaskExecutions(id, page, size)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取数据质量检测任务执行记录失败", err))
+		return
+	}
+
+	response := governance.QualityTaskExecutionListResponse{
+		List:  executions,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据质量检测任务执行记录成功", response))
+}
+
+// === 数据血缘管理 ===
+
+// CreateDataLineage 创建数据血缘关系
+// @Summary 创建数据血缘关系
+// @Description 创建新的数据血缘关系
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param lineage body governance.CreateDataLineageRequest true "数据血缘信息"
+// @Success 201 {object} APIResponse{data=governance.DataLineageResponse} "创建成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/data-lineage [post]
+func (c *DataQualityController) CreateDataLineage(w http.ResponseWriter, r *http.Request) {
+	var req governance.CreateDataLineageRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	lineage, err := c.governanceService.CreateDataLineage(&req)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("创建数据血缘关系失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("创建数据血缘关系成功", lineage))
+}
+
+// GetDataLineage 获取数据血缘图
+// @Summary 获取数据血缘图
+// @Description 获取指定数据对象的血缘关系图
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param object_id path string true "数据对象ID"
+// @Param object_type query string false "对象类型" Enums(table,interface,thematic_interface)
+// @Param direction query string false "血缘方向" Enums(upstream,downstream,both) default(both)
+// @Param depth query int false "血缘深度" default(3)
+// @Success 200 {object} APIResponse{data=governance.DataLineageGraphResponse} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/data-lineage/{object_id} [get]
+func (c *DataQualityController) GetDataLineage(w http.ResponseWriter, r *http.Request) {
+	objectID := chi.URLParam(r, "object_id")
+	objectType := r.URL.Query().Get("object_type")
+	direction := r.URL.Query().Get("direction")
+	if direction == "" {
+		direction = "both"
+	}
+	depth, _ := strconv.Atoi(r.URL.Query().Get("depth"))
+	if depth <= 0 {
+		depth = 3
+	}
+
+	lineageGraph, err := c.governanceService.GetDataLineage(objectID, objectType, direction, depth)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取数据血缘图失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据血缘图成功", lineageGraph))
+}
+
+// === 转换规则管理 ===
+
+// CreateTransformationRule 创建数据转换规则
+// @Summary 创建数据转换规则
+// @Description 创建新的数据转换规则
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param rule body governance.CreateTransformationRuleRequest true "数据转换规则信息"
+// @Success 201 {object} APIResponse{data=governance.TransformationRuleResponse} "创建成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/transformation-rules [post]
+func (c *DataQualityController) CreateTransformationRule(w http.ResponseWriter, r *http.Request) {
+	var req governance.CreateTransformationRuleRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	rule, err := c.governanceService.CreateTransformationRule(&req)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("创建数据转换规则失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("创建数据转换规则成功", rule))
+}
+
+// GetTransformationRules 获取数据转换规则列表
+// @Summary 获取数据转换规则列表
+// @Description 分页获取数据转换规则列表
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页数量" default(10)
+// @Param rule_type query string false "规则类型" Enums(format,calculate,aggregate,filter,join)
+// @Param source_object_id query string false "源对象ID"
+// @Success 200 {object} APIResponse{data=governance.TransformationRuleListResponse} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/transformation-rules [get]
+func (c *DataQualityController) GetTransformationRules(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
+	if size <= 0 {
+		size = 10
+	}
+
+	ruleType := r.URL.Query().Get("rule_type")
+	sourceObjectID := r.URL.Query().Get("source_object_id")
+
+	rules, total, err := c.governanceService.GetTransformationRules(page, size, ruleType, sourceObjectID)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取数据转换规则列表失败", err))
+		return
+	}
+
+	response := governance.TransformationRuleListResponse{
+		List:  rules,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据转换规则列表成功", response))
+}
+
+// GetTransformationRuleByID 根据ID获取数据转换规则
+// @Summary 根据ID获取数据转换规则
+// @Description 根据ID获取数据转换规则详情
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Success 200 {object} APIResponse{data=governance.TransformationRuleResponse} "获取成功"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/transformation-rules/{id} [get]
+func (c *DataQualityController) GetTransformationRuleByID(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	rule, err := c.governanceService.GetTransformationRuleByID(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("数据转换规则不存在", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据转换规则成功", rule))
+}
+
+// UpdateTransformationRule 更新数据转换规则
+// @Summary 更新数据转换规则
+// @Description 更新数据转换规则信息
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Param updates body governance.UpdateTransformationRuleRequest true "更新信息"
+// @Success 200 {object} APIResponse "更新成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/transformation-rules/{id} [put]
+func (c *DataQualityController) UpdateTransformationRule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req governance.UpdateTransformationRuleRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if err := c.governanceService.UpdateTransformationRule(id, &req); err != nil {
+		render.JSON(w, r, InternalErrorResponse("更新数据转换规则失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("更新数据转换规则成功", nil))
+}
+
+// DeleteTransformationRule 删除数据转换规则
+// @Summary 删除数据转换规则
+// @Description 删除指定的数据转换规则
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Success 200 {object} APIResponse "删除成功"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/transformation-rules/{id} [delete]
+func (c *DataQualityController) DeleteTransformationRule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	if err := c.governanceService.DeleteTransformationRule(id); err != nil {
+		render.JSON(w, r, InternalErrorResponse("删除数据转换规则失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("删除数据转换规则成功", nil))
+}
+
+// ExecuteTransformationRule 执行数据转换规则
+// @Summary 执行数据转换规则
+// @Description 手动执行指定的数据转换规则
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Success 200 {object} APIResponse{data=governance.TransformationExecutionResponse} "执行成功"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/transformation-rules/{id}/execute [post]
+func (c *DataQualityController) ExecuteTransformationRule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	result, err := c.governanceService.ExecuteTransformationRule(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("执行数据转换规则失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("执行数据转换规则成功", result))
+}
+
+// === 校验规则管理 ===
+
+// CreateValidationRule 创建数据校验规则
+// @Summary 创建数据校验规则
+// @Description 创建新的数据校验规则
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param rule body governance.CreateValidationRuleRequest true "数据校验规则信息"
+// @Success 201 {object} APIResponse{data=governance.ValidationRuleResponse} "创建成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/validation-rules [post]
+func (c *DataQualityController) CreateValidationRule(w http.ResponseWriter, r *http.Request) {
+	var req governance.CreateValidationRuleRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	rule, err := c.governanceService.CreateValidationRule(&req)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("创建数据校验规则失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("创建数据校验规则成功", rule))
+}
+
+// GetValidationRules 获取数据校验规则列表
+// @Summary 获取数据校验规则列表
+// @Description 分页获取数据校验规则列表
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页数量" default(10)
+// @Param rule_type query string false "规则类型" Enums(format,range,enum,regex,custom,reference)
+// @Param target_object_id query string false "目标对象ID"
+// @Param severity query string false "严重程度" Enums(low,medium,high,critical)
+// @Success 200 {object} APIResponse{data=governance.ValidationRuleListResponse} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/validation-rules [get]
+func (c *DataQualityController) GetValidationRules(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
+	if size <= 0 {
+		size = 10
+	}
+
+	ruleType := r.URL.Query().Get("rule_type")
+	targetObjectID := r.URL.Query().Get("target_object_id")
+	severity := r.URL.Query().Get("severity")
+
+	rules, total, err := c.governanceService.GetValidationRules(page, size, ruleType, targetObjectID, severity)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取数据校验规则列表失败", err))
+		return
+	}
+
+	response := governance.ValidationRuleListResponse{
+		List:  rules,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据校验规则列表成功", response))
+}
+
+// GetValidationRuleByID 根据ID获取数据校验规则
+// @Summary 根据ID获取数据校验规则
+// @Description 根据ID获取数据校验规则详情
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Success 200 {object} APIResponse{data=governance.ValidationRuleResponse} "获取成功"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/validation-rules/{id} [get]
+func (c *DataQualityController) GetValidationRuleByID(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	rule, err := c.governanceService.GetValidationRuleByID(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("数据校验规则不存在", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据校验规则成功", rule))
+}
+
+// UpdateValidationRule 更新数据校验规则
+// @Summary 更新数据校验规则
+// @Description 更新数据校验规则信息
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Param updates body governance.UpdateValidationRuleRequest true "更新信息"
+// @Success 200 {object} APIResponse "更新成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/validation-rules/{id} [put]
+func (c *DataQualityController) UpdateValidationRule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req governance.UpdateValidationRuleRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if err := c.governanceService.UpdateValidationRule(id, &req); err != nil {
+		render.JSON(w, r, InternalErrorResponse("更新数据校验规则失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("更新数据校验规则成功", nil))
+}
+
+// DeleteValidationRule 删除数据校验规则
+// @Summary 删除数据校验规则
+// @Description 删除指定的数据校验规则
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Success 200 {object} APIResponse "删除成功"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/validation-rules/{id} [delete]
+func (c *DataQualityController) DeleteValidationRule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	if err := c.governanceService.DeleteValidationRule(id); err != nil {
+		render.JSON(w, r, InternalErrorResponse("删除数据校验规则失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("删除数据校验规则成功", nil))
+}
+
+// ExecuteValidationRule 执行数据校验规则
+// @Summary 执行数据校验规则
+// @Description 手动执行指定的数据校验规则
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "规则ID"
+// @Success 200 {object} APIResponse{data=governance.ValidationExecutionResponse} "执行成功"
+// @Failure 404 {object} APIResponse "规则不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/validation-rules/{id}/execute [post]
+func (c *DataQualityController) ExecuteValidationRule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	result, err := c.governanceService.ExecuteValidationRule(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("执行数据校验规则失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("执行数据校验规则成功", result))
 }
 
 // === 系统日志管理 ===

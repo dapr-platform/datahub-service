@@ -75,9 +75,10 @@ func AutoMigrate(db *gorm.DB) error {
 	// 数据治理相关表
 	log.Println("正在迁移数据治理相关表...")
 	err = db.AutoMigrate(
-		&models.QualityRule{},
+		&models.QualityRuleTemplate{},
 		&models.Metadata{},
-		&models.DataMaskingRule{},
+		&models.DataMaskingTemplate{},
+		&models.DataCleansingTemplate{},
 		&models.SystemLog{},
 		&models.BackupConfig{},
 		&models.BackupRecord{},
