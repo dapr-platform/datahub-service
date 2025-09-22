@@ -232,7 +232,9 @@ func (s *SchemaService) dropTable(schemaName, tableName string) error {
 	}
 
 	if tableID == 0 {
-		return fmt.Errorf("表 %s.%s 不存在", schemaName, tableName)
+
+		//return fmt.Errorf("表 %s.%s 不存在", schemaName, tableName)
+		return nil
 	}
 
 	_, err = s.pgClient.DeleteTable(tableID, nil)
@@ -532,6 +534,12 @@ func (s *SchemaService) generateAlterOperations(currentTable *client.Table, newF
 		currentFieldsMap[column.Name] = column
 	}
 
+	// 构建主键列映射
+	primaryKeyColumns := make(map[string]bool)
+	for _, pk := range currentTable.PrimaryKeys {
+		primaryKeyColumns[pk.Name] = true
+	}
+
 	// 检查需要添加的字段
 	for fieldName, field := range newFieldsMap {
 		if _, exists := currentFieldsMap[fieldName]; !exists {
@@ -574,21 +582,34 @@ func (s *SchemaService) generateAlterOperations(currentTable *client.Table, newF
 		if currentColumn, exists := currentFieldsMap[fieldName]; exists {
 			newDataType := s.mapDataType(field.DataType)
 			newTypeWithLength := s.buildColumnTypeWithLength(newDataType, field)
-			if currentColumn.DataType != newTypeWithLength ||
-				currentColumn.IsNullable != field.IsNullable {
-				// 需要修改的字段
-				updateReq := client.UpdateColumnRequest{
-					Name:       field.NameEn,
-					Type:       newTypeWithLength,
-					IsNullable: &[]bool{field.IsNullable}[0],
-					Comment:    fmt.Sprintf("%s - %s", field.NameZh, field.Description),
-				}
 
-				// 处理默认值
-				if defaultValue := s.processDefaultValue(field, newDataType); defaultValue != nil {
-					updateReq.DefaultValue = defaultValue
-				}
+			// 检查是否需要修改
+			needsUpdate := false
+			updateReq := client.UpdateColumnRequest{
+				Name:    field.NameEn,
+				Comment: fmt.Sprintf("%s - %s", field.NameZh, field.Description),
+			}
 
+			// 检查数据类型是否需要修改
+			if currentColumn.DataType != newTypeWithLength {
+				updateReq.Type = newTypeWithLength
+				needsUpdate = true
+			}
+
+			// 检查可空性是否需要修改（但跳过主键列）
+			if !primaryKeyColumns[currentColumn.Name] && currentColumn.IsNullable != field.IsNullable {
+				updateReq.IsNullable = &[]bool{field.IsNullable}[0]
+				needsUpdate = true
+			}
+
+			// 处理默认值
+			if defaultValue := s.processDefaultValue(field, newDataType); defaultValue != nil {
+				updateReq.DefaultValue = defaultValue
+				needsUpdate = true
+			}
+
+			// 只有在需要更新时才添加操作
+			if needsUpdate {
 				operations = append(operations, AlterOperation{
 					Type: "modify_column",
 					Column: map[string]interface{}{
@@ -605,20 +626,59 @@ func (s *SchemaService) generateAlterOperations(currentTable *client.Table, newF
 
 // executeAlterOperation 执行表结构修改操作
 func (s *SchemaService) executeAlterOperation(tableID int, operation AlterOperation) error {
+	log.Printf("[DEBUG] SchemaService.executeAlterOperation - 执行操作类型: %s", operation.Type)
+
 	switch operation.Type {
 	case "add_column":
 		columnReq := operation.Column.(client.CreateColumnRequest)
+		log.Printf("[DEBUG] SchemaService.executeAlterOperation - 添加列: %s, 类型: %s", columnReq.Name, columnReq.Type)
 		_, err := s.pgClient.CreateColumn(columnReq)
+		if err != nil {
+			log.Printf("[ERROR] SchemaService.executeAlterOperation - 添加列失败: %v", err)
+		}
 		return err
 	case "drop_column":
 		columnID := operation.Column.(string)
+		log.Printf("[DEBUG] SchemaService.executeAlterOperation - 删除列ID: %s", columnID)
 		_, err := s.pgClient.DeleteColumn(columnID, nil)
+		if err != nil {
+			log.Printf("[ERROR] SchemaService.executeAlterOperation - 删除列失败: %v", err)
+		}
 		return err
 	case "modify_column":
 		data := operation.Column.(map[string]interface{})
 		columnID := data["id"].(string)
 		updateReq := data["request"].(client.UpdateColumnRequest)
+		log.Printf("[DEBUG] SchemaService.executeAlterOperation - 修改列ID: %s, 名称: %s", columnID, updateReq.Name)
+
+		// 检查是否有需要更新的字段
+		hasUpdates := false
+		if updateReq.Type != "" {
+			log.Printf("[DEBUG] SchemaService.executeAlterOperation - 更新数据类型: %s", updateReq.Type)
+			hasUpdates = true
+		}
+		if updateReq.IsNullable != nil {
+			log.Printf("[DEBUG] SchemaService.executeAlterOperation - 更新可空性: %v", *updateReq.IsNullable)
+			hasUpdates = true
+		}
+		if updateReq.Comment != "" {
+			log.Printf("[DEBUG] SchemaService.executeAlterOperation - 更新注释: %s", updateReq.Comment)
+			hasUpdates = true
+		}
+
+		if !hasUpdates {
+			log.Printf("[DEBUG] SchemaService.executeAlterOperation - 没有需要更新的字段，跳过")
+			return nil
+		}
+
 		_, err := s.pgClient.UpdateColumn(columnID, updateReq)
+		if err != nil {
+			log.Printf("[ERROR] SchemaService.executeAlterOperation - 修改列失败: %v", err)
+			// 如果是主键相关的错误，提供更友好的错误信息
+			if strings.Contains(err.Error(), "primary key") {
+				return fmt.Errorf("无法修改主键列的约束属性，主键列必须保持非空: %v", err)
+			}
+		}
 		return err
 	default:
 		return fmt.Errorf("不支持的修改操作类型: %s", operation.Type)

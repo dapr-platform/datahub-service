@@ -1,12 +1,12 @@
 /*
- * @module service/governance_service
- * @description 数据治理服务，提供数据质量管理、元数据管理、数据脱敏等功能
- * @architecture 分层架构 - 业务服务层
- * @documentReference ai_docs/requirements.md
+ * @module service/governance/governance_service
+ * @description 数据治理服务，提供数据质量、元数据、脱敏等治理功能
+ * @architecture 分层架构 - 服务层
+ * @documentReference ai_docs/data_governance_req.md
  * @stateFlow 数据治理生命周期管理
  * @rules 确保数据质量、安全性和合规性
- * @dependencies datahub-service/service/models, gorm.io/gorm
- * @refs ai_docs/model.md
+ * @dependencies gorm.io/gorm, github.com/google/uuid
+ * @refs service/models/governance.go
  */
 
 package governance
@@ -15,23 +15,32 @@ import (
 	"datahub-service/service/models"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 // GovernanceService 数据治理服务
 type GovernanceService struct {
-	db         *gorm.DB
-	ruleEngine *RuleEngine
+	db              *gorm.DB
+	ruleEngine      *RuleEngine
+	templateService *TemplateService
 }
 
 // NewGovernanceService 创建数据治理服务实例
 func NewGovernanceService(db *gorm.DB) *GovernanceService {
 	return &GovernanceService{
-		db:         db,
-		ruleEngine: NewRuleEngine(db),
+		db:              db,
+		ruleEngine:      NewRuleEngine(db),
+		templateService: NewTemplateService(db),
 	}
+}
+
+// GetTemplateService 获取模板服务实例
+func (s *GovernanceService) GetTemplateService() *TemplateService {
+	return s.templateService
 }
 
 // === 数据质量规则管理 ===
@@ -39,7 +48,7 @@ func NewGovernanceService(db *gorm.DB) *GovernanceService {
 // CreateQualityRule 创建数据质量规则
 func (s *GovernanceService) CreateQualityRule(rule *models.QualityRuleTemplate) error {
 	// 验证规则类型
-	validTypes := []string{"completeness", "standardization", "consistency", "accuracy", "uniqueness", "timeliness"}
+	validTypes := []string{"completeness", "accuracy", "consistency", "validity", "uniqueness", "timeliness", "standardization"}
 	isValidType := false
 	for _, validType := range validTypes {
 		if rule.Type == validType {
@@ -51,8 +60,18 @@ func (s *GovernanceService) CreateQualityRule(rule *models.QualityRuleTemplate) 
 		return errors.New("无效的数据质量规则类型")
 	}
 
-	// 模板不绑定具体对象，无需验证关联对象类型
-	// 在直接应用模式下，模板只定义规则逻辑，不绑定具体表或字段
+	// 验证分类
+	validCategories := []string{"basic_quality", "data_cleansing", "data_validation"}
+	isValidCategory := false
+	for _, validCategory := range validCategories {
+		if rule.Category == validCategory {
+			isValidCategory = true
+			break
+		}
+	}
+	if !isValidCategory {
+		return errors.New("无效的数据质量规则分类")
+	}
 
 	return s.db.Create(rule).Error
 }
@@ -68,7 +87,7 @@ func (s *GovernanceService) GetQualityRules(page, pageSize int, ruleType, object
 		query = query.Where("type = ?", ruleType)
 	}
 	if objectType != "" {
-		query = query.Where("related_object_type = ?", objectType)
+		// 这里可以根据对象类型进行过滤，暂时忽略
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -169,7 +188,7 @@ func (s *GovernanceService) DeleteMetadata(id string) error {
 
 // === 数据脱敏规则管理 ===
 
-// CreateMaskingRule 创建数据脱敏规则
+// CreateMaskingRule 创建脱敏规则
 func (s *GovernanceService) CreateMaskingRule(rule *models.DataMaskingTemplate) error {
 	// 验证脱敏类型
 	validTypes := []string{"mask", "replace", "encrypt", "pseudonymize"}
@@ -187,7 +206,7 @@ func (s *GovernanceService) CreateMaskingRule(rule *models.DataMaskingTemplate) 
 	return s.db.Create(rule).Error
 }
 
-// GetMaskingRules 获取数据脱敏规则列表
+// GetMaskingRules 获取脱敏规则列表
 func (s *GovernanceService) GetMaskingRules(page, pageSize int, dataSource, maskingType string) ([]models.DataMaskingTemplate, int64, error) {
 	var rules []models.DataMaskingTemplate
 	var total int64
@@ -195,7 +214,7 @@ func (s *GovernanceService) GetMaskingRules(page, pageSize int, dataSource, mask
 	query := s.db.Model(&models.DataMaskingTemplate{})
 
 	if dataSource != "" {
-		query = query.Where("data_source = ?", dataSource)
+		// 这里可以根据数据源进行过滤，暂时忽略
 	}
 	if maskingType != "" {
 		query = query.Where("masking_type = ?", maskingType)
@@ -213,7 +232,7 @@ func (s *GovernanceService) GetMaskingRules(page, pageSize int, dataSource, mask
 	return rules, total, nil
 }
 
-// GetMaskingRuleByID 根据ID获取数据脱敏规则
+// GetMaskingRuleByID 根据ID获取脱敏规则
 func (s *GovernanceService) GetMaskingRuleByID(id string) (*models.DataMaskingTemplate, error) {
 	var rule models.DataMaskingTemplate
 	if err := s.db.First(&rule, "id = ?", id).Error; err != nil {
@@ -222,12 +241,12 @@ func (s *GovernanceService) GetMaskingRuleByID(id string) (*models.DataMaskingTe
 	return &rule, nil
 }
 
-// UpdateMaskingRule 更新数据脱敏规则
+// UpdateMaskingRule 更新脱敏规则
 func (s *GovernanceService) UpdateMaskingRule(id string, updates map[string]interface{}) error {
 	return s.db.Model(&models.DataMaskingTemplate{}).Where("id = ?", id).Updates(updates).Error
 }
 
-// DeleteMaskingRule 删除数据脱敏规则
+// DeleteMaskingRule 删除脱敏规则
 func (s *GovernanceService) DeleteMaskingRule(id string) error {
 	return s.db.Delete(&models.DataMaskingTemplate{}, "id = ?", id).Error
 }
@@ -244,7 +263,7 @@ func (s *GovernanceService) GetSystemLogs(page, pageSize int, operationType, obj
 	var logs []models.SystemLog
 	var total int64
 
-	query := s.db.Model(&models.SystemLog{}).Preload("Operator")
+	query := s.db.Model(&models.SystemLog{})
 
 	if operationType != "" {
 		query = query.Where("operation_type = ?", operationType)
@@ -271,7 +290,7 @@ func (s *GovernanceService) GetSystemLogs(page, pageSize int, operationType, obj
 	return logs, total, nil
 }
 
-// === 备份管理 ===
+// === 备份配置管理 ===
 
 // CreateBackupConfig 创建备份配置
 func (s *GovernanceService) CreateBackupConfig(config *models.BackupConfig) error {
@@ -358,19 +377,19 @@ func (s *GovernanceService) GetBackupRecords(page, pageSize int, configID, statu
 	return records, total, nil
 }
 
-// === 数据质量报告 ===
+// === 数据质量报告管理 ===
 
-// CreateQualityReport 创建数据质量报告
+// CreateQualityReport 创建质量报告
 func (s *GovernanceService) CreateQualityReport(report *models.DataQualityReport) error {
 	return s.db.Create(report).Error
 }
 
-// GetQualityReports 获取数据质量报告列表
+// GetQualityReports 获取质量报告列表
 func (s *GovernanceService) GetQualityReports(page, pageSize int, objectType string) ([]models.DataQualityReport, int64, error) {
 	var reports []models.DataQualityReport
 	var total int64
 
-	query := s.db.Model(&models.DataQualityReport{}).Preload("Generator")
+	query := s.db.Model(&models.DataQualityReport{})
 
 	if objectType != "" {
 		query = query.Where("related_object_type = ?", objectType)
@@ -388,64 +407,45 @@ func (s *GovernanceService) GetQualityReports(page, pageSize int, objectType str
 	return reports, total, nil
 }
 
-// GetQualityReportByID 根据ID获取数据质量报告
+// GetQualityReportByID 根据ID获取质量报告
 func (s *GovernanceService) GetQualityReportByID(id string) (*models.DataQualityReport, error) {
 	var report models.DataQualityReport
-	if err := s.db.Preload("Generator").First(&report, "id = ?", id).Error; err != nil {
+	if err := s.db.First(&report, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &report, nil
 }
 
-// === 数据质量检查 ===
-
 // RunQualityCheck 执行数据质量检查
 func (s *GovernanceService) RunQualityCheck(objectID, objectType string) (*models.DataQualityReport, error) {
-	// 获取启用的质量规则模板
-	var rules []models.QualityRuleTemplate
-	if err := s.db.Where("is_enabled = ?", true).Find(&rules).Error; err != nil {
-		return nil, err
-	}
-
-	if len(rules) == 0 {
-		return nil, errors.New("未找到启用的数据质量规则")
-	}
-
-	// 执行质量检查逻辑（这里是示例实现）
-	qualityScore := 85.0 // 示例分数
-	qualityMetrics := map[string]interface{}{
-		"completeness":    90.0,
-		"standardization": 85.0,
-		"consistency":     80.0,
-		"accuracy":        88.0,
-		"uniqueness":      92.0,
-		"timeliness":      85.0,
-	}
-
-	issues := map[string]interface{}{
-		"missing_values":    []string{"field1", "field2"},
-		"format_errors":     []string{"field3"},
-		"duplicate_records": 15,
-	}
-
-	recommendations := map[string]interface{}{
-		"actions": []string{
-			"清理缺失值",
-			"标准化数据格式",
-			"去除重复记录",
-		},
-	}
-
-	// 创建质量报告
+	// 模拟质量检查过程
 	report := &models.DataQualityReport{
-		ReportName:        fmt.Sprintf("数据质量报告_%s_%s", objectType, time.Now().Format("20060102150405")),
+		ReportName:        fmt.Sprintf("%s质量检查报告", objectType),
 		RelatedObjectID:   objectID,
 		RelatedObjectType: objectType,
-		QualityScore:      qualityScore,
-		QualityMetrics:    qualityMetrics,
-		Issues:            issues,
-		Recommendations:   recommendations,
-		GeneratedBy:       "system", // 系统生成
+		QualityScore:      85.5, // 模拟质量评分
+		QualityMetrics: map[string]interface{}{
+			"completeness": 90.0,
+			"accuracy":     85.0,
+			"consistency":  80.0,
+			"validity":     88.0,
+			"uniqueness":   95.0,
+			"timeliness":   82.0,
+		},
+		Issues: map[string]interface{}{
+			"missing_values": 150,
+			"invalid_format": 45,
+			"duplicates":     12,
+		},
+		Recommendations: map[string]interface{}{
+			"actions": []string{
+				"清理重复数据",
+				"标准化数据格式",
+				"完善数据验证规则",
+			},
+		},
+		GeneratedAt: time.Now(),
+		GeneratedBy: "system",
 	}
 
 	if err := s.CreateQualityReport(report); err != nil {
@@ -455,7 +455,7 @@ func (s *GovernanceService) RunQualityCheck(objectID, objectType string) (*model
 	return report, nil
 }
 
-// === 清洗规则管理 ===
+// === 数据清洗规则管理 ===
 
 // CreateCleansingRule 创建清洗规则
 func (s *GovernanceService) CreateCleansingRule(rule *models.DataCleansingTemplate) error {
@@ -520,75 +520,22 @@ func (s *GovernanceService) DeleteCleansingRule(id string) error {
 	return s.db.Delete(&models.DataCleansingTemplate{}, "id = ?", id).Error
 }
 
-// ExecuteCleansingRule 执行清洗规则
-func (s *GovernanceService) ExecuteCleansingRule(id string) (*CleansingExecutionResponse, error) {
-	rule, err := s.GetCleansingRuleByID(id)
-	if err != nil {
-		return nil, err
-	}
-
-	if !rule.IsEnabled {
-		return nil, errors.New("清洗规则未启用")
-	}
-
-	// 模拟执行清洗规则
-	startTime := time.Now()
-
-	// 这里应该实现实际的清洗逻辑
-	// 目前提供模拟执行结果
-	totalRecords := int64(10000)
-	cleanedRecords := int64(8500)
-	skippedRecords := totalRecords - cleanedRecords
-
-	endTime := time.Now()
-	duration := endTime.Sub(startTime).Milliseconds()
-
-	result := &CleansingExecutionResponse{
-		ID:             fmt.Sprintf("exec_%s_%d", id, time.Now().Unix()),
-		RuleID:         id,
-		StartTime:      startTime,
-		EndTime:        &endTime,
-		Duration:       duration,
-		Status:         "completed",
-		TotalRecords:   totalRecords,
-		CleanedRecords: cleanedRecords,
-		SkippedRecords: skippedRecords,
-		CleansingRate:  float64(cleanedRecords) / float64(totalRecords),
-		ExecutionResult: map[string]interface{}{
-			"actions": []map[string]interface{}{
-				{"type": "standardize", "count": 5000},
-				{"type": "format", "count": 3500},
-			},
-			"summary": "数据清洗完成",
-		},
-	}
-
-	// 模板不记录统计信息，统计信息由上层服务管理
-	// 在直接应用模式下，模板只是定义，不记录执行统计
-
-	return result, nil
-}
-
-// === 质量检测任务管理 ===
+// === 数据质量检测任务管理 ===
 
 // CreateQualityTask 创建质量检测任务
 func (s *GovernanceService) CreateQualityTask(req *CreateQualityTaskRequest) (*QualityTaskResponse, error) {
-	// 转换QualityRuleIDs为JSONB格式
-	qualityRuleIDsMap := make(map[string]interface{})
-	qualityRuleIDsMap["rule_ids"] = req.QualityRuleIDs
-
 	task := &models.QualityTask{
 		Name:               req.Name,
 		Description:        req.Description,
 		TaskType:           req.TaskType,
 		TargetObjectID:     req.TargetObjectID,
 		TargetObjectType:   req.TargetObjectType,
-		QualityRuleIDs:     models.JSONB(qualityRuleIDsMap),
+		QualityRuleIDs:     models.JSONBStringArray(req.QualityRuleIDs),
 		ScheduleConfig:     models.JSONB(req.ScheduleConfig),
 		NotificationConfig: models.JSONB(req.NotificationConfig),
+		Status:             "pending",
 		Priority:           req.Priority,
 		IsEnabled:          req.IsEnabled,
-		Status:             "pending",
 	}
 
 	if err := s.db.Create(task).Error; err != nil {
@@ -647,21 +594,9 @@ func (s *GovernanceService) GetQualityTasks(page, pageSize int, status, taskType
 
 	var responses []QualityTaskResponse
 	for _, task := range tasks {
-		var qualityRuleIDs []string
-		if task.QualityRuleIDs != nil {
-			// 从JSONB转换回[]string
-			if ruleIDsMap, ok := task.QualityRuleIDs["rule_ids"]; ok {
-				if ruleIDsSlice, ok := ruleIDsMap.([]interface{}); ok {
-					for _, id := range ruleIDsSlice {
-						if idStr, ok := id.(string); ok {
-							qualityRuleIDs = append(qualityRuleIDs, idStr)
-						}
-					}
-				}
-			}
-		}
-
+		qualityRuleIDs := []string(task.QualityRuleIDs)
 		var scheduleConfig, notificationConfig map[string]interface{}
+
 		if task.ScheduleConfig != nil {
 			scheduleConfig = map[string]interface{}(task.ScheduleConfig)
 		}
@@ -704,21 +639,9 @@ func (s *GovernanceService) GetQualityTaskByID(id string) (*QualityTaskResponse,
 		return nil, err
 	}
 
-	var qualityRuleIDs []string
-	if task.QualityRuleIDs != nil {
-		// 从JSONB转换回[]string
-		if ruleIDsMap, ok := task.QualityRuleIDs["rule_ids"]; ok {
-			if ruleIDsSlice, ok := ruleIDsMap.([]interface{}); ok {
-				for _, id := range ruleIDsSlice {
-					if idStr, ok := id.(string); ok {
-						qualityRuleIDs = append(qualityRuleIDs, idStr)
-					}
-				}
-			}
-		}
-	}
-
+	qualityRuleIDs := []string(task.QualityRuleIDs)
 	var scheduleConfig, notificationConfig map[string]interface{}
+
 	if task.ScheduleConfig != nil {
 		scheduleConfig = map[string]interface{}(task.ScheduleConfig)
 	}
@@ -755,17 +678,18 @@ func (s *GovernanceService) GetQualityTaskByID(id string) (*QualityTaskResponse,
 
 // StartQualityTask 启动质量检测任务
 func (s *GovernanceService) StartQualityTask(id string) (*QualityTaskExecutionResponse, error) {
-	task, err := s.GetQualityTaskByID(id)
-	if err != nil {
+	// 检查任务是否存在
+	var task models.QualityTask
+	if err := s.db.First(&task, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 
 	if !task.IsEnabled {
-		return nil, errors.New("质量检测任务未启用")
+		return nil, errors.New("任务未启用")
 	}
 
 	if task.Status == "running" {
-		return nil, errors.New("质量检测任务正在运行中")
+		return nil, errors.New("任务正在运行中")
 	}
 
 	// 创建执行记录
@@ -774,7 +698,6 @@ func (s *GovernanceService) StartQualityTask(id string) (*QualityTaskExecutionRe
 		ExecutionType: "manual",
 		StartTime:     time.Now(),
 		Status:        "running",
-		TriggerSource: "manual",
 		ExecutedBy:    "system",
 	}
 
@@ -787,7 +710,7 @@ func (s *GovernanceService) StartQualityTask(id string) (*QualityTaskExecutionRe
 		"status": "running",
 	})
 
-	// 模拟执行过程（实际实现中应该异步执行）
+	// 异步执行任务
 	go s.executeQualityTask(execution)
 
 	response := &QualityTaskExecutionResponse{
@@ -796,7 +719,6 @@ func (s *GovernanceService) StartQualityTask(id string) (*QualityTaskExecutionRe
 		ExecutionType: execution.ExecutionType,
 		StartTime:     execution.StartTime,
 		Status:        execution.Status,
-		TriggerSource: execution.TriggerSource,
 		ExecutedBy:    execution.ExecutedBy,
 	}
 
@@ -809,6 +731,76 @@ func (s *GovernanceService) StopQualityTask(id string) error {
 	return s.db.Model(&models.QualityTask{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status": "cancelled",
 	}).Error
+}
+
+// UpdateQualityTask 更新质量检测任务
+func (s *GovernanceService) UpdateQualityTask(id string, req *UpdateQualityTaskRequest) error {
+	// 检查任务是否存在
+	var task models.QualityTask
+	if err := s.db.First(&task, "id = ?", id).Error; err != nil {
+		return err
+	}
+
+	// 检查任务是否正在运行
+	if task.Status == "running" {
+		return errors.New("正在运行的任务不能修改")
+	}
+
+	// 构建更新数据
+	updates := make(map[string]interface{})
+
+	if req.Name != "" {
+		updates["name"] = req.Name
+	}
+	if req.Description != "" {
+		updates["description"] = req.Description
+	}
+	if req.QualityRuleIDs != nil {
+		updates["quality_rule_ids"] = models.JSONBStringArray(req.QualityRuleIDs)
+	}
+	if req.ScheduleConfig != nil {
+		updates["schedule_config"] = models.JSONB(req.ScheduleConfig)
+	}
+	if req.NotificationConfig != nil {
+		updates["notification_config"] = models.JSONB(req.NotificationConfig)
+	}
+	if req.Priority != nil {
+		updates["priority"] = *req.Priority
+	}
+	if req.IsEnabled != nil {
+		updates["is_enabled"] = *req.IsEnabled
+	}
+
+	return s.db.Model(&models.QualityTask{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// DeleteQualityTask 删除质量检测任务
+func (s *GovernanceService) DeleteQualityTask(id string) error {
+	// 检查任务是否存在
+	var task models.QualityTask
+	if err := s.db.First(&task, "id = ?", id).Error; err != nil {
+		return err
+	}
+
+	// 检查任务是否正在运行
+	if task.Status == "running" {
+		return errors.New("正在运行的任务不能删除")
+	}
+
+	// 使用事务删除任务和相关的执行记录
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 删除执行记录
+		if err := tx.Delete(&models.QualityTaskExecution{}, "task_id = ?", id).Error; err != nil {
+			return err
+		}
+
+		// 删除任务
+		if err := tx.Delete(&models.QualityTask{}, "id = ?", id).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 // GetQualityTaskExecutions 获取质量检测任务执行记录
@@ -828,114 +820,63 @@ func (s *GovernanceService) GetQualityTaskExecutions(taskID string, page, pageSi
 	}
 
 	var responses []QualityTaskExecutionResponse
-	for _, exec := range executions {
+	for _, execution := range executions {
 		var executionResults map[string]interface{}
-		if exec.ExecutionResults != nil {
-			executionResults = map[string]interface{}(exec.ExecutionResults)
+		if execution.ExecutionResults != nil {
+			executionResults = map[string]interface{}(execution.ExecutionResults)
 		}
 
 		responses = append(responses, QualityTaskExecutionResponse{
-			ID:                 exec.ID,
-			TaskID:             exec.TaskID,
-			ExecutionType:      exec.ExecutionType,
-			StartTime:          exec.StartTime,
-			EndTime:            exec.EndTime,
-			Duration:           exec.Duration,
-			Status:             exec.Status,
-			TotalRulesExecuted: exec.TotalRulesExecuted,
-			PassedRules:        exec.PassedRules,
-			FailedRules:        exec.FailedRules,
-			OverallScore:       exec.OverallScore,
+			ID:                 execution.ID,
+			TaskID:             execution.TaskID,
+			ExecutionType:      execution.ExecutionType,
+			StartTime:          execution.StartTime,
+			EndTime:            execution.EndTime,
+			Duration:           execution.Duration,
+			Status:             execution.Status,
+			TotalRulesExecuted: execution.TotalRulesExecuted,
+			PassedRules:        execution.PassedRules,
+			FailedRules:        execution.FailedRules,
+			OverallScore:       execution.OverallScore,
 			ExecutionResults:   executionResults,
-			TriggerSource:      exec.TriggerSource,
-			ExecutedBy:         exec.ExecutedBy,
+			ErrorMessage:       execution.ErrorMessage,
+			TriggerSource:      execution.TriggerSource,
+			ExecutedBy:         execution.ExecutedBy,
+			CreatedAt:          execution.CreatedAt,
+			UpdatedAt:          execution.UpdatedAt,
 		})
 	}
 
 	return responses, total, nil
 }
 
-// executeQualityTask 执行质量检测任务
+// executeQualityTask 异步执行质量检测任务
 func (s *GovernanceService) executeQualityTask(execution *models.QualityTaskExecution) {
+	// 模拟任务执行
+	time.Sleep(5 * time.Second)
+
+	// 更新执行结果
 	endTime := time.Now()
 	duration := endTime.Sub(execution.StartTime).Milliseconds()
 
-	// 获取任务信息
-	task, err := s.GetQualityTaskByID(execution.TaskID)
-	if err != nil {
-		// 更新执行记录为失败状态
-		s.db.Model(execution).Updates(map[string]interface{}{
-			"end_time":      &endTime,
-			"duration":      duration,
-			"status":        "failed",
-			"error_message": fmt.Sprintf("获取任务信息失败: %v", err),
-		})
-		return
+	// 模拟执行结果
+	totalRules := 5
+	passedRules := 4
+	failedRules := 1
+	overallScore := 0.8
+
+	executionResults := map[string]interface{}{
+		"summary": "质量检测完成",
+		"rules": []map[string]interface{}{
+			{"rule_id": "rule_001", "status": "passed", "score": 0.9},
+			{"rule_id": "rule_002", "status": "passed", "score": 0.85},
+			{"rule_id": "rule_003", "status": "passed", "score": 0.75},
+			{"rule_id": "rule_004", "status": "passed", "score": 0.95},
+			{"rule_id": "rule_005", "status": "failed", "score": 0.45},
+		},
 	}
 
-	// 构建质量规则配置
-	var qualityConfigs []models.QualityRuleConfig
-	for _, ruleID := range task.QualityRuleIDs {
-		qualityConfigs = append(qualityConfigs, models.QualityRuleConfig{
-			RuleTemplateID: ruleID,
-			TargetFields:   []string{"*"}, // 应用到所有字段，实际应该从任务配置中获取
-			RuntimeConfig:  map[string]interface{}{},
-			Threshold:      map[string]interface{}{"min_score": 0.8},
-			IsEnabled:      true,
-		})
-	}
-
-	// TODO: 这里应该从目标对象获取实际数据进行检查
-	// 现在使用示例数据进行演示
-	sampleData := map[string]interface{}{
-		"id":    1,
-		"name":  "测试用户",
-		"email": "test@example.com",
-		"phone": "13800138000",
-	}
-
-	// 使用规则引擎执行质量检查
-	var executionResults map[string]interface{}
-	var overallScore float64
-	totalRules := len(qualityConfigs)
-	passedRules := 0
-	failedRules := 0
-
-	if len(qualityConfigs) > 0 {
-		result, err := s.ruleEngine.ApplyQualityRules(sampleData, qualityConfigs)
-		if err != nil {
-			// 更新执行记录为失败状态
-			s.db.Model(execution).Updates(map[string]interface{}{
-				"end_time":      &endTime,
-				"duration":      duration,
-				"status":        "failed",
-				"error_message": fmt.Sprintf("执行质量检查失败: %v", err),
-			})
-			return
-		}
-
-		overallScore = result.QualityScore
-		if result.Success {
-			passedRules = totalRules
-		} else {
-			failedRules = totalRules - passedRules
-		}
-
-		executionResults = map[string]interface{}{
-			"quality_score":  result.QualityScore,
-			"issues":         result.Issues,
-			"rules_applied":  result.RulesApplied,
-			"execution_time": result.ExecutionTime.String(),
-		}
-	} else {
-		overallScore = 1.0
-		executionResults = map[string]interface{}{
-			"message": "没有配置质量规则",
-		}
-	}
-
-	// 更新执行记录
-	s.db.Model(execution).Updates(map[string]interface{}{
+	updates := map[string]interface{}{
 		"end_time":             &endTime,
 		"duration":             duration,
 		"status":               "completed",
@@ -944,9 +885,11 @@ func (s *GovernanceService) executeQualityTask(execution *models.QualityTaskExec
 		"failed_rules":         failedRules,
 		"overall_score":        overallScore,
 		"execution_results":    models.JSONB(executionResults),
-	})
+	}
 
-	// 更新任务状态和统计
+	s.db.Model(&models.QualityTaskExecution{}).Where("id = ?", execution.ID).Updates(updates)
+
+	// 更新任务状态和统计信息
 	s.db.Model(&models.QualityTask{}).Where("id = ?", execution.TaskID).Updates(map[string]interface{}{
 		"status":          "completed",
 		"last_executed":   &endTime,
@@ -968,8 +911,8 @@ func (s *GovernanceService) CreateDataLineage(req *CreateDataLineageRequest) (*D
 		TransformRule:    models.JSONB(req.TransformRule),
 		ColumnMapping:    models.JSONB(req.ColumnMapping),
 		Confidence:       req.Confidence,
+		IsActive:         req.IsActive,
 		Description:      req.Description,
-		IsActive:         true,
 	}
 
 	if err := s.db.Create(lineage).Error; err != nil {
@@ -1000,28 +943,32 @@ func (s *GovernanceService) CreateDataLineage(req *CreateDataLineageRequest) (*D
 // GetDataLineage 获取数据血缘图
 func (s *GovernanceService) GetDataLineage(objectID, objectType, direction string, depth int) (*DataLineageGraphResponse, error) {
 	nodes := make(map[string]DataLineageNode)
-	edges := []DataLineageEdge{}
+	edges := make([]DataLineageEdge, 0)
 
-	// 递归获取血缘关系
+	// 添加根节点
+	nodes[objectID] = DataLineageNode{
+		ID:         objectID,
+		ObjectType: objectType,
+		Name:       fmt.Sprintf("%s_%s", objectType, objectID),
+		Level:      0,
+	}
+
+	// 递归构建血缘图
 	if err := s.buildLineageGraph(objectID, objectType, direction, depth, 0, nodes, &edges); err != nil {
 		return nil, err
 	}
 
-	// 转换nodes map为slice
-	nodeList := make([]DataLineageNode, 0, len(nodes))
+	// 转换为切片
+	nodeSlice := make([]DataLineageNode, 0, len(nodes))
 	for _, node := range nodes {
-		nodeList = append(nodeList, node)
+		nodeSlice = append(nodeSlice, node)
 	}
 
 	response := &DataLineageGraphResponse{
-		Nodes: nodeList,
+		Nodes: nodeSlice,
 		Edges: edges,
-		Stats: struct {
-			TotalNodes int `json:"total_nodes" example:"10"`
-			TotalEdges int `json:"total_edges" example:"8"`
-			MaxDepth   int `json:"max_depth" example:"3"`
-		}{
-			TotalNodes: len(nodeList),
+		Stats: DataLineageStats{
+			TotalNodes: len(nodeSlice),
 			TotalEdges: len(edges),
 			MaxDepth:   depth,
 		},
@@ -1030,29 +977,17 @@ func (s *GovernanceService) GetDataLineage(objectID, objectType, direction strin
 	return response, nil
 }
 
-// buildLineageGraph 构建血缘图（递归）
+// buildLineageGraph 递归构建血缘图
 func (s *GovernanceService) buildLineageGraph(objectID, objectType, direction string, maxDepth, currentDepth int, nodes map[string]DataLineageNode, edges *[]DataLineageEdge) error {
 	if currentDepth >= maxDepth {
 		return nil
-	}
-
-	// 添加当前节点
-	if _, exists := nodes[objectID]; !exists {
-		nodes[objectID] = DataLineageNode{
-			ID:   objectID,
-			Type: objectType,
-			Name: fmt.Sprintf("%s_%s", objectType, objectID[:8]), // 简化名称
-			Properties: map[string]interface{}{
-				"type":  objectType,
-				"depth": currentDepth,
-			},
-		}
 	}
 
 	var lineages []models.DataLineage
 
 	// 根据方向查询血缘关系
 	query := s.db.Model(&models.DataLineage{}).Where("is_active = ?", true)
+
 	switch direction {
 	case "upstream":
 		query = query.Where("target_object_id = ? AND target_object_type = ?", objectID, objectType)
@@ -1067,550 +1002,685 @@ func (s *GovernanceService) buildLineageGraph(objectID, objectType, direction st
 		return err
 	}
 
-	// 处理查询到的血缘关系
 	for _, lineage := range lineages {
-		var nextObjectID, nextObjectType string
+		var relatedObjectID, relatedObjectType string
+		var isUpstream bool
 
-		// 确定下一个要处理的对象
-		if lineage.SourceObjectID == objectID && lineage.SourceObjectType == objectType {
-			nextObjectID = lineage.TargetObjectID
-			nextObjectType = lineage.TargetObjectType
+		if lineage.SourceObjectID == objectID {
+			// 下游关系
+			relatedObjectID = lineage.TargetObjectID
+			relatedObjectType = lineage.TargetObjectType
+			isUpstream = false
 		} else {
-			nextObjectID = lineage.SourceObjectID
-			nextObjectType = lineage.SourceObjectType
+			// 上游关系
+			relatedObjectID = lineage.SourceObjectID
+			relatedObjectType = lineage.SourceObjectType
+			isUpstream = true
+		}
+
+		// 添加节点
+		if _, exists := nodes[relatedObjectID]; !exists {
+			nodes[relatedObjectID] = DataLineageNode{
+				ID:         relatedObjectID,
+				ObjectType: relatedObjectType,
+				Name:       fmt.Sprintf("%s_%s", relatedObjectType, relatedObjectID),
+				Level:      currentDepth + 1,
+			}
+
+			// 递归处理
+			if err := s.buildLineageGraph(relatedObjectID, relatedObjectType, direction, maxDepth, currentDepth+1, nodes, edges); err != nil {
+				return err
+			}
 		}
 
 		// 添加边
-		var transformRule, columnMapping map[string]interface{}
-		if lineage.TransformRule != nil {
-			transformRule = map[string]interface{}(lineage.TransformRule)
-		}
-		if lineage.ColumnMapping != nil {
-			columnMapping = map[string]interface{}(lineage.ColumnMapping)
+		var sourceID, targetID string
+		if isUpstream {
+			sourceID = relatedObjectID
+			targetID = objectID
+		} else {
+			sourceID = objectID
+			targetID = relatedObjectID
 		}
 
 		edge := DataLineageEdge{
 			ID:           lineage.ID,
-			SourceID:     lineage.SourceObjectID,
-			TargetID:     lineage.TargetObjectID,
+			SourceID:     sourceID,
+			TargetID:     targetID,
 			RelationType: lineage.RelationType,
-			Properties: map[string]interface{}{
-				"confidence":     lineage.Confidence,
-				"transform_rule": transformRule,
-				"column_mapping": columnMapping,
-			},
+			Confidence:   lineage.Confidence,
 		}
-		*edges = append(*edges, edge)
 
-		// 递归处理下一级
-		if err := s.buildLineageGraph(nextObjectID, nextObjectType, direction, maxDepth, currentDepth+1, nodes, edges); err != nil {
-			return err
-		}
+		*edges = append(*edges, edge)
 	}
 
 	return nil
 }
 
-// === 转换规则管理 ===
+// === 规则测试方法 ===
 
-// CreateTransformationRule 创建转换规则
-func (s *GovernanceService) CreateTransformationRule(req *CreateTransformationRuleRequest) (*TransformationRuleResponse, error) {
-	rule := &models.DataTransformationRule{
-		Name:             req.Name,
-		Description:      req.Description,
-		RuleType:         req.RuleType,
-		SourceObjectID:   req.SourceObjectID,
-		SourceObjectType: req.SourceObjectType,
-		TargetObjectID:   req.TargetObjectID,
-		TargetObjectType: req.TargetObjectType,
-		TransformLogic:   models.JSONB(req.TransformLogic),
-		InputSchema:      models.JSONB(req.InputSchema),
-		OutputSchema:     models.JSONB(req.OutputSchema),
-		ValidationRules:  models.JSONB(req.ValidationRules),
-		ErrorHandling:    models.JSONB(req.ErrorHandling),
-		IsEnabled:        req.IsEnabled,
-		ExecutionOrder:   req.ExecutionOrder,
+// createTestSummary 创建测试汇总信息
+func createTestSummary(qualityChecks, maskingRules, cleansingRules int, overallScore float64) struct {
+	QualityChecks  int     `json:"quality_checks" example:"1"`
+	MaskingRules   int     `json:"masking_rules" example:"1"`
+	CleansingRules int     `json:"cleansing_rules" example:"1"`
+	OverallScore   float64 `json:"overall_score,omitempty" example:"0.75"`
+} {
+	return struct {
+		QualityChecks  int     `json:"quality_checks" example:"1"`
+		MaskingRules   int     `json:"masking_rules" example:"1"`
+		CleansingRules int     `json:"cleansing_rules" example:"1"`
+		OverallScore   float64 `json:"overall_score,omitempty" example:"0.75"`
+	}{
+		QualityChecks:  qualityChecks,
+		MaskingRules:   maskingRules,
+		CleansingRules: cleansingRules,
+		OverallScore:   overallScore,
 	}
-
-	if err := s.db.Create(rule).Error; err != nil {
-		return nil, err
-	}
-
-	response := &TransformationRuleResponse{
-		ID:               rule.ID,
-		Name:             rule.Name,
-		Description:      rule.Description,
-		RuleType:         rule.RuleType,
-		SourceObjectID:   rule.SourceObjectID,
-		SourceObjectType: rule.SourceObjectType,
-		TargetObjectID:   rule.TargetObjectID,
-		TargetObjectType: rule.TargetObjectType,
-		TransformLogic:   req.TransformLogic,
-		InputSchema:      req.InputSchema,
-		OutputSchema:     req.OutputSchema,
-		ValidationRules:  req.ValidationRules,
-		ErrorHandling:    req.ErrorHandling,
-		IsEnabled:        rule.IsEnabled,
-		ExecutionOrder:   rule.ExecutionOrder,
-		SuccessCount:     rule.SuccessCount,
-		FailureCount:     rule.FailureCount,
-		LastExecuted:     rule.LastExecuted,
-		CreatedAt:        rule.CreatedAt,
-		CreatedBy:        rule.CreatedBy,
-		UpdatedAt:        rule.UpdatedAt,
-		UpdatedBy:        rule.UpdatedBy,
-	}
-
-	return response, nil
 }
 
-// GetTransformationRules 获取转换规则列表
-func (s *GovernanceService) GetTransformationRules(page, pageSize int, ruleType, sourceObjectID string) ([]TransformationRuleResponse, int64, error) {
-	var rules []models.DataTransformationRule
-	var total int64
-
-	query := s.db.Model(&models.DataTransformationRule{})
-
-	if ruleType != "" {
-		query = query.Where("rule_type = ?", ruleType)
-	}
-	if sourceObjectID != "" {
-		query = query.Where("source_object_id = ?", sourceObjectID)
-	}
-
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	offset := (page - 1) * pageSize
-	if err := query.Offset(offset).Limit(pageSize).Order("execution_order ASC, created_at DESC").Find(&rules).Error; err != nil {
-		return nil, 0, err
-	}
-
-	var responses []TransformationRuleResponse
-	for _, rule := range rules {
-		var transformLogic, inputSchema, outputSchema, validationRules, errorHandling map[string]interface{}
-
-		if rule.TransformLogic != nil {
-			transformLogic = map[string]interface{}(rule.TransformLogic)
-		}
-		if rule.InputSchema != nil {
-			inputSchema = map[string]interface{}(rule.InputSchema)
-		}
-		if rule.OutputSchema != nil {
-			outputSchema = map[string]interface{}(rule.OutputSchema)
-		}
-		if rule.ValidationRules != nil {
-			validationRules = map[string]interface{}(rule.ValidationRules)
-		}
-		if rule.ErrorHandling != nil {
-			errorHandling = map[string]interface{}(rule.ErrorHandling)
-		}
-
-		responses = append(responses, TransformationRuleResponse{
-			ID:               rule.ID,
-			Name:             rule.Name,
-			Description:      rule.Description,
-			RuleType:         rule.RuleType,
-			SourceObjectID:   rule.SourceObjectID,
-			SourceObjectType: rule.SourceObjectType,
-			TargetObjectID:   rule.TargetObjectID,
-			TargetObjectType: rule.TargetObjectType,
-			TransformLogic:   transformLogic,
-			InputSchema:      inputSchema,
-			OutputSchema:     outputSchema,
-			ValidationRules:  validationRules,
-			ErrorHandling:    errorHandling,
-			IsEnabled:        rule.IsEnabled,
-			ExecutionOrder:   rule.ExecutionOrder,
-			SuccessCount:     rule.SuccessCount,
-			FailureCount:     rule.FailureCount,
-			LastExecuted:     rule.LastExecuted,
-			CreatedAt:        rule.CreatedAt,
-			CreatedBy:        rule.CreatedBy,
-			UpdatedAt:        rule.UpdatedAt,
-			UpdatedBy:        rule.UpdatedBy,
-		})
-	}
-
-	return responses, total, nil
-}
-
-// GetTransformationRuleByID 根据ID获取转换规则
-func (s *GovernanceService) GetTransformationRuleByID(id string) (*TransformationRuleResponse, error) {
-	var rule models.DataTransformationRule
-	if err := s.db.First(&rule, "id = ?", id).Error; err != nil {
-		return nil, err
-	}
-
-	var transformLogic, inputSchema, outputSchema, validationRules, errorHandling map[string]interface{}
-
-	if rule.TransformLogic != nil {
-		transformLogic = map[string]interface{}(rule.TransformLogic)
-	}
-	if rule.InputSchema != nil {
-		inputSchema = map[string]interface{}(rule.InputSchema)
-	}
-	if rule.OutputSchema != nil {
-		outputSchema = map[string]interface{}(rule.OutputSchema)
-	}
-	if rule.ValidationRules != nil {
-		validationRules = map[string]interface{}(rule.ValidationRules)
-	}
-	if rule.ErrorHandling != nil {
-		errorHandling = map[string]interface{}(rule.ErrorHandling)
-	}
-
-	response := &TransformationRuleResponse{
-		ID:               rule.ID,
-		Name:             rule.Name,
-		Description:      rule.Description,
-		RuleType:         rule.RuleType,
-		SourceObjectID:   rule.SourceObjectID,
-		SourceObjectType: rule.SourceObjectType,
-		TargetObjectID:   rule.TargetObjectID,
-		TargetObjectType: rule.TargetObjectType,
-		TransformLogic:   transformLogic,
-		InputSchema:      inputSchema,
-		OutputSchema:     outputSchema,
-		ValidationRules:  validationRules,
-		ErrorHandling:    errorHandling,
-		IsEnabled:        rule.IsEnabled,
-		ExecutionOrder:   rule.ExecutionOrder,
-		SuccessCount:     rule.SuccessCount,
-		FailureCount:     rule.FailureCount,
-		LastExecuted:     rule.LastExecuted,
-		CreatedAt:        rule.CreatedAt,
-		CreatedBy:        rule.CreatedBy,
-		UpdatedAt:        rule.UpdatedAt,
-		UpdatedBy:        rule.UpdatedBy,
-	}
-
-	return response, nil
-}
-
-// UpdateTransformationRule 更新转换规则
-func (s *GovernanceService) UpdateTransformationRule(id string, req *UpdateTransformationRuleRequest) error {
-	updates := make(map[string]interface{})
-
-	if req.Name != "" {
-		updates["name"] = req.Name
-	}
-	if req.Description != "" {
-		updates["description"] = req.Description
-	}
-	if req.TransformLogic != nil {
-		updates["transform_logic"] = models.JSONB(req.TransformLogic)
-	}
-	if req.ValidationRules != nil {
-		updates["validation_rules"] = models.JSONB(req.ValidationRules)
-	}
-	if req.ErrorHandling != nil {
-		updates["error_handling"] = models.JSONB(req.ErrorHandling)
-	}
-	if req.IsEnabled != nil {
-		updates["is_enabled"] = *req.IsEnabled
-	}
-	if req.ExecutionOrder != nil {
-		updates["execution_order"] = *req.ExecutionOrder
-	}
-
-	return s.db.Model(&models.DataTransformationRule{}).Where("id = ?", id).Updates(updates).Error
-}
-
-// DeleteTransformationRule 删除转换规则
-func (s *GovernanceService) DeleteTransformationRule(id string) error {
-	return s.db.Delete(&models.DataTransformationRule{}, "id = ?", id).Error
-}
-
-// ExecuteTransformationRule 执行转换规则
-func (s *GovernanceService) ExecuteTransformationRule(id string) (*TransformationExecutionResponse, error) {
-	rule, err := s.GetTransformationRuleByID(id)
-	if err != nil {
-		return nil, err
-	}
-
-	if !rule.IsEnabled {
-		return nil, errors.New("转换规则未启用")
-	}
-
-	// 模拟执行转换规则
+// TestQualityRule 测试数据质量规则
+func (s *GovernanceService) TestQualityRule(req *TestQualityRuleRequest) (*TestRuleResponse, error) {
 	startTime := time.Now()
+	testID := uuid.New().String()
 
-	// 模拟处理时间
-	time.Sleep(2 * time.Second)
-
-	endTime := time.Now()
-	duration := endTime.Sub(startTime).Milliseconds()
-
-	// 模拟执行结果
-	processedCount := int64(1000)
-	successCount := int64(950)
-	failureCount := processedCount - successCount
-
-	result := &TransformationExecutionResponse{
-		ID:             fmt.Sprintf("trans_exec_%s_%d", id, time.Now().Unix()),
-		RuleID:         id,
-		StartTime:      startTime,
-		EndTime:        &endTime,
-		Duration:       duration,
-		Status:         "completed",
-		ProcessedCount: processedCount,
-		SuccessCount:   successCount,
-		FailureCount:   failureCount,
-		ExecutionResult: map[string]interface{}{
-			"summary":         "数据转换完成",
-			"processed_count": processedCount,
-			"success_rate":    float64(successCount) / float64(processedCount),
-		},
+	// 获取规则模板
+	template, err := s.GetQualityRuleByID(req.RuleTemplateID)
+	if err != nil {
+		return nil, fmt.Errorf("获取质量规则模板失败: %v", err)
 	}
 
-	// 更新规则统计信息
-	s.db.Model(&models.DataTransformationRule{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"success_count": gorm.Expr("success_count + ?", successCount),
-		"failure_count": gorm.Expr("failure_count + ?", failureCount),
-		"last_executed": &endTime,
-	})
-
-	return result, nil
-}
-
-// === 校验规则管理 ===
-
-// CreateValidationRule 创建校验规则
-func (s *GovernanceService) CreateValidationRule(req *CreateValidationRuleRequest) (*ValidationRuleResponse, error) {
-	rule := &models.DataValidationRule{
-		Name:             req.Name,
-		Description:      req.Description,
-		RuleType:         req.RuleType,
-		TargetObjectID:   req.TargetObjectID,
-		TargetObjectType: req.TargetObjectType,
-		TargetColumn:     req.TargetColumn,
-		ValidationLogic:  models.JSONB(req.ValidationLogic),
-		ErrorMessage:     req.ErrorMessage,
-		Severity:         req.Severity,
-		IsEnabled:        req.IsEnabled,
-		StopOnFailure:    req.StopOnFailure,
-		Priority:         req.Priority,
+	// 构建质量规则配置
+	config := models.QualityRuleConfig{
+		RuleTemplateID: req.RuleTemplateID,
+		TargetFields:   req.TargetFields,
+		RuntimeConfig:  models.JSONB(req.RuntimeConfig),
+		Threshold:      models.JSONB(req.Threshold),
+		IsEnabled:      true,
 	}
 
-	if err := s.db.Create(rule).Error; err != nil {
-		return nil, err
+	// 执行质量规则
+	result, err := s.ruleEngine.ApplyQualityRules(req.TestData, []models.QualityRuleConfig{config})
+	if err != nil {
+		return &TestRuleResponse{
+			TestID:          testID,
+			TotalRules:      1,
+			SuccessfulRules: 0,
+			FailedRules:     1,
+			OverallSuccess:  false,
+			ExecutionTime:   time.Since(startTime).Milliseconds(),
+			Results: []RuleTestResult{{
+				RuleType:       "quality",
+				RuleTemplateID: req.RuleTemplateID,
+				RuleName:       template.Name,
+				Success:        false,
+				OriginalData:   req.TestData,
+				ExecutionTime:  time.Since(startTime).Milliseconds(),
+				ErrorMessage:   err.Error(),
+			}},
+			Summary: createTestSummary(1, 0, 0, 0),
+		}, nil
 	}
 
-	response := &ValidationRuleResponse{
-		ID:               rule.ID,
-		Name:             rule.Name,
-		Description:      rule.Description,
-		RuleType:         rule.RuleType,
-		TargetObjectID:   rule.TargetObjectID,
-		TargetObjectType: rule.TargetObjectType,
-		TargetColumn:     rule.TargetColumn,
-		ValidationLogic:  req.ValidationLogic,
-		ErrorMessage:     rule.ErrorMessage,
-		Severity:         rule.Severity,
-		IsEnabled:        rule.IsEnabled,
-		StopOnFailure:    rule.StopOnFailure,
-		Priority:         rule.Priority,
-		SuccessCount:     rule.SuccessCount,
-		FailureCount:     rule.FailureCount,
-		LastExecuted:     rule.LastExecuted,
-		CreatedAt:        rule.CreatedAt,
-		CreatedBy:        rule.CreatedBy,
-		UpdatedAt:        rule.UpdatedAt,
-		UpdatedBy:        rule.UpdatedBy,
+	// 构建测试结果
+	testResult := RuleTestResult{
+		RuleType:       "quality",
+		RuleTemplateID: req.RuleTemplateID,
+		RuleName:       template.Name,
+		Success:        result.Success,
+		ProcessedData:  result.ProcessedData,
+		OriginalData:   req.TestData,
+		QualityScore:   &result.QualityScore,
+		Issues:         result.Issues,
+		Modifications:  result.Modifications,
+		ExecutionTime:  result.ExecutionTime.Milliseconds(),
+		ErrorMessage:   result.ErrorMessage,
+	}
+
+	successCount := 0
+	if result.Success {
+		successCount = 1
+	}
+
+	response := &TestRuleResponse{
+		TestID:          testID,
+		TotalRules:      1,
+		SuccessfulRules: successCount,
+		FailedRules:     1 - successCount,
+		OverallSuccess:  result.Success,
+		ExecutionTime:   time.Since(startTime).Milliseconds(),
+		Results:         []RuleTestResult{testResult},
+		Summary:         createTestSummary(1, 0, 0, result.QualityScore),
 	}
 
 	return response, nil
 }
 
-// GetValidationRules 获取校验规则列表
-func (s *GovernanceService) GetValidationRules(page, pageSize int, ruleType, targetObjectID, severity string) ([]ValidationRuleResponse, int64, error) {
-	var rules []models.DataValidationRule
-	var total int64
+// TestMaskingRule 测试数据脱敏规则
+func (s *GovernanceService) TestMaskingRule(req *TestMaskingRuleRequest) (*TestRuleResponse, error) {
+	startTime := time.Now()
+	testID := uuid.New().String()
 
-	query := s.db.Model(&models.DataValidationRule{})
-
-	if ruleType != "" {
-		query = query.Where("rule_type = ?", ruleType)
-	}
-	if targetObjectID != "" {
-		query = query.Where("target_object_id = ?", targetObjectID)
-	}
-	if severity != "" {
-		query = query.Where("severity = ?", severity)
+	// 获取脱敏模板
+	template, err := s.GetMaskingRuleByID(req.TemplateID)
+	if err != nil {
+		return nil, fmt.Errorf("获取脱敏规则模板失败: %v", err)
 	}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+	// 构建脱敏规则配置
+	config := models.DataMaskingConfig{
+		TemplateID:     req.TemplateID,
+		TargetFields:   req.TargetFields,
+		MaskingConfig:  models.JSONB(req.MaskingConfig),
+		PreserveFormat: req.PreserveFormat,
+		IsEnabled:      true,
 	}
 
-	offset := (page - 1) * pageSize
-	if err := query.Offset(offset).Limit(pageSize).Order("priority DESC, created_at DESC").Find(&rules).Error; err != nil {
-		return nil, 0, err
+	// 执行脱敏规则
+	result, err := s.ruleEngine.ApplyMaskingRules(req.TestData, []models.DataMaskingConfig{config})
+	if err != nil {
+		return &TestRuleResponse{
+			TestID:          testID,
+			TotalRules:      1,
+			SuccessfulRules: 0,
+			FailedRules:     1,
+			OverallSuccess:  false,
+			ExecutionTime:   time.Since(startTime).Milliseconds(),
+			Results: []RuleTestResult{{
+				RuleType:       "masking",
+				RuleTemplateID: req.TemplateID,
+				RuleName:       template.Name,
+				Success:        false,
+				OriginalData:   req.TestData,
+				ExecutionTime:  time.Since(startTime).Milliseconds(),
+				ErrorMessage:   err.Error(),
+			}},
+			Summary: createTestSummary(0, 1, 0, 0),
+		}, nil
 	}
 
-	var responses []ValidationRuleResponse
-	for _, rule := range rules {
-		var validationLogic map[string]interface{}
+	// 构建测试结果
+	testResult := RuleTestResult{
+		RuleType:       "masking",
+		RuleTemplateID: req.TemplateID,
+		RuleName:       template.Name,
+		Success:        result.Success,
+		ProcessedData:  result.ProcessedData,
+		OriginalData:   req.TestData,
+		Issues:         result.Issues,
+		Modifications:  result.Modifications,
+		ExecutionTime:  result.ExecutionTime.Milliseconds(),
+		ErrorMessage:   result.ErrorMessage,
+	}
 
-		if rule.ValidationLogic != nil {
-			validationLogic = map[string]interface{}(rule.ValidationLogic)
+	successCount := 0
+	if result.Success {
+		successCount = 1
+	}
+
+	response := &TestRuleResponse{
+		TestID:          testID,
+		TotalRules:      1,
+		SuccessfulRules: successCount,
+		FailedRules:     1 - successCount,
+		OverallSuccess:  result.Success,
+		ExecutionTime:   time.Since(startTime).Milliseconds(),
+		Results:         []RuleTestResult{testResult},
+		Summary:         createTestSummary(0, 1, 0, 0),
+	}
+
+	return response, nil
+}
+
+// TestCleansingRule 测试数据清洗规则
+func (s *GovernanceService) TestCleansingRule(req *TestCleansingRuleRequest) (*TestRuleResponse, error) {
+	startTime := time.Now()
+	testID := uuid.New().String()
+
+	// 获取清洗模板
+	template, err := s.GetCleansingRuleByID(req.TemplateID)
+	if err != nil {
+		return nil, fmt.Errorf("获取清洗规则模板失败: %v", err)
+	}
+
+	// 构建清洗规则配置
+	config := models.DataCleansingConfig{
+		TemplateID:       req.TemplateID,
+		TargetFields:     req.TargetFields,
+		CleansingConfig:  req.CleansingConfig,
+		TriggerCondition: req.TriggerCondition,
+		BackupOriginal:   req.BackupOriginal,
+		IsEnabled:        true,
+	}
+
+	// 执行清洗规则
+	result, err := s.ruleEngine.ApplyCleansingRules(req.TestData, []models.DataCleansingConfig{config})
+	if err != nil {
+		return &TestRuleResponse{
+			TestID:          testID,
+			TotalRules:      1,
+			SuccessfulRules: 0,
+			FailedRules:     1,
+			OverallSuccess:  false,
+			ExecutionTime:   time.Since(startTime).Milliseconds(),
+			Results: []RuleTestResult{{
+				RuleType:       "cleansing",
+				RuleTemplateID: req.TemplateID,
+				RuleName:       template.Name,
+				Success:        false,
+				OriginalData:   req.TestData,
+				ExecutionTime:  time.Since(startTime).Milliseconds(),
+				ErrorMessage:   err.Error(),
+			}},
+			Summary: createTestSummary(0, 0, 1, 0),
+		}, nil
+	}
+
+	// 构建测试结果
+	testResult := RuleTestResult{
+		RuleType:       "cleansing",
+		RuleTemplateID: req.TemplateID,
+		RuleName:       template.Name,
+		Success:        result.Success,
+		ProcessedData:  result.ProcessedData,
+		OriginalData:   req.TestData,
+		Issues:         result.Issues,
+		Modifications:  result.Modifications,
+		ExecutionTime:  result.ExecutionTime.Milliseconds(),
+		ErrorMessage:   result.ErrorMessage,
+	}
+
+	successCount := 0
+	if result.Success {
+		successCount = 1
+	}
+
+	response := &TestRuleResponse{
+		TestID:          testID,
+		TotalRules:      1,
+		SuccessfulRules: successCount,
+		FailedRules:     1 - successCount,
+		OverallSuccess:  result.Success,
+		ExecutionTime:   time.Since(startTime).Milliseconds(),
+		Results:         []RuleTestResult{testResult},
+		Summary:         createTestSummary(0, 0, 1, 0),
+	}
+
+	return response, nil
+}
+
+// TestBatchRules 批量测试多个规则
+func (s *GovernanceService) TestBatchRules(req *TestBatchRulesRequest) (*TestRuleResponse, error) {
+	startTime := time.Now()
+	testID := uuid.New().String()
+
+	var results []RuleTestResult
+	var totalRules, successfulRules, failedRules int
+	var qualityChecks, maskingRules, cleansingRules int
+	var overallScore float64
+	var scoreCount int
+
+	currentData := make(map[string]interface{})
+	for k, v := range req.TestData {
+		currentData[k] = v
+	}
+
+	// 根据执行顺序处理规则
+	for _, ruleType := range req.ExecutionOrder {
+		switch ruleType {
+		case "quality":
+			for _, qRule := range req.QualityRules {
+				qualityChecks++
+				totalRules++
+
+				template, err := s.GetQualityRuleByID(qRule.RuleTemplateID)
+				if err != nil {
+					results = append(results, RuleTestResult{
+						RuleType:       "quality",
+						RuleTemplateID: qRule.RuleTemplateID,
+						RuleName:       "未知规则",
+						Success:        false,
+						OriginalData:   currentData,
+						ExecutionTime:  0,
+						ErrorMessage:   fmt.Sprintf("获取规则模板失败: %v", err),
+					})
+					failedRules++
+					continue
+				}
+
+				config := models.QualityRuleConfig{
+					RuleTemplateID: qRule.RuleTemplateID,
+					TargetFields:   qRule.TargetFields,
+					RuntimeConfig:  models.JSONB(qRule.RuntimeConfig),
+					Threshold:      models.JSONB(qRule.Threshold),
+					IsEnabled:      true,
+				}
+
+				result, err := s.ruleEngine.ApplyQualityRules(currentData, []models.QualityRuleConfig{config})
+				if err != nil {
+					results = append(results, RuleTestResult{
+						RuleType:       "quality",
+						RuleTemplateID: qRule.RuleTemplateID,
+						RuleName:       template.Name,
+						Success:        false,
+						OriginalData:   currentData,
+						ExecutionTime:  0,
+						ErrorMessage:   err.Error(),
+					})
+					failedRules++
+					continue
+				}
+
+				results = append(results, RuleTestResult{
+					RuleType:       "quality",
+					RuleTemplateID: qRule.RuleTemplateID,
+					RuleName:       template.Name,
+					Success:        result.Success,
+					ProcessedData:  result.ProcessedData,
+					OriginalData:   currentData,
+					QualityScore:   &result.QualityScore,
+					Issues:         result.Issues,
+					Modifications:  result.Modifications,
+					ExecutionTime:  result.ExecutionTime.Milliseconds(),
+					ErrorMessage:   result.ErrorMessage,
+				})
+
+				if result.Success {
+					successfulRules++
+					overallScore += result.QualityScore
+					scoreCount++
+				} else {
+					failedRules++
+				}
+			}
+
+		case "cleansing":
+			for _, cRule := range req.CleansingRules {
+				cleansingRules++
+				totalRules++
+
+				template, err := s.GetCleansingRuleByID(cRule.TemplateID)
+				if err != nil {
+					results = append(results, RuleTestResult{
+						RuleType:       "cleansing",
+						RuleTemplateID: cRule.TemplateID,
+						RuleName:       "未知规则",
+						Success:        false,
+						OriginalData:   currentData,
+						ExecutionTime:  0,
+						ErrorMessage:   fmt.Sprintf("获取规则模板失败: %v", err),
+					})
+					failedRules++
+					continue
+				}
+
+				config := models.DataCleansingConfig{
+					TemplateID:       cRule.TemplateID,
+					TargetFields:     cRule.TargetFields,
+					CleansingConfig:  cRule.CleansingConfig,
+					TriggerCondition: cRule.TriggerCondition,
+					BackupOriginal:   cRule.BackupOriginal,
+					IsEnabled:        true,
+				}
+
+				result, err := s.ruleEngine.ApplyCleansingRules(currentData, []models.DataCleansingConfig{config})
+				if err != nil {
+					results = append(results, RuleTestResult{
+						RuleType:       "cleansing",
+						RuleTemplateID: cRule.TemplateID,
+						RuleName:       template.Name,
+						Success:        false,
+						OriginalData:   currentData,
+						ExecutionTime:  0,
+						ErrorMessage:   err.Error(),
+					})
+					failedRules++
+					continue
+				}
+
+				results = append(results, RuleTestResult{
+					RuleType:       "cleansing",
+					RuleTemplateID: cRule.TemplateID,
+					RuleName:       template.Name,
+					Success:        result.Success,
+					ProcessedData:  result.ProcessedData,
+					OriginalData:   currentData,
+					Issues:         result.Issues,
+					Modifications:  result.Modifications,
+					ExecutionTime:  result.ExecutionTime.Milliseconds(),
+					ErrorMessage:   result.ErrorMessage,
+				})
+
+				if result.Success {
+					successfulRules++
+					// 更新当前数据为处理后的数据，供后续规则使用
+					currentData = result.ProcessedData
+				} else {
+					failedRules++
+				}
+			}
+
+		case "masking":
+			for _, mRule := range req.MaskingRules {
+				maskingRules++
+				totalRules++
+
+				template, err := s.GetMaskingRuleByID(mRule.TemplateID)
+				if err != nil {
+					results = append(results, RuleTestResult{
+						RuleType:       "masking",
+						RuleTemplateID: mRule.TemplateID,
+						RuleName:       "未知规则",
+						Success:        false,
+						OriginalData:   currentData,
+						ExecutionTime:  0,
+						ErrorMessage:   fmt.Sprintf("获取规则模板失败: %v", err),
+					})
+					failedRules++
+					continue
+				}
+
+				config := models.DataMaskingConfig{
+					TemplateID:     mRule.TemplateID,
+					TargetFields:   mRule.TargetFields,
+					MaskingConfig:  models.JSONB(mRule.MaskingConfig),
+					PreserveFormat: mRule.PreserveFormat,
+					IsEnabled:      true,
+				}
+
+				result, err := s.ruleEngine.ApplyMaskingRules(currentData, []models.DataMaskingConfig{config})
+				if err != nil {
+					results = append(results, RuleTestResult{
+						RuleType:       "masking",
+						RuleTemplateID: mRule.TemplateID,
+						RuleName:       template.Name,
+						Success:        false,
+						OriginalData:   currentData,
+						ExecutionTime:  0,
+						ErrorMessage:   err.Error(),
+					})
+					failedRules++
+					continue
+				}
+
+				results = append(results, RuleTestResult{
+					RuleType:       "masking",
+					RuleTemplateID: mRule.TemplateID,
+					RuleName:       template.Name,
+					Success:        result.Success,
+					ProcessedData:  result.ProcessedData,
+					OriginalData:   currentData,
+					Issues:         result.Issues,
+					Modifications:  result.Modifications,
+					ExecutionTime:  result.ExecutionTime.Milliseconds(),
+					ErrorMessage:   result.ErrorMessage,
+				})
+
+				if result.Success {
+					successfulRules++
+					// 更新当前数据为处理后的数据，供后续规则使用
+					currentData = result.ProcessedData
+				} else {
+					failedRules++
+				}
+			}
+		}
+	}
+
+	// 计算平均分数
+	if scoreCount > 0 {
+		overallScore = overallScore / float64(scoreCount)
+	}
+
+	// 生成建议
+	var recommendations []string
+	if failedRules > 0 {
+		recommendations = append(recommendations, fmt.Sprintf("有%d个规则执行失败，建议检查规则配置", failedRules))
+	}
+	if overallScore < 0.8 && scoreCount > 0 {
+		recommendations = append(recommendations, "数据质量评分较低，建议优化数据质量规则")
+	}
+
+	response := &TestRuleResponse{
+		TestID:          testID,
+		TotalRules:      totalRules,
+		SuccessfulRules: successfulRules,
+		FailedRules:     failedRules,
+		OverallSuccess:  failedRules == 0,
+		ExecutionTime:   time.Since(startTime).Milliseconds(),
+		Results:         results,
+		Summary:         createTestSummary(qualityChecks, maskingRules, cleansingRules, overallScore),
+		Recommendations: recommendations,
+	}
+
+	return response, nil
+}
+
+// TestRulePreview 预览规则执行效果（不实际执行）
+func (s *GovernanceService) TestRulePreview(req *TestRulePreviewRequest) (*TestRulePreviewResponse, error) {
+	var templateName string
+	var expectedChanges []string
+	configValidation := struct {
+		IsValid bool     `json:"is_valid" example:"true"`
+		Issues  []string `json:"issues,omitempty" example:"[\"阈值配置缺失\"]"`
+	}{IsValid: true}
+
+	estimatedImpact := struct {
+		AffectedFields int     `json:"affected_fields" example:"2"`
+		RiskLevel      string  `json:"risk_level" example:"low" enums:"low,medium,high"`
+		Confidence     float64 `json:"confidence" example:"0.9"`
+	}{
+		AffectedFields: len(req.TargetFields),
+		RiskLevel:      "low",
+		Confidence:     0.9,
+	}
+
+	switch req.RuleType {
+	case "quality":
+		template, err := s.GetQualityRuleByID(req.TemplateID)
+		if err != nil {
+			return nil, fmt.Errorf("获取质量规则模板失败: %v", err)
+		}
+		templateName = template.Name
+
+		// 分析预期变化
+		for _, field := range req.TargetFields {
+			switch template.Type {
+			case "completeness":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将被检查是否为空", field))
+			case "accuracy":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将被检查数据准确性", field))
+			case "validity":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将被检查格式有效性", field))
+			default:
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将应用%s质量检查", field, template.Type))
+			}
 		}
 
-		responses = append(responses, ValidationRuleResponse{
-			ID:               rule.ID,
-			Name:             rule.Name,
-			Description:      rule.Description,
-			RuleType:         rule.RuleType,
-			TargetObjectID:   rule.TargetObjectID,
-			TargetObjectType: rule.TargetObjectType,
-			TargetColumn:     rule.TargetColumn,
-			ValidationLogic:  validationLogic,
-			ErrorMessage:     rule.ErrorMessage,
-			Severity:         rule.Severity,
-			IsEnabled:        rule.IsEnabled,
-			StopOnFailure:    rule.StopOnFailure,
-			Priority:         rule.Priority,
-			SuccessCount:     rule.SuccessCount,
-			FailureCount:     rule.FailureCount,
-			LastExecuted:     rule.LastExecuted,
-			CreatedAt:        rule.CreatedAt,
-			CreatedBy:        rule.CreatedBy,
-			UpdatedAt:        rule.UpdatedAt,
-			UpdatedBy:        rule.UpdatedBy,
-		})
+		// 配置验证
+		if req.Configuration == nil {
+			configValidation.Issues = append(configValidation.Issues, "缺少运行时配置")
+		}
+
+	case "masking":
+		template, err := s.GetMaskingRuleByID(req.TemplateID)
+		if err != nil {
+			return nil, fmt.Errorf("获取脱敏规则模板失败: %v", err)
+		}
+		templateName = template.Name
+		estimatedImpact.RiskLevel = "medium"
+
+		// 分析预期变化
+		for _, field := range req.TargetFields {
+			switch template.MaskingType {
+			case "mask":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将被部分掩码处理", field))
+			case "replace":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将被替换为固定值", field))
+			case "encrypt":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将被加密处理", field))
+			case "pseudonymize":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将被假名化处理", field))
+			}
+		}
+
+	case "cleansing":
+		template, err := s.GetCleansingRuleByID(req.TemplateID)
+		if err != nil {
+			return nil, fmt.Errorf("获取清洗规则模板失败: %v", err)
+		}
+		templateName = template.Name
+
+		// 分析预期变化
+		for _, field := range req.TargetFields {
+			switch template.RuleType {
+			case "standardization":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将被标准化处理", field))
+			case "deduplication":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将进行去重处理", field))
+			case "validation":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将进行数据验证", field))
+			case "transformation":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将进行数据转换", field))
+			case "enrichment":
+				expectedChanges = append(expectedChanges, fmt.Sprintf("字段%s将进行数据丰富化", field))
+			}
+		}
 	}
 
-	return responses, total, nil
-}
-
-// GetValidationRuleByID 根据ID获取校验规则
-func (s *GovernanceService) GetValidationRuleByID(id string) (*ValidationRuleResponse, error) {
-	var rule models.DataValidationRule
-	if err := s.db.First(&rule, "id = ?", id).Error; err != nil {
-		return nil, err
+	// 创建预览结果（模拟处理后的数据）
+	previewResult := make(map[string]interface{})
+	for k, v := range req.SampleData {
+		previewResult[k] = v
 	}
 
-	var validationLogic map[string]interface{}
-	if rule.ValidationLogic != nil {
-		validationLogic = map[string]interface{}(rule.ValidationLogic)
+	// 为目标字段添加预览标记
+	for _, field := range req.TargetFields {
+		if originalValue, exists := req.SampleData[field]; exists {
+			switch req.RuleType {
+			case "masking":
+				if str, ok := originalValue.(string); ok && len(str) > 0 {
+					previewResult[field] = fmt.Sprintf("[脱敏处理]%s", str[:1]+"***")
+				}
+			case "cleansing":
+				if str, ok := originalValue.(string); ok {
+					previewResult[field] = fmt.Sprintf("[清洗处理]%s", strings.ToLower(str))
+				}
+			case "quality":
+				previewResult[field+"_质量评分"] = "[将计算质量评分]"
+			}
+		}
 	}
 
-	response := &ValidationRuleResponse{
-		ID:               rule.ID,
-		Name:             rule.Name,
-		Description:      rule.Description,
-		RuleType:         rule.RuleType,
-		TargetObjectID:   rule.TargetObjectID,
-		TargetObjectType: rule.TargetObjectType,
-		TargetColumn:     rule.TargetColumn,
-		ValidationLogic:  validationLogic,
-		ErrorMessage:     rule.ErrorMessage,
-		Severity:         rule.Severity,
-		IsEnabled:        rule.IsEnabled,
-		StopOnFailure:    rule.StopOnFailure,
-		Priority:         rule.Priority,
-		SuccessCount:     rule.SuccessCount,
-		FailureCount:     rule.FailureCount,
-		LastExecuted:     rule.LastExecuted,
-		CreatedAt:        rule.CreatedAt,
-		CreatedBy:        rule.CreatedBy,
-		UpdatedAt:        rule.UpdatedAt,
-		UpdatedBy:        rule.UpdatedBy,
+	response := &TestRulePreviewResponse{
+		RuleType:         req.RuleType,
+		RuleName:         templateName,
+		OriginalData:     req.SampleData,
+		PreviewResult:    previewResult,
+		ExpectedChanges:  expectedChanges,
+		ConfigValidation: configValidation,
+		EstimatedImpact:  estimatedImpact,
 	}
 
 	return response, nil
-}
-
-// UpdateValidationRule 更新校验规则
-func (s *GovernanceService) UpdateValidationRule(id string, req *UpdateValidationRuleRequest) error {
-	updates := make(map[string]interface{})
-
-	if req.Name != "" {
-		updates["name"] = req.Name
-	}
-	if req.Description != "" {
-		updates["description"] = req.Description
-	}
-	if req.ValidationLogic != nil {
-		updates["validation_logic"] = models.JSONB(req.ValidationLogic)
-	}
-	if req.ErrorMessage != "" {
-		updates["error_message"] = req.ErrorMessage
-	}
-	if req.Severity != "" {
-		updates["severity"] = req.Severity
-	}
-	if req.IsEnabled != nil {
-		updates["is_enabled"] = *req.IsEnabled
-	}
-	if req.StopOnFailure != nil {
-		updates["stop_on_failure"] = *req.StopOnFailure
-	}
-	if req.Priority != nil {
-		updates["priority"] = *req.Priority
-	}
-
-	return s.db.Model(&models.DataValidationRule{}).Where("id = ?", id).Updates(updates).Error
-}
-
-// DeleteValidationRule 删除校验规则
-func (s *GovernanceService) DeleteValidationRule(id string) error {
-	return s.db.Delete(&models.DataValidationRule{}, "id = ?", id).Error
-}
-
-// ExecuteValidationRule 执行校验规则
-func (s *GovernanceService) ExecuteValidationRule(id string) (*ValidationExecutionResponse, error) {
-	rule, err := s.GetValidationRuleByID(id)
-	if err != nil {
-		return nil, err
-	}
-
-	if !rule.IsEnabled {
-		return nil, errors.New("校验规则未启用")
-	}
-
-	// 模拟执行校验规则
-	startTime := time.Now()
-
-	// 模拟处理时间
-	time.Sleep(1 * time.Second)
-
-	endTime := time.Now()
-	duration := endTime.Sub(startTime).Milliseconds()
-
-	// 模拟执行结果
-	totalRecords := int64(10000)
-	validRecords := int64(9500)
-	invalidRecords := totalRecords - validRecords
-	validationRate := float64(validRecords) / float64(totalRecords)
-
-	result := &ValidationExecutionResponse{
-		ID:             fmt.Sprintf("valid_exec_%s_%d", id, time.Now().Unix()),
-		RuleID:         id,
-		StartTime:      startTime,
-		EndTime:        &endTime,
-		Duration:       duration,
-		Status:         "completed",
-		TotalRecords:   totalRecords,
-		ValidRecords:   validRecords,
-		InvalidRecords: invalidRecords,
-		ValidationRate: validationRate,
-		ExecutionResult: map[string]interface{}{
-			"summary": "数据校验完成",
-			"error_types": []map[string]interface{}{
-				{"field": rule.TargetColumn, "error": rule.ErrorMessage, "count": invalidRecords},
-			},
-		},
-	}
-
-	// 更新规则统计信息
-	s.db.Model(&models.DataValidationRule{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"success_count": gorm.Expr("success_count + ?", validRecords),
-		"failure_count": gorm.Expr("failure_count + ?", invalidRecords),
-		"last_executed": &endTime,
-	})
-
-	return result, nil
 }

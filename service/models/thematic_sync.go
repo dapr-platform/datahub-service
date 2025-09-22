@@ -23,25 +23,21 @@ type ThematicSyncTask struct {
 	TaskName            string `json:"task_name" gorm:"not null;size:255"`
 	Description         string `json:"description" gorm:"size:1000"`
 
-	// 源数据配置
-	SourceLibraries  JSONB `json:"source_libraries" gorm:"type:jsonb"`  // 源基础库列表
-	SourceInterfaces JSONB `json:"source_interfaces" gorm:"type:jsonb"` // 源接口列表
+	// 源数据配置 - 包含库ID和接口ID的完整配置
+	SourceLibraries JSONBGenericArray `json:"source_libraries" gorm:"type:jsonb"` // 源基础库列表
 
 	// SQL数据源配置 - 如果配置了SQL，则优先使用SQL获取数据
-	DataSourceSQL  JSONB `json:"data_source_sql" gorm:"type:jsonb"`  // SQL数据源配置
-	SQLQueryConfig JSONB `json:"sql_query_config" gorm:"type:jsonb"` // SQL查询配置（参数、超时等）
+	DataSourceSQL  JSONBGenericArray `json:"data_source_sql" gorm:"type:jsonb"`  // SQL数据源配置
+	SQLQueryConfig JSONB             `json:"sql_query_config" gorm:"type:jsonb"` // SQL查询配置（参数、超时等）
 
-	// 汇聚配置
-	AggregationConfig JSONB `json:"aggregation_config" gorm:"type:jsonb"`  // 汇聚配置
+	// 数据处理配置
 	KeyMatchingRules  JSONB `json:"key_matching_rules" gorm:"type:jsonb"`  // 主键匹配规则
 	FieldMappingRules JSONB `json:"field_mapping_rules" gorm:"type:jsonb"` // 字段映射规则
 
-	// 数据治理配置 - 使用数据治理中定义的规则
-	QualityRuleIDs    JSONB `json:"quality_rule_ids" gorm:"type:jsonb"`    // 质量规则ID列表
-	CleansingRuleIDs  JSONB `json:"cleansing_rule_ids" gorm:"type:jsonb"`  // 清洗规则ID列表
-	MaskingRuleIDs    JSONB `json:"masking_rule_ids" gorm:"type:jsonb"`    // 脱敏规则ID列表
-	TransformRuleIDs  JSONB `json:"transform_rule_ids" gorm:"type:jsonb"`  // 转换规则ID列表
-	ValidationRuleIDs JSONB `json:"validation_rule_ids" gorm:"type:jsonb"` // 校验规则ID列表
+	// 数据治理配置 - 包含规则配置和字段映射信息
+	QualityRuleConfigs   JSONBGenericArray `json:"quality_rule_configs" gorm:"type:jsonb"`   // 质量规则配置列表
+	CleansingRuleConfigs JSONBGenericArray `json:"cleansing_rule_configs" gorm:"type:jsonb"` // 清洗规则配置列表
+	MaskingRuleConfigs   JSONBGenericArray `json:"masking_rule_configs" gorm:"type:jsonb"`   // 脱敏规则配置列表
 
 	// 治理配置选项
 	GovernanceConfig JSONB `json:"governance_config" gorm:"type:jsonb"` // 数据治理配置

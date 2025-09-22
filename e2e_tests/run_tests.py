@@ -118,6 +118,13 @@ class TestRunner:
         suite = loader.discover(start_dir, pattern=test_pattern)
         return suite
     
+    def discover_iot_tests(self) -> unittest.TestSuite:
+        """发现物联网系统专用测试用例"""
+        loader = unittest.TestLoader()
+        start_dir = os.path.join(os.path.dirname(__file__), "basic-library")
+        suite = loader.discover(start_dir, pattern="test_iot_*.py")
+        return suite
+    
     def run_tests(self, test_suite: unittest.TestSuite) -> TestResult:
         """运行测试套件"""
         logger.info("开始执行测试...")
@@ -261,6 +268,37 @@ def main():
         help="指定配置文件路径"
     )
     
+    parser.add_argument(
+        "--iot-test",
+        action="store_true",
+        help="运行物联网系统专用测试"
+    )
+    
+    parser.add_argument(
+        "--test-type", "-t",
+        choices=["all", "workflow", "individual", "iot"],
+        default="all",
+        help="指定测试类型 (all=所有测试, workflow=工作流测试, individual=单个API测试, iot=物联网专用测试)"
+    )
+    
+    parser.add_argument(
+        "--skip-cleanup",
+        action="store_true",
+        help="跳过测试数据清理"
+    )
+    
+    parser.add_argument(
+        "--force-cleanup",
+        action="store_true",
+        help="强制清理所有测试数据"
+    )
+    
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="干运行模式，不执行实际操作"
+    )
+    
     args = parser.parse_args()
     
     # 如果指定了配置文件，重新加载配置
@@ -286,6 +324,15 @@ def main():
             if args.test_dir:
                 sys.path.append(args.test_dir)
             suite = loader.loadTestsFromName(args.module)
+        elif args.iot_test or args.test_type == "iot":
+            # 运行物联网专用测试
+            suite = runner.discover_iot_tests()
+        elif args.test_type == "workflow":
+            # 运行工作流测试
+            suite = runner.discover_tests("test_*workflow*.py", args.test_dir)
+        elif args.test_type == "individual":
+            # 运行单个API测试
+            suite = runner.discover_tests("test_individual*.py", args.test_dir)
         else:
             # 发现所有测试
             suite = runner.discover_tests(args.pattern, args.test_dir)

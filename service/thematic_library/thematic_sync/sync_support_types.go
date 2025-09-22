@@ -121,8 +121,6 @@ type TransformConfig struct {
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 
-// AggregationConfig 汇聚配置 - 已在aggregation_engine.go中定义
-
 // FieldMappingRules 字段映射规则
 type FieldMappingRules struct {
 	Rules []FieldMapping `json:"rules"`
@@ -164,37 +162,7 @@ type ValidationErrorExt struct {
 	Suggestion  string      `json:"suggestion,omitempty"`
 }
 
-// 请求和响应结构
-
-// CreateThematicSyncTaskRequest 创建主题同步任务请求
-type CreateThematicSyncTaskRequest struct {
-	ThematicLibraryID   string                `json:"thematic_library_id"`
-	ThematicInterfaceID string                `json:"thematic_interface_id"`
-	TaskName            string                `json:"task_name"`
-	Description         string                `json:"description"`
-	SourceLibraries     []SourceLibraryConfig `json:"source_libraries"`
-	AggregationConfig   *AggregationConfig    `json:"aggregation_config,omitempty"`
-	KeyMatchingRules    *KeyMatchingRules     `json:"key_matching_rules,omitempty"`
-	FieldMappingRules   *FieldMappingRules    `json:"field_mapping_rules,omitempty"`
-	CleansingRules      *CleansingRules       `json:"cleansing_rules,omitempty"`
-	PrivacyRules        *PrivacyRules         `json:"privacy_rules,omitempty"`
-	ScheduleConfig      *ScheduleConfig       `json:"schedule_config"`
-	CreatedBy           string                `json:"created_by"`
-}
-
-// UpdateThematicSyncTaskRequest 更新主题同步任务请求
-type UpdateThematicSyncTaskRequest struct {
-	TaskName          string             `json:"task_name,omitempty"`
-	Description       string             `json:"description,omitempty"`
-	Status            string             `json:"status,omitempty"`
-	ScheduleConfig    *ScheduleConfig    `json:"schedule_config,omitempty"`
-	AggregationConfig *AggregationConfig `json:"aggregation_config,omitempty"`
-	KeyMatchingRules  *KeyMatchingRules  `json:"key_matching_rules,omitempty"`
-	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`
-	CleansingRules    *CleansingRules    `json:"cleansing_rules,omitempty"`
-	PrivacyRules      *PrivacyRules      `json:"privacy_rules,omitempty"`
-	UpdatedBy         string             `json:"updated_by"`
-}
+// 请求和响应结构 - 主要的请求类型已迁移到 thematic_sync_types.go
 
 // ExecuteSyncTaskRequest 执行同步任务请求
 type ExecuteSyncTaskRequest struct {

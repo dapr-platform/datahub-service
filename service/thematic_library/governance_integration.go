@@ -44,7 +44,7 @@ func (gis *GovernanceIntegrationService) ApplyGovernanceRules(
 	records []map[string]interface{},
 	task *models.ThematicSyncTask,
 	config *GovernanceExecutionConfig,
-) (*GovernanceExecutionResult, error) {
+) ([]map[string]interface{}, *GovernanceExecutionResult, error) {
 
 	startTime := time.Now()
 	result := &GovernanceExecutionResult{
@@ -67,30 +67,22 @@ func (gis *GovernanceIntegrationService) ApplyGovernanceRules(
 	var maskingConfigs []models.DataMaskingConfig
 	var cleansingConfigs []models.DataCleansingConfig
 
-	// 从任务的治理配置中获取规则配置
-	if task.GovernanceConfig != nil {
-		governanceConfigMap := map[string]interface{}(task.GovernanceConfig)
-		if governanceConfigMap != nil {
-			// 解析质量规则配置
-			if qualityRulesInterface, exists := governanceConfigMap["quality_rules"]; exists {
-				if qualityRulesBytes, err := json.Marshal(qualityRulesInterface); err == nil {
-					json.Unmarshal(qualityRulesBytes, &qualityConfigs)
-				}
-			}
+	// 从任务的规则配置字段中直接获取规则配置
+	if task.QualityRuleConfigs != nil {
+		if qualityRulesBytes, err := json.Marshal(task.QualityRuleConfigs); err == nil {
+			json.Unmarshal(qualityRulesBytes, &qualityConfigs)
+		}
+	}
 
-			// 解析脱敏规则配置
-			if maskingRulesInterface, exists := governanceConfigMap["masking_rules"]; exists {
-				if maskingRulesBytes, err := json.Marshal(maskingRulesInterface); err == nil {
-					json.Unmarshal(maskingRulesBytes, &maskingConfigs)
-				}
-			}
+	if task.MaskingRuleConfigs != nil {
+		if maskingRulesBytes, err := json.Marshal(task.MaskingRuleConfigs); err == nil {
+			json.Unmarshal(maskingRulesBytes, &maskingConfigs)
+		}
+	}
 
-			// 解析清洗规则配置
-			if cleansingRulesInterface, exists := governanceConfigMap["cleansing_rules"]; exists {
-				if cleansingRulesBytes, err := json.Marshal(cleansingRulesInterface); err == nil {
-					json.Unmarshal(cleansingRulesBytes, &cleansingConfigs)
-				}
-			}
+	if task.CleansingRuleConfigs != nil {
+		if cleansingRulesBytes, err := json.Marshal(task.CleansingRuleConfigs); err == nil {
+			json.Unmarshal(cleansingRulesBytes, &cleansingConfigs)
 		}
 	}
 
@@ -181,5 +173,5 @@ func (gis *GovernanceIntegrationService) ApplyGovernanceRules(
 
 	result.ExecutionTime = time.Since(startTime)
 
-	return result, nil
+	return processedRecords, result, nil
 }

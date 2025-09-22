@@ -106,24 +106,32 @@ class TestBasicLibraryWorkflow(unittest.TestCase):
         # API可能不返回data字段，这是正常的
         print(f"API响应: {response.business_message}")
         
-        # 由于API不返回资源ID，我们通过PostgREST查询获取最新创建的基础库ID
+        # 通过基础库列表API获取最新创建的基础库ID
         try:
-            from utils.postgrest_client import postgrest_client
-            # 查找刚创建的基础库（按创建时间排序，获取最新的）
-            response_query = postgrest_client.list_basic_libraries({
-                'limit': 1,
-                'order': 'created_at.desc'
+            # 查找刚创建的基础库（获取最新的）
+            response_query = self.api_client.list_basic_libraries({
+                'size': 1,
+                'page': 1
             })
-            if response_query.is_success and response_query.data:
-                self.created_resources['library_id'] = response_query.data[0]['id']
-                print(f"获取到创建的基础库ID: {self.created_resources['library_id']}")
+            if response_query.is_success and response_query.business_success:
+                data = response_query.business_data
+                if isinstance(data, dict) and 'list' in data and data['list']:
+                    self.created_resources['library_id'] = data['list'][0]['id']
+                    print(f"获取到创建的基础库ID: {self.created_resources['library_id']}")
+                else:
+                    # 如果查询不到，使用固定的测试ID
+                    self.created_resources['library_id'] = f"test_lib_{self.test_id}"
+                    print(f"查询不到基础库，使用固定测试ID: {self.created_resources['library_id']}")
             else:
-                # 如果查询失败，使用模拟ID
+                # 查询失败，使用固定的测试ID
                 self.created_resources['library_id'] = f"test_lib_{self.test_id}"
-                print(f"查询失败，使用模拟ID: {self.created_resources['library_id']}")
+                print(f"查询基础库失败，使用固定测试ID: {self.created_resources['library_id']}")
+                
         except Exception as e:
             print(f"查询基础库ID时出错: {e}")
+            # 出错时使用固定的测试ID
             self.created_resources['library_id'] = f"test_lib_{self.test_id}"
+            print(f"使用固定测试ID: {self.created_resources['library_id']}")
         
         print(f"基础库创建成功: {response.business_data}")
     
@@ -144,21 +152,24 @@ class TestBasicLibraryWorkflow(unittest.TestCase):
         self.assertTrue(response.is_success, f"HTTP请求失败: {response.status_code}")
         self.assertTrue(response.business_success, f"业务逻辑失败: {response.business_message}")
         
-        # 由于API不返回资源ID，我们通过PostgREST查询获取最新创建的数据源ID
+        # 通过数据源列表API获取最新创建的数据源ID
         try:
-            from utils.postgrest_client import postgrest_client
             # 查找最新的数据源
-            response_query = postgrest_client.list_data_sources({
-                'limit': 1,
-                'order': 'created_at.desc'
-            })
-            if response_query.is_success and response_query.data:
-                self.created_resources['datasource_id'] = response_query.data[0]['id']
-                print(f"获取到创建的数据源ID: {self.created_resources['datasource_id']}")
+            response_query = self.api_client.list_datasources(
+                library_id=self.created_resources['library_id'],
+                params={'size': 1, 'page': 1}
+            )
+            if response_query.is_success and response_query.business_success:
+                data = response_query.business_data
+                if isinstance(data, dict) and 'list' in data and data['list']:
+                    self.created_resources['datasource_id'] = data['list'][0]['id']
+                    print(f"获取到创建的数据源ID: {self.created_resources['datasource_id']}")
+                else:
+                    self.created_resources['datasource_id'] = f"test_ds_{self.test_id}"
+                    print(f"查询不到数据源，使用固定测试ID: {self.created_resources['datasource_id']}")
             else:
-                # 如果查询失败，使用模拟ID
                 self.created_resources['datasource_id'] = f"test_ds_{self.test_id}"
-                print(f"查询失败，使用模拟ID: {self.created_resources['datasource_id']}")
+                print(f"查询数据源失败，使用固定测试ID: {self.created_resources['datasource_id']}")
         except Exception as e:
             print(f"查询数据源ID时出错: {e}")
             self.created_resources['datasource_id'] = f"test_ds_{self.test_id}"
@@ -188,10 +199,15 @@ class TestBasicLibraryWorkflow(unittest.TestCase):
         
         interface_data = self.test_data['data_interface'].copy()
         interface_data.update({
-            'datasource_id': self.created_resources['datasource_id'],
+            'library_id': self.created_resources['library_id'],  # 添加缺失的library_id
+            'data_source_id': self.created_resources['datasource_id'],  # 修正字段名
             'name': f"{interface_data['name']}_{self.test_id}",
             'description': f"测试数据接口 (测试ID: {self.test_id})"
         })
+        
+        # 移除旧的字段名（如果存在）
+        if 'datasource_id' in interface_data:
+            del interface_data['datasource_id']
         
         response = self.api_client.add_interface(interface_data)
         
@@ -199,21 +215,24 @@ class TestBasicLibraryWorkflow(unittest.TestCase):
         self.assertTrue(response.is_success, f"HTTP请求失败: {response.status_code}")
         self.assertTrue(response.business_success, f"业务逻辑失败: {response.business_message}")
         
-        # 由于API不返回资源ID，我们通过PostgREST查询获取最新创建的接口ID
+        # 通过接口列表API获取最新创建的接口ID
         try:
-            from utils.postgrest_client import postgrest_client
             # 查找最新的数据接口
-            response_query = postgrest_client.list_data_interfaces({
-                'limit': 1,
-                'order': 'created_at.desc'
-            })
-            if response_query.is_success and response_query.data:
-                self.created_resources['interface_id'] = response_query.data[0]['id']
-                print(f"获取到创建的接口ID: {self.created_resources['interface_id']}")
+            response_query = self.api_client.list_interfaces(
+                datasource_id=self.created_resources['datasource_id'],
+                params={'size': 1, 'page': 1}
+            )
+            if response_query.is_success and response_query.business_success:
+                data = response_query.business_data
+                if isinstance(data, dict) and 'list' in data and data['list']:
+                    self.created_resources['interface_id'] = data['list'][0]['id']
+                    print(f"获取到创建的接口ID: {self.created_resources['interface_id']}")
+                else:
+                    self.created_resources['interface_id'] = f"test_if_{self.test_id}"
+                    print(f"查询不到接口，使用固定测试ID: {self.created_resources['interface_id']}")
             else:
-                # 如果查询失败，使用模拟ID
                 self.created_resources['interface_id'] = f"test_if_{self.test_id}"
-                print(f"查询失败，使用模拟ID: {self.created_resources['interface_id']}")
+                print(f"查询接口失败，使用固定测试ID: {self.created_resources['interface_id']}")
         except Exception as e:
             print(f"查询接口ID时出错: {e}")
             self.created_resources['interface_id'] = f"test_if_{self.test_id}"
@@ -243,7 +262,38 @@ class TestBasicLibraryWorkflow(unittest.TestCase):
         # 接口测试可能失败，但不应该阻止后续测试
         print(f"接口测试结果: {response.business_success}, 消息: {response.business_message}")
     
-    def test_06_configure_schedule(self):
+    def test_06_create_sync_task(self):
+        """测试创建同步任务"""
+        self.assertIsNotNone(self.created_resources['library_id'], "基础库ID不能为空")
+        self.assertIsNotNone(self.created_resources['datasource_id'], "数据源ID不能为空")
+        self.assertIsNotNone(self.created_resources['interface_id'], "接口ID不能为空")
+        
+        sync_task_data = {
+            'library_id': self.created_resources['library_id'],
+            'data_source_id': self.created_resources['datasource_id'],
+            'interface_ids': [self.created_resources['interface_id']],
+            'task_type': 'full_sync',
+            'trigger_type': 'manual',
+            'config': {
+                'batch_size': 1000,
+                'timeout': 300
+            },
+            'created_by': f'e2e_test_{self.test_id}'
+        }
+        
+        response = self.api_client.create_sync_task(sync_task_data)
+        
+        # 验证响应
+        self.assertTrue(response.is_success, f"HTTP请求失败: {response.status_code}")
+        
+        if response.business_success and response.business_data:
+            self.created_resources['sync_task_id'] = response.business_data.get('id', f"sync_task_{self.test_id}")
+        else:
+            self.created_resources['sync_task_id'] = f"sync_task_{self.test_id}"
+        
+        print(f"同步任务创建结果: {response.business_success}, 消息: {response.business_message}")
+    
+    def test_07_configure_schedule(self):
         """测试配置调度"""
         self.assertIsNotNone(self.created_resources['datasource_id'], "数据源ID不能为空")
         
@@ -260,7 +310,7 @@ class TestBasicLibraryWorkflow(unittest.TestCase):
         
         print(f"调度配置结果: {response.business_success}, 消息: {response.business_message}")
     
-    def test_07_validate_workflow_health(self):
+    def test_08_validate_workflow_health(self):
         """测试工作流健康状态"""
         self.assertIsNotNone(self.created_resources['library_id'], "基础库ID不能为空")
         self.assertIsNotNone(self.created_resources['datasource_id'], "数据源ID不能为空")
@@ -280,7 +330,7 @@ class TestBasicLibraryWorkflow(unittest.TestCase):
         
         print(f"工作流健康状态: {health_status}")
     
-    def test_08_complete_workflow_integration(self):
+    def test_09_complete_workflow_integration(self):
         """测试完整工作流集成"""
         # 这是一个综合测试，验证所有组件是否正常协作
         

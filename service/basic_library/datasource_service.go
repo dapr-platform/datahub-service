@@ -90,6 +90,16 @@ func (s *DatasourceService) CreateDataSource(dataSource *models.DataSource) erro
 	return nil
 }
 
+// GetDataSource 获取数据源详情
+func (s *DatasourceService) GetDataSource(id string) (*models.DataSource, error) {
+	var dataSource models.DataSource
+	err := s.db.Preload("BasicLibrary").First(&dataSource, "id = ?", id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &dataSource, nil
+}
+
 // UpdateDataSource 更新数据源
 func (s *DatasourceService) UpdateDataSource(id string, updates map[string]interface{}) error {
 	// 检查是否存在

@@ -410,6 +410,11 @@ func (s *Service) UpdateDataSource(id string, updates map[string]interface{}) er
 	return s.datasourceService.UpdateDataSource(id, updates)
 }
 
+// GetDataSource 获取数据源详情
+func (s *Service) GetDataSource(id string) (*models.DataSource, error) {
+	return s.datasourceService.GetDataSource(id)
+}
+
 // DeleteDataSource 删除数据源
 func (s *Service) DeleteDataSource(dataSource *models.DataSource) error {
 	return s.datasourceService.DeleteDataSource(dataSource)

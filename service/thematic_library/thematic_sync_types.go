@@ -37,17 +37,14 @@ type CreateThematicSyncTaskRequest struct {
 	SourceLibraries []SourceLibraryConfig `json:"source_libraries,omitempty"`
 	DataSourceSQL   []SQLDataSourceConfig `json:"data_source_sql,omitempty"`
 
-	AggregationConfig *AggregationConfig `json:"aggregation_config,omitempty"`
 	KeyMatchingRules  *KeyMatchingRules  `json:"key_matching_rules,omitempty"`
 	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`
 
-	// 数据治理规则配置 - 使用数据治理中定义的规则ID
-	QualityRuleIDs    []string                   `json:"quality_rule_ids,omitempty"`    // 质量规则ID列表
-	CleansingRuleIDs  []string                   `json:"cleansing_rule_ids,omitempty"`  // 清洗规则ID列表
-	MaskingRuleIDs    []string                   `json:"masking_rule_ids,omitempty"`    // 脱敏规则ID列表
-	TransformRuleIDs  []string                   `json:"transform_rule_ids,omitempty"`  // 转换规则ID列表
-	ValidationRuleIDs []string                   `json:"validation_rule_ids,omitempty"` // 校验规则ID列表
-	GovernanceConfig  *GovernanceExecutionConfig `json:"governance_config,omitempty"`   // 数据治理执行配置
+	// 数据治理规则配置 - 使用数据治理中定义的规则配置，包含字段信息
+	QualityRuleConfigs   []models.QualityRuleConfig   `json:"quality_rule_configs,omitempty"`   // 质量规则配置列表
+	CleansingRuleConfigs []models.DataCleansingConfig `json:"cleansing_rule_configs,omitempty"` // 清洗规则配置列表
+	MaskingRuleConfigs   []models.DataMaskingConfig   `json:"masking_rule_configs,omitempty"`   // 脱敏规则配置列表
+	GovernanceConfig     *GovernanceExecutionConfig   `json:"governance_config,omitempty"`      // 数据治理执行配置
 
 	ScheduleConfig *ScheduleConfig `json:"schedule_config" binding:"required"`
 	CreatedBy      string          `json:"created_by" binding:"required"`
@@ -59,17 +56,14 @@ type UpdateThematicSyncTaskRequest struct {
 	Description       string             `json:"description"`
 	Status            string             `json:"status"`
 	ScheduleConfig    *ScheduleConfig    `json:"schedule_config,omitempty"`
-	AggregationConfig *AggregationConfig `json:"aggregation_config,omitempty"`
 	KeyMatchingRules  *KeyMatchingRules  `json:"key_matching_rules,omitempty"`
 	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`
 
-	// 数据治理规则配置 - 使用数据治理中定义的规则ID
-	QualityRuleIDs    []string                   `json:"quality_rule_ids,omitempty"`    // 质量规则ID列表
-	CleansingRuleIDs  []string                   `json:"cleansing_rule_ids,omitempty"`  // 清洗规则ID列表
-	MaskingRuleIDs    []string                   `json:"masking_rule_ids,omitempty"`    // 脱敏规则ID列表
-	TransformRuleIDs  []string                   `json:"transform_rule_ids,omitempty"`  // 转换规则ID列表
-	ValidationRuleIDs []string                   `json:"validation_rule_ids,omitempty"` // 校验规则ID列表
-	GovernanceConfig  *GovernanceExecutionConfig `json:"governance_config,omitempty"`   // 数据治理执行配置
+	// 数据治理规则配置 - 使用数据治理中定义的规则配置，包含字段信息
+	QualityRuleConfigs   []models.QualityRuleConfig   `json:"quality_rule_configs,omitempty"`   // 质量规则配置列表
+	CleansingRuleConfigs []models.DataCleansingConfig `json:"cleansing_rule_configs,omitempty"` // 清洗规则配置列表
+	MaskingRuleConfigs   []models.DataMaskingConfig   `json:"masking_rule_configs,omitempty"`   // 脱敏规则配置列表
+	GovernanceConfig     *GovernanceExecutionConfig   `json:"governance_config,omitempty"`      // 数据治理执行配置
 
 	UpdatedBy string `json:"updated_by" binding:"required"`
 }
@@ -93,7 +87,7 @@ type ListSyncTasksResponse struct {
 
 // ExecuteSyncTaskRequest 执行同步任务请求
 type ExecuteSyncTaskRequest struct {
-	ExecutionType string                `json:"execution_type,default=manual"`
+	ExecutionType string                `json:"execution_type"`
 	Options       *SyncExecutionOptions `json:"options,omitempty"`
 }
 
@@ -128,18 +122,15 @@ type ThematicSyncTaskStatistics struct {
 
 // GovernanceExecutionConfig 数据治理执行配置
 type GovernanceExecutionConfig struct {
-	EnableQualityCheck      bool                   `json:"enable_quality_check"`       // 启用质量检查
-	EnableCleansing         bool                   `json:"enable_cleansing"`           // 启用数据清洗
-	EnableMasking           bool                   `json:"enable_masking"`             // 启用数据脱敏
-	EnableTransformation    bool                   `json:"enable_transformation"`      // 启用数据转换
-	EnableValidation        bool                   `json:"enable_validation"`          // 启用数据校验
-	StopOnQualityFailure    bool                   `json:"stop_on_quality_failure"`    // 质量检查失败时停止
-	StopOnValidationFailure bool                   `json:"stop_on_validation_failure"` // 校验失败时停止
-	QualityThreshold        float64                `json:"quality_threshold"`          // 质量阈值
-	BatchSize               int                    `json:"batch_size"`                 // 批处理大小
-	MaxRetries              int                    `json:"max_retries"`                // 最大重试次数
-	TimeoutSeconds          int                    `json:"timeout_seconds"`            // 超时时间（秒）
-	CustomConfig            map[string]interface{} `json:"custom_config,omitempty"`    // 自定义配置
+	EnableQualityCheck   bool                   `json:"enable_quality_check"`    // 启用质量检查
+	EnableCleansing      bool                   `json:"enable_cleansing"`        // 启用数据清洗
+	EnableMasking        bool                   `json:"enable_masking"`          // 启用数据脱敏
+	StopOnQualityFailure bool                   `json:"stop_on_quality_failure"` // 质量检查失败时停止
+	QualityThreshold     float64                `json:"quality_threshold"`       // 质量阈值
+	BatchSize            int                    `json:"batch_size"`              // 批处理大小
+	MaxRetries           int                    `json:"max_retries"`             // 最大重试次数
+	TimeoutSeconds       int                    `json:"timeout_seconds"`         // 超时时间（秒）
+	CustomConfig         map[string]interface{} `json:"custom_config,omitempty"` // 自定义配置
 }
 
 // GovernanceExecutionResult 数据治理执行结果

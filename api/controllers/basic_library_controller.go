@@ -17,6 +17,7 @@ import (
 	"datahub-service/service/models"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -173,21 +174,28 @@ func (c *BasicLibraryController) AddBasicLibrary(w http.ResponseWriter, r *http.
 // @Summary 删除数据基础库
 // @Description 删除数据基础库
 // @Tags 数据基础库
-// @Accept json
 // @Produce json
-// @Param request body models.BasicLibrary true "数据基础库请求"
+// @Param id path string true "数据基础库ID"
 // @Success 200 {object} APIResponse
 // @Failure 400 {object} APIResponse
 // @Failure 500 {object} APIResponse
-// @Router /basic-libraries/delete-basic-library [post]
+// @Router /basic-libraries/{id} [delete]
 func (c *BasicLibraryController) DeleteBasicLibrary(w http.ResponseWriter, r *http.Request) {
-	var req models.BasicLibrary
-	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("数据基础库ID不能为空", nil))
 		return
 	}
 
-	err := c.service.DeleteBasicLibrary(&req)
+	// 先根据ID查询基础库信息
+	library, err := c.service.GetBasicLibrary(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("查询数据基础库失败", err))
+		return
+	}
+
+	// 调用删除方法
+	err = c.service.DeleteBasicLibrary(library)
 	if err != nil {
 		render.JSON(w, r, InternalErrorResponse("删除数据基础库失败", err))
 		return
@@ -334,21 +342,28 @@ func (c *BasicLibraryController) UpdateDataSource(w http.ResponseWriter, r *http
 // @Summary 删除数据源
 // @Description 删除数据源
 // @Tags 数据基础库
-// @Accept json
 // @Produce json
-// @Param request body models.DataSource true "数据源请求"
+// @Param id path string true "数据源ID"
 // @Success 200 {object} APIResponse
 // @Failure 400 {object} APIResponse
 // @Failure 500 {object} APIResponse
-// @Router /basic-libraries/delete-datasource [post]
+// @Router /basic-libraries/datasources/{id} [delete]
 func (c *BasicLibraryController) DeleteDataSource(w http.ResponseWriter, r *http.Request) {
-	var req models.DataSource
-	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("数据源ID不能为空", nil))
 		return
 	}
 
-	err := c.service.DeleteDataSource(&req)
+	// 先根据ID查询数据源信息
+	dataSource, err := c.service.GetDataSource(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("查询数据源失败", err))
+		return
+	}
+
+	// 调用删除方法
+	err = c.service.DeleteDataSource(dataSource)
 	if err != nil {
 		render.JSON(w, r, InternalErrorResponse("删除数据源失败", err))
 		return
@@ -452,21 +467,28 @@ func (c *BasicLibraryController) UpdateInterface(w http.ResponseWriter, r *http.
 // @Summary 删除数据接口
 // @Description 删除数据接口
 // @Tags 数据基础库
-// @Accept json
 // @Produce json
-// @Param request body models.DataInterface true "数据接口请求"
+// @Param id path string true "数据接口ID"
 // @Success 200 {object} APIResponse
 // @Failure 400 {object} APIResponse
 // @Failure 500 {object} APIResponse
-// @Router /basic-libraries/delete-interface [post]
+// @Router /basic-libraries/interfaces/{id} [delete]
 func (c *BasicLibraryController) DeleteInterface(w http.ResponseWriter, r *http.Request) {
-	var req models.DataInterface
-	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("数据接口ID不能为空", nil))
 		return
 	}
 
-	err := c.service.DeleteDataInterface(&req)
+	// 先根据ID查询数据接口信息
+	dataInterface, err := c.service.GetDataInterface(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("查询数据接口失败", err))
+		return
+	}
+
+	// 调用删除方法
+	err = c.service.DeleteDataInterface(dataInterface)
 	if err != nil {
 		render.JSON(w, r, InternalErrorResponse("删除数据接口失败", err))
 		return
@@ -769,8 +791,43 @@ func (c *BasicLibraryController) UpdateInterfaceFields(w http.ResponseWriter, r 
 		return
 	}
 
+	// 验证字段配置的基本规则
+	primaryKeyCount := 0
+	for _, field := range req.Fields {
+		if field.IsPrimaryKey {
+			primaryKeyCount++
+		}
+		if field.NameEn == "" {
+			render.JSON(w, r, BadRequestResponse("字段英文名不能为空", nil))
+			return
+		}
+	}
+
+	if primaryKeyCount == 0 {
+		render.JSON(w, r, BadRequestResponse("至少需要一个主键字段", nil))
+		return
+	}
+
+	if primaryKeyCount > 1 {
+		render.JSON(w, r, BadRequestResponse("目前只支持单一主键", nil))
+		return
+	}
+
 	err := c.service.UpdateInterfaceFields(req.InterfaceID, req.Fields, req.UpdateTable)
 	if err != nil {
+		// 根据错误类型提供更具体的错误信息
+		if strings.Contains(err.Error(), "primary key") {
+			render.JSON(w, r, BadRequestResponse("主键字段配置错误：主键字段不能为空且必须唯一", err))
+			return
+		}
+		if strings.Contains(err.Error(), "创建表结构失败") {
+			render.JSON(w, r, InternalErrorResponse("创建数据库表结构失败", err))
+			return
+		}
+		if strings.Contains(err.Error(), "更新表结构失败") {
+			render.JSON(w, r, InternalErrorResponse("更新数据库表结构失败，但字段配置已保存", err))
+			return
+		}
 		render.JSON(w, r, InternalErrorResponse("更新接口字段配置失败", err))
 		return
 	}

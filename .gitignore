@@ -56,4 +56,5 @@ Thumbs.db
 datahub-service
 start.sh
 ai_docs/
+e2e_tests/
 *.md

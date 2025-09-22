@@ -195,6 +195,11 @@ class TestConfig:
         merged_config = self.get_merged_config(module_name)
         return merged_config.get('cleanup', {})
     
+    def get_test_control_config_for_module(self, module_name: str) -> Dict[str, Any]:
+        """获取模块的测试控制配置"""
+        merged_config = self.get_merged_config(module_name)
+        return merged_config.get('test_control', {})
+    
     def get(self, key: str, default: Any = None) -> Any:
         """获取通用配置项"""
         keys = key.split('.')

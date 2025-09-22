@@ -46,41 +46,8 @@ class BasicLibraryAPIClient(APIClient):
         return self.get(f'basic-library/{library_id}')
     
     def list_basic_libraries(self, params: Dict[str, Any] = None) -> APIResponse:
-        """列出基础库 - 通过PostgREST SDK访问basic_libraries_info视图"""
-        try:
-            from utils.postgrest_client import postgrest_client
-            postgrest_response = postgrest_client.list_basic_libraries(params)
-            
-            # 将PostgREST响应转换为APIResponse格式
-            import requests
-            mock_response = requests.Response()
-            
-            if postgrest_response.is_success:
-                mock_response.status_code = 200
-                response_data = {
-                    "status": 0,
-                    "msg": "获取基础库列表成功",
-                    "data": postgrest_response.data
-                }
-                mock_response._content = str(response_data).replace("'", '"').encode('utf-8')
-            else:
-                mock_response.status_code = 500
-                response_data = {
-                    "status": -1,
-                    "msg": postgrest_response.business_message,
-                    "data": []
-                }
-                mock_response._content = str(response_data).replace("'", '"').encode('utf-8')
-            
-            return APIResponse(mock_response)
-            
-        except Exception as e:
-            # 如果PostgREST不可用，返回模拟响应
-            import requests
-            mock_response = requests.Response()
-            mock_response.status_code = 503
-            mock_response._content = f'{{"status": -1, "msg": "PostgREST服务不可用: {str(e)}", "data": []}}'.encode('utf-8')
-            return APIResponse(mock_response)
+        """列出基础库 - 使用原生API"""
+        return self.get('', params)
     
     # ==================== 数据源管理接口 ====================
     
@@ -105,12 +72,23 @@ class BasicLibraryAPIClient(APIClient):
         return self.get(f'datasource-status/{datasource_id}')
     
     def list_datasources(self, library_id: str = None, params: Dict[str, Any] = None) -> APIResponse:
-        """列出数据源"""
+        """列出数据源 - 使用原生API"""
+        # 使用基础库控制器的数据源列表API
+        from utils.api_client import APIClient
+        datasource_client = APIClient(
+            base_url=self.base_url,
+            api_prefix='/swagger/datahub-service/basic-libraries',
+            timeout=self.timeout,
+            retry_count=self.retry_count,
+            headers=self.headers
+        )
+        
+        # 构建查询参数
+        query_params = params or {}
         if library_id:
-            endpoint = f'basic-library/{library_id}/datasources'
-        else:
-            endpoint = 'datasources'
-        return self.get(endpoint, params)
+            query_params['library_id'] = library_id
+            
+        return datasource_client.get('datasources', query_params)
     
     # ==================== 数据接口管理接口 ====================
     
@@ -139,12 +117,23 @@ class BasicLibraryAPIClient(APIClient):
         return self.get(f'interface/{interface_id}')
     
     def list_interfaces(self, datasource_id: str = None, params: Dict[str, Any] = None) -> APIResponse:
-        """列出数据接口"""
+        """列出数据接口 - 使用原生API"""
+        # 使用基础库控制器的接口列表API
+        from utils.api_client import APIClient
+        interface_client = APIClient(
+            base_url=self.base_url,
+            api_prefix='/swagger/datahub-service/basic-libraries',
+            timeout=self.timeout,
+            retry_count=self.retry_count,
+            headers=self.headers
+        )
+        
+        # 构建查询参数
+        query_params = params or {}
         if datasource_id:
-            endpoint = f'datasource/{datasource_id}/interfaces'
-        else:
-            endpoint = 'interfaces'
-        return self.get(endpoint, params)
+            query_params['data_source_id'] = datasource_id
+            
+        return interface_client.get('interfaces', query_params)
     
     # ==================== 调度配置接口 ====================
     
@@ -246,3 +235,86 @@ class BasicLibraryAPIClient(APIClient):
         ])
         
         return health_status
+    
+    def get_basic_libraries(self, params: Dict[str, Any] = None) -> APIResponse:
+        """获取基础库列表 - 兼容性方法"""
+        return self.list_basic_libraries(params)
+    
+    def find_library_by_name_en(self, name_en: str) -> APIResponse:
+        """通过name_en查找基础库"""
+        return self.list_basic_libraries({"name": name_en, "size": 1})
+    
+    # ==================== 同步任务管理接口 ====================
+    
+    def create_sync_task(self, sync_task_data: Dict[str, Any]) -> APIResponse:
+        """创建同步任务"""
+        # 使用统一的同步任务接口
+        from utils.api_client import APIClient
+        sync_client = APIClient(
+            base_url=self.base_url,
+            api_prefix='/swagger/datahub-service/sync/tasks',
+            timeout=self.timeout,
+            retry_count=self.retry_count,
+            headers=self.headers
+        )
+        return sync_client.post('', sync_task_data)
+    
+    def get_sync_task_list(self, params: Dict[str, Any] = None) -> APIResponse:
+        """获取同步任务列表"""
+        from utils.api_client import APIClient
+        sync_client = APIClient(
+            base_url=self.base_url,
+            api_prefix='/swagger/datahub-service/sync/tasks',
+            timeout=self.timeout,
+            retry_count=self.retry_count,
+            headers=self.headers
+        )
+        return sync_client.get('', params)
+    
+    def get_sync_task(self, task_id: str) -> APIResponse:
+        """获取同步任务详情"""
+        from utils.api_client import APIClient
+        sync_client = APIClient(
+            base_url=self.base_url,
+            api_prefix='/swagger/datahub-service/sync/tasks',
+            timeout=self.timeout,
+            retry_count=self.retry_count,
+            headers=self.headers
+        )
+        return sync_client.get(task_id)
+    
+    def start_sync_task(self, task_id: str) -> APIResponse:
+        """启动同步任务"""
+        from utils.api_client import APIClient
+        sync_client = APIClient(
+            base_url=self.base_url,
+            api_prefix='/swagger/datahub-service/sync/tasks',
+            timeout=self.timeout,
+            retry_count=self.retry_count,
+            headers=self.headers
+        )
+        return sync_client.post(f'{task_id}/start', {})
+    
+    def get_sync_task_status(self, task_id: str) -> APIResponse:
+        """获取同步任务状态"""
+        from utils.api_client import APIClient
+        sync_client = APIClient(
+            base_url=self.base_url,
+            api_prefix='/swagger/datahub-service/sync/tasks',
+            timeout=self.timeout,
+            retry_count=self.retry_count,
+            headers=self.headers
+        )
+        return sync_client.get(f'{task_id}/status')
+    
+    def get_sync_task_executions(self, task_id: str) -> APIResponse:
+        """获取同步任务执行记录"""
+        from utils.api_client import APIClient
+        sync_client = APIClient(
+            base_url=self.base_url,
+            api_prefix='/swagger/datahub-service/sync/tasks',
+            timeout=self.timeout,
+            retry_count=self.retry_count,
+            headers=self.headers
+        )
+        return sync_client.get(f'{task_id}/executions')

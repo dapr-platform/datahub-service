@@ -126,7 +126,7 @@ func InitRoute(r *chi.Mux) {
 		r.Post("/update-basic-library", basicLibraryController.UpdateBasicLibrary)
 
 		// 删除数据基础库，需要删除schema
-		r.Post("/delete-basic-library", basicLibraryController.DeleteBasicLibrary)
+		r.Delete("/{id}", basicLibraryController.DeleteBasicLibrary)
 
 		// 添加数据源
 		r.Post("/add-datasource", basicLibraryController.AddDataSource)
@@ -135,7 +135,7 @@ func InitRoute(r *chi.Mux) {
 		r.Post("/update-datasource", basicLibraryController.UpdateDataSource)
 
 		// 删除数据源
-		r.Post("/delete-datasource", basicLibraryController.DeleteDataSource)
+		r.Delete("/datasources/{id}", basicLibraryController.DeleteDataSource)
 
 		// 添加数据接口
 		r.Post("/add-interface", basicLibraryController.AddInterface)
@@ -144,7 +144,7 @@ func InitRoute(r *chi.Mux) {
 		r.Post("/update-interface", basicLibraryController.UpdateInterface)
 
 		// 删除数据接口
-		r.Post("/delete-interface", basicLibraryController.DeleteInterface)
+		r.Delete("/interfaces/{id}", basicLibraryController.DeleteInterface)
 
 		// 更新接口字段配置
 		r.Post("/update-interface-fields", basicLibraryController.UpdateInterfaceFields)
@@ -261,34 +261,15 @@ func InitRoute(r *chi.Mux) {
 			r.Get("/{id}", dataQualityController.GetCleansingRuleByID)
 			r.Put("/{id}", dataQualityController.UpdateCleansingRule)
 			r.Delete("/{id}", dataQualityController.DeleteCleansingRule)
-			r.Post("/{id}/execute", dataQualityController.ExecuteCleansingRule)
-		})
-
-		// 数据转换规则管理
-		r.Route("/transformation-rules", func(r chi.Router) {
-			r.Post("/", dataQualityController.CreateTransformationRule)
-			r.Get("/", dataQualityController.GetTransformationRules)
-			r.Get("/{id}", dataQualityController.GetTransformationRuleByID)
-			r.Put("/{id}", dataQualityController.UpdateTransformationRule)
-			r.Delete("/{id}", dataQualityController.DeleteTransformationRule)
-			r.Post("/{id}/execute", dataQualityController.ExecuteTransformationRule)
-		})
-
-		// 数据校验规则管理
-		r.Route("/validation-rules", func(r chi.Router) {
-			r.Post("/", dataQualityController.CreateValidationRule)
-			r.Get("/", dataQualityController.GetValidationRules)
-			r.Get("/{id}", dataQualityController.GetValidationRuleByID)
-			r.Put("/{id}", dataQualityController.UpdateValidationRule)
-			r.Delete("/{id}", dataQualityController.DeleteValidationRule)
-			r.Post("/{id}/execute", dataQualityController.ExecuteValidationRule)
 		})
 
 		// 数据质量检测任务管理
-		r.Route("/quality-tasks", func(r chi.Router) {
+		r.Route("/tasks", func(r chi.Router) {
 			r.Post("/", dataQualityController.CreateQualityTask)
 			r.Get("/", dataQualityController.GetQualityTasks)
 			r.Get("/{id}", dataQualityController.GetQualityTaskByID)
+			r.Put("/{id}", dataQualityController.UpdateQualityTask)
+			r.Delete("/{id}", dataQualityController.DeleteQualityTask)
 			r.Post("/{id}/start", dataQualityController.StartQualityTask)
 			r.Post("/{id}/stop", dataQualityController.StopQualityTask)
 			r.Get("/{id}/executions", dataQualityController.GetQualityTaskExecutions)
@@ -320,6 +301,22 @@ func InitRoute(r *chi.Mux) {
 
 		// 系统日志管理
 		r.Get("/system-logs", dataQualityController.GetSystemLogs)
+
+		// 模板管理
+		r.Route("/templates", func(r chi.Router) {
+			r.Get("/quality-rules", dataQualityController.GetQualityRuleTemplates)
+			r.Get("/masking-rules", dataQualityController.GetDataMaskingTemplates)
+			r.Get("/cleansing-rules", dataQualityController.GetDataCleansingTemplates)
+		})
+
+		// 规则测试
+		r.Route("/test", func(r chi.Router) {
+			r.Post("/quality-rule", dataQualityController.TestQualityRule)
+			r.Post("/masking-rule", dataQualityController.TestMaskingRule)
+			r.Post("/cleansing-rule", dataQualityController.TestCleansingRule)
+			r.Post("/batch-rules", dataQualityController.TestBatchRules)
+			r.Post("/rule-preview", dataQualityController.TestRulePreview)
+		})
 	})
 
 	// 数据共享服务

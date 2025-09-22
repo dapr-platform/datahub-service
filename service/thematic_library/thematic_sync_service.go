@@ -35,28 +35,25 @@ func (adapter *GovernanceIntegrationAdapter) ApplyGovernanceRules(
 	records []map[string]interface{},
 	task *models.ThematicSyncTask,
 	config *thematic_sync.GovernanceExecutionConfig,
-) (*thematic_sync.GovernanceExecutionResult, error) {
+) ([]map[string]interface{}, *thematic_sync.GovernanceExecutionResult, error) {
 
 	// 类型转换：从 thematic_sync 包的类型转换为 thematic_library 包的类型
 	libraryConfig := &GovernanceExecutionConfig{
-		EnableQualityCheck:      config.EnableQualityCheck,
-		EnableCleansing:         config.EnableCleansing,
-		EnableMasking:           config.EnableMasking,
-		EnableTransformation:    config.EnableTransformation,
-		EnableValidation:        config.EnableValidation,
-		StopOnQualityFailure:    config.StopOnQualityFailure,
-		StopOnValidationFailure: config.StopOnValidationFailure,
-		QualityThreshold:        config.QualityThreshold,
-		BatchSize:               config.BatchSize,
-		MaxRetries:              config.MaxRetries,
-		TimeoutSeconds:          config.TimeoutSeconds,
-		CustomConfig:            config.CustomConfig,
+		EnableQualityCheck:   config.EnableQualityCheck,
+		EnableCleansing:      config.EnableCleansing,
+		EnableMasking:        config.EnableMasking,
+		StopOnQualityFailure: config.StopOnQualityFailure,
+		QualityThreshold:     config.QualityThreshold,
+		BatchSize:            config.BatchSize,
+		MaxRetries:           config.MaxRetries,
+		TimeoutSeconds:       config.TimeoutSeconds,
+		CustomConfig:         config.CustomConfig,
 	}
 
 	// 调用实际服务
-	libraryResult, err := adapter.service.ApplyGovernanceRules(ctx, records, task, libraryConfig)
+	processedRecords, libraryResult, err := adapter.service.ApplyGovernanceRules(ctx, records, task, libraryConfig)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 类型转换：从 thematic_library 包的类型转换为 thematic_sync 包的类型
@@ -70,7 +67,7 @@ func (adapter *GovernanceIntegrationAdapter) ApplyGovernanceRules(
 		ComplianceStatus:      libraryResult.ComplianceStatus,
 	}
 
-	return syncResult, nil
+	return processedRecords, syncResult, nil
 }
 
 // ThematicSyncService 主题同步服务
@@ -81,16 +78,14 @@ type ThematicSyncService struct {
 	governanceIntegrationService *GovernanceIntegrationService
 }
 
-// NewThematicSyncService 创建主题同步服务
+// NewThematicSyncService 创建主题同步服务 - 简化版本
 func NewThematicSyncService(db *gorm.DB,
-	basicLibraryService thematic_sync.BasicLibraryServiceInterface,
-	thematicLibraryService thematic_sync.ThematicLibraryServiceInterface,
 	governanceService *governance.GovernanceService) *ThematicSyncService {
 
 	governanceIntegrationService := NewGovernanceIntegrationService(db, governanceService)
 	// 创建适配器来解决类型不匹配问题
 	governanceAdapter := &GovernanceIntegrationAdapter{service: governanceIntegrationService}
-	syncEngine := thematic_sync.NewThematicSyncEngine(db, basicLibraryService, thematicLibraryService, governanceAdapter)
+	syncEngine := thematic_sync.NewThematicSyncEngine(db, governanceAdapter)
 
 	return &ThematicSyncService{
 		db:                           db,
@@ -132,6 +127,24 @@ func structToJSONB(v interface{}) models.JSONB {
 	return result
 }
 
+// structToJSONBGenericArray 将结构体转换为 JSONBGenericArray
+func structToJSONBGenericArray(v interface{}) models.JSONBGenericArray {
+	if v == nil {
+		return models.JSONBGenericArray{}
+	}
+
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return models.JSONBGenericArray{}
+	}
+
+	var result models.JSONBGenericArray
+	if err := json.Unmarshal(bytes, &result); err != nil {
+		return models.JSONBGenericArray{}
+	}
+	return result
+}
+
 // CreateSyncTask 创建同步任务
 func (tss *ThematicSyncService) CreateSyncTask(ctx context.Context, req *CreateThematicSyncTaskRequest) (*models.ThematicSyncTask, error) {
 	task := &models.ThematicSyncTask{
@@ -140,19 +153,16 @@ func (tss *ThematicSyncService) CreateSyncTask(ctx context.Context, req *CreateT
 		ThematicInterfaceID: req.ThematicInterfaceID,
 		TaskName:            req.TaskName,
 		Description:         req.Description,
-		SourceLibraries:     structToJSONB(req.SourceLibraries),
-		DataSourceSQL:       structToJSONB(req.DataSourceSQL), // 新增SQL数据源配置
-		AggregationConfig:   structToJSONB(req.AggregationConfig),
+		SourceLibraries:     structToJSONBGenericArray(req.SourceLibraries),
+		DataSourceSQL:       structToJSONBGenericArray(req.DataSourceSQL), // 新增SQL数据源配置
 		KeyMatchingRules:    structToJSONB(req.KeyMatchingRules),
 		FieldMappingRules:   structToJSONB(req.FieldMappingRules),
 
 		// 数据治理规则配置
-		QualityRuleIDs:    structToJSONB(req.QualityRuleIDs),
-		CleansingRuleIDs:  structToJSONB(req.CleansingRuleIDs),
-		MaskingRuleIDs:    structToJSONB(req.MaskingRuleIDs),
-		TransformRuleIDs:  structToJSONB(req.TransformRuleIDs),
-		ValidationRuleIDs: structToJSONB(req.ValidationRuleIDs),
-		GovernanceConfig:  structToJSONB(req.GovernanceConfig),
+		QualityRuleConfigs:   structToJSONBGenericArray(req.QualityRuleConfigs),
+		CleansingRuleConfigs: structToJSONBGenericArray(req.CleansingRuleConfigs),
+		MaskingRuleConfigs:   structToJSONBGenericArray(req.MaskingRuleConfigs),
+		GovernanceConfig:     structToJSONB(req.GovernanceConfig),
 
 		Status:    "draft",
 		CreatedAt: time.Now(),
@@ -206,9 +216,6 @@ func (tss *ThematicSyncService) UpdateSyncTask(ctx context.Context, taskID strin
 	}
 
 	// 更新各种配置规则
-	if req.AggregationConfig != nil {
-		task.AggregationConfig = structToJSONB(req.AggregationConfig)
-	}
 	if req.KeyMatchingRules != nil {
 		task.KeyMatchingRules = structToJSONB(req.KeyMatchingRules)
 	}
@@ -217,20 +224,14 @@ func (tss *ThematicSyncService) UpdateSyncTask(ctx context.Context, taskID strin
 	}
 
 	// 更新数据治理规则配置
-	if req.QualityRuleIDs != nil {
-		task.QualityRuleIDs = structToJSONB(req.QualityRuleIDs)
+	if req.QualityRuleConfigs != nil {
+		task.QualityRuleConfigs = structToJSONBGenericArray(req.QualityRuleConfigs)
 	}
-	if req.CleansingRuleIDs != nil {
-		task.CleansingRuleIDs = structToJSONB(req.CleansingRuleIDs)
+	if req.CleansingRuleConfigs != nil {
+		task.CleansingRuleConfigs = structToJSONBGenericArray(req.CleansingRuleConfigs)
 	}
-	if req.MaskingRuleIDs != nil {
-		task.MaskingRuleIDs = structToJSONB(req.MaskingRuleIDs)
-	}
-	if req.TransformRuleIDs != nil {
-		task.TransformRuleIDs = structToJSONB(req.TransformRuleIDs)
-	}
-	if req.ValidationRuleIDs != nil {
-		task.ValidationRuleIDs = structToJSONB(req.ValidationRuleIDs)
+	if req.MaskingRuleConfigs != nil {
+		task.MaskingRuleConfigs = structToJSONBGenericArray(req.MaskingRuleConfigs)
 	}
 	if req.GovernanceConfig != nil {
 		task.GovernanceConfig = structToJSONB(req.GovernanceConfig)
@@ -344,87 +345,103 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 	// 解析源库配置
 	var sourceLibraryConfigs []thematic_sync.SourceLibraryConfig
 	if len(task.SourceLibraries) > 0 {
-		// 从JSONB中解析源库配置
-		var sourceLibrariesRaw []interface{}
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.SourceLibraries)), &sourceLibrariesRaw); err == nil {
+		// 从JSONBGenericArray中解析源库配置
+		sourceLibrariesRaw := []interface{}(task.SourceLibraries)
+		if len(sourceLibrariesRaw) > 0 {
 			for _, configRaw := range sourceLibrariesRaw {
 				if configMap, ok := configRaw.(map[string]interface{}); ok {
-					config := thematic_sync.SourceLibraryConfig{
-						LibraryID:   getStringFromMap(configMap, "library_id"),
-						InterfaceID: getStringFromMap(configMap, "interface_id"),
-						SQLQuery:    getStringFromMap(configMap, "sql_query"),
-					}
+					libraryID := getStringFromMap(configMap, "library_id")
 
-					// 解析参数
-					if params, exists := configMap["parameters"]; exists {
-						if paramsMap, ok := params.(map[string]interface{}); ok {
-							config.Parameters = paramsMap
-						}
-					}
-
-					// 解析过滤器
-					if filters, exists := configMap["filters"]; exists {
-						if filtersSlice, ok := filters.([]interface{}); ok {
-							for _, filterRaw := range filtersSlice {
-								if filterMap, ok := filterRaw.(map[string]interface{}); ok {
-									filter := thematic_sync.FilterConfig{
-										Field:    getStringFromMap(filterMap, "field"),
-										Operator: getStringFromMap(filterMap, "operator"),
-										Value:    filterMap["value"],
-										LogicOp:  getStringFromMap(filterMap, "logic_op"),
+					// 处理嵌套的interfaces结构
+					var interfaceIDs []string
+					if interfacesRaw, exists := configMap["interfaces"]; exists {
+						if interfacesSlice, ok := interfacesRaw.([]interface{}); ok {
+							for _, interfaceRaw := range interfacesSlice {
+								if interfaceMap, ok := interfaceRaw.(map[string]interface{}); ok {
+									if interfaceID := getStringFromMap(interfaceMap, "interface_id"); interfaceID != "" {
+										interfaceIDs = append(interfaceIDs, interfaceID)
 									}
-									config.Filters = append(config.Filters, filter)
 								}
 							}
 						}
 					}
 
-					// 解析转换配置
-					if transforms, exists := configMap["transforms"]; exists {
-						if transformsSlice, ok := transforms.([]interface{}); ok {
-							for _, transformRaw := range transformsSlice {
-								if transformMap, ok := transformRaw.(map[string]interface{}); ok {
-									transform := thematic_sync.TransformConfig{
-										SourceField: getStringFromMap(transformMap, "source_field"),
-										TargetField: getStringFromMap(transformMap, "target_field"),
-										Transform:   getStringFromMap(transformMap, "transform"),
-									}
+					// 如果没有找到嵌套结构，尝试直接获取interface_id（向前兼容）
+					if len(interfaceIDs) == 0 {
+						if interfaceID := getStringFromMap(configMap, "interface_id"); interfaceID != "" {
+							interfaceIDs = append(interfaceIDs, interfaceID)
+						}
+					}
 
-									if config, exists := transformMap["config"]; exists {
-										if configMap, ok := config.(map[string]interface{}); ok {
-											transform.Config = configMap
+					// 为每个接口创建一个配置
+					for _, interfaceID := range interfaceIDs {
+						config := thematic_sync.SourceLibraryConfig{
+							LibraryID:   libraryID,
+							InterfaceID: interfaceID,
+							SQLQuery:    getStringFromMap(configMap, "sql_query"),
+						}
+
+						// 解析参数
+						if params, exists := configMap["parameters"]; exists {
+							if paramsMap, ok := params.(map[string]interface{}); ok {
+								config.Parameters = paramsMap
+							}
+						}
+
+						// 解析过滤器
+						if filters, exists := configMap["filters"]; exists {
+							if filtersSlice, ok := filters.([]interface{}); ok {
+								for _, filterRaw := range filtersSlice {
+									if filterMap, ok := filterRaw.(map[string]interface{}); ok {
+										filter := thematic_sync.FilterConfig{
+											Field:    getStringFromMap(filterMap, "field"),
+											Operator: getStringFromMap(filterMap, "operator"),
+											Value:    filterMap["value"],
+											LogicOp:  getStringFromMap(filterMap, "logic_op"),
 										}
+										config.Filters = append(config.Filters, filter)
 									}
-
-									config.Transforms = append(config.Transforms, transform)
 								}
 							}
 						}
-					}
 
-					sourceLibraryConfigs = append(sourceLibraryConfigs, config)
+						// 解析转换配置
+						if transforms, exists := configMap["transforms"]; exists {
+							if transformsSlice, ok := transforms.([]interface{}); ok {
+								for _, transformRaw := range transformsSlice {
+									if transformMap, ok := transformRaw.(map[string]interface{}); ok {
+										transform := thematic_sync.TransformConfig{
+											SourceField: getStringFromMap(transformMap, "source_field"),
+											TargetField: getStringFromMap(transformMap, "target_field"),
+											Transform:   getStringFromMap(transformMap, "transform"),
+										}
+
+										if transformConfig, exists := transformMap["config"]; exists {
+											if transformConfigMap, ok := transformConfig.(map[string]interface{}); ok {
+												transform.Config = transformConfigMap
+											}
+										}
+
+										config.Transforms = append(config.Transforms, transform)
+									}
+								}
+							}
+						}
+
+						sourceLibraryConfigs = append(sourceLibraryConfigs, config)
+					}
 				}
 			}
 		}
 	}
 
-	// 兜底：使用接口列表（如果存在）
-	var sourceInterfaces []string
-	if len(task.SourceInterfaces) > 0 {
-		// 从JSONB中解析接口列表
-		var interfacesRaw []interface{}
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.SourceInterfaces)), &interfacesRaw); err == nil {
-			for _, interfaceRaw := range interfacesRaw {
-				sourceInterfaces = append(sourceInterfaces, fmt.Sprintf("%v", interfaceRaw))
-			}
-		}
-	}
+	// 注意：已移除 SourceInterfaces 字段，所有源接口信息现在都在 SourceLibraries 中
 
 	// 解析SQL数据源配置（优先级更高）
 	var sqlDataSourceConfigs []thematic_sync.SQLDataSourceConfig
 	if len(task.DataSourceSQL) > 0 {
-		var sqlConfigsRaw []interface{}
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.DataSourceSQL)), &sqlConfigsRaw); err == nil {
+		sqlConfigsRaw := []interface{}(task.DataSourceSQL)
+		if len(sqlConfigsRaw) > 0 {
 			for _, configRaw := range sqlConfigsRaw {
 				if configMap, ok := configRaw.(map[string]interface{}); ok {
 					config := thematic_sync.SQLDataSourceConfig{
@@ -478,13 +495,6 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 	}
 
 	// 添加各种规则配置
-	if len(task.AggregationConfig) > 0 {
-		var aggConfig AggregationConfig
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.AggregationConfig)), &aggConfig); err == nil {
-			configMap["aggregation_config"] = aggConfig
-		}
-	}
-
 	if len(task.KeyMatchingRules) > 0 {
 		var keyRules KeyMatchingRules
 		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.KeyMatchingRules)), &keyRules); err == nil {
@@ -500,38 +510,24 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 	}
 
 	// 添加数据治理规则配置
-	if len(task.QualityRuleIDs) > 0 {
-		var qualityRuleIDs []string
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.QualityRuleIDs)), &qualityRuleIDs); err == nil {
-			configMap["quality_rule_ids"] = qualityRuleIDs
+	if len(task.QualityRuleConfigs) > 0 {
+		var qualityRuleConfigs []models.QualityRuleConfig
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.QualityRuleConfigs)), &qualityRuleConfigs); err == nil {
+			configMap["quality_rule_configs"] = qualityRuleConfigs
 		}
 	}
 
-	if len(task.CleansingRuleIDs) > 0 {
-		var cleansingRuleIDs []string
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.CleansingRuleIDs)), &cleansingRuleIDs); err == nil {
-			configMap["cleansing_rule_ids"] = cleansingRuleIDs
+	if len(task.CleansingRuleConfigs) > 0 {
+		var cleansingRuleConfigs []models.DataCleansingConfig
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.CleansingRuleConfigs)), &cleansingRuleConfigs); err == nil {
+			configMap["cleansing_rule_configs"] = cleansingRuleConfigs
 		}
 	}
 
-	if len(task.MaskingRuleIDs) > 0 {
-		var maskingRuleIDs []string
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.MaskingRuleIDs)), &maskingRuleIDs); err == nil {
-			configMap["masking_rule_ids"] = maskingRuleIDs
-		}
-	}
-
-	if len(task.TransformRuleIDs) > 0 {
-		var transformRuleIDs []string
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.TransformRuleIDs)), &transformRuleIDs); err == nil {
-			configMap["transform_rule_ids"] = transformRuleIDs
-		}
-	}
-
-	if len(task.ValidationRuleIDs) > 0 {
-		var validationRuleIDs []string
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.ValidationRuleIDs)), &validationRuleIDs); err == nil {
-			configMap["validation_rule_ids"] = validationRuleIDs
+	if len(task.MaskingRuleConfigs) > 0 {
+		var maskingRuleConfigs []models.DataMaskingConfig
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.MaskingRuleConfigs)), &maskingRuleConfigs); err == nil {
+			configMap["masking_rule_configs"] = maskingRuleConfigs
 		}
 	}
 
@@ -553,21 +549,13 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 		}
 	}
 
-	// 构建源库和接口列表（兜底处理）
+	// 构建源库和接口列表
 	var sourceLibraries []string
 	var finalSourceInterfaces []string
 
-	if len(sourceLibraryConfigs) > 0 {
-		for _, config := range sourceLibraryConfigs {
-			sourceLibraries = append(sourceLibraries, config.LibraryID)
-			finalSourceInterfaces = append(finalSourceInterfaces, config.InterfaceID)
-		}
-	} else if len(sourceInterfaces) > 0 {
-		finalSourceInterfaces = sourceInterfaces
-		// 如果没有明确的库ID，使用空字符串
-		for range sourceInterfaces {
-			sourceLibraries = append(sourceLibraries, "")
-		}
+	for _, config := range sourceLibraryConfigs {
+		sourceLibraries = append(sourceLibraries, config.LibraryID)
+		finalSourceInterfaces = append(finalSourceInterfaces, config.InterfaceID)
 	}
 
 	syncRequest := &thematic_sync.SyncRequest{

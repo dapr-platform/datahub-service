@@ -44,10 +44,13 @@ func AutoMigrate(db *gorm.DB) error {
 
 	// 数据主题库相关表
 	log.Println("正在迁移数据主题库相关表...")
-	log.Printf("迁移表: ThematicLibrary, ThematicInterface, DataFlowGraph, FlowNode")
+	log.Printf("迁移表: ThematicLibrary, ThematicInterface, ThematicSyncTask, ThematicSyncExecution, ThematicDataLineage, DataFlowGraph, FlowNode")
 	err = db.AutoMigrate(
 		&models.ThematicLibrary{},
 		&models.ThematicInterface{},
+		&models.ThematicSyncTask{},
+		&models.ThematicSyncExecution{},
+		&models.ThematicDataLineage{},
 		&models.DataFlowGraph{},
 		&models.FlowNode{},
 	)
@@ -84,6 +87,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.BackupRecord{},
 		&models.DataQualityReport{},
 		&models.SystemConfig{},
+		&models.QualityTask{},
+		&models.QualityTaskExecution{},
+		&models.DataLineage{},
 	)
 	if err != nil {
 		log.Printf("数据治理表迁移失败: %v", err)

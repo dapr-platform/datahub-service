@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -531,10 +532,11 @@ func (s *TemplateService) initQualityRuleTemplates() {
 	// 批量插入或更新质量规则模板
 	for _, template := range qualityTemplates {
 		var existingTemplate models.QualityRuleTemplate
-		result := s.db.Where("id = ?", template.ID).First(&existingTemplate)
+		result := s.db.Where("name = ? AND is_built_in = ?", template.Name, true).First(&existingTemplate)
 
 		if result.Error != nil {
-			// 模板不存在，创建新模板
+			// 模板不存在，创建新模板（让BeforeCreate钩子生成UUID）
+			template.ID = "" // 清空ID，让BeforeCreate钩子生成UUID
 			if err := s.db.Create(&template).Error; err != nil {
 				fmt.Printf("创建内置质量规则模板失败: %s, 错误: %v\n", template.Name, err)
 			}
@@ -567,7 +569,7 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 			MaskingType:     "mask",
 			Category:        "personal_info",
 			Description:     "对手机号进行掩码处理，保留前3位和后4位",
-			ApplicableTypes: []string{"varchar", "char", "text"},
+			ApplicableTypes: pq.StringArray{"varchar", "char", "text"},
 			MaskingLogic: map[string]interface{}{
 				"mask_pattern":    "***-****-****",
 				"preserve_prefix": 3,
@@ -600,7 +602,7 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 			MaskingType:     "replace",
 			Category:        "personal_info",
 			Description:     "将身份证号完全替换为固定字符串",
-			ApplicableTypes: []string{"varchar", "char"},
+			ApplicableTypes: pq.StringArray{"varchar", "char"},
 			MaskingLogic: map[string]interface{}{
 				"replacement_value": "***************",
 				"replacement_type":  "fixed",
@@ -631,7 +633,7 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 			MaskingType:     "encrypt",
 			Category:        "financial",
 			Description:     "对银行卡号进行加密处理",
-			ApplicableTypes: []string{"varchar", "char"},
+			ApplicableTypes: pq.StringArray{"varchar", "char"},
 			MaskingLogic: map[string]interface{}{
 				"encryption_algorithm": "AES256",
 				"key_rotation":         true,
@@ -662,7 +664,7 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 			MaskingType:     "pseudonymize",
 			Category:        "personal_info",
 			Description:     "将真实姓名替换为假名",
-			ApplicableTypes: []string{"varchar", "char", "text"},
+			ApplicableTypes: pq.StringArray{"varchar", "char", "text"},
 			MaskingLogic: map[string]interface{}{
 				"pseudonym_type": "consistent_hash",
 				"name_pool":      []string{"用户A", "用户B", "用户C", "用户D", "用户E"},
@@ -691,10 +693,11 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 	// 批量插入或更新脱敏规则模板
 	for _, template := range maskingTemplates {
 		var existingTemplate models.DataMaskingTemplate
-		result := s.db.Where("id = ?", template.ID).First(&existingTemplate)
+		result := s.db.Where("name = ? AND is_built_in = ?", template.Name, true).First(&existingTemplate)
 
 		if result.Error != nil {
-			// 模板不存在，创建新模板
+			// 模板不存在，创建新模板（让BeforeCreate钩子生成UUID）
+			template.ID = "" // 清空ID，让BeforeCreate钩子生成UUID
 			if err := s.db.Create(&template).Error; err != nil {
 				fmt.Printf("创建内置脱敏规则模板失败: %s, 错误: %v\n", template.Name, err)
 			}
@@ -746,7 +749,9 @@ func (s *TemplateService) initCleansingRuleTemplates() {
 				"case":        "lower",
 				"trim_spaces": true,
 			}),
-			ApplicableTypes: models.JSONB(map[string]interface{}{"types": []string{"email", "varchar", "text"}}),
+			ApplicableTypes: models.JSONB(map[string]interface{}{
+				"types": []string{"email", "varchar", "text"},
+			}),
 			ComplexityLevel: "low",
 			IsBuiltIn:       true,
 			IsEnabled:       true,
@@ -777,7 +782,9 @@ func (s *TemplateService) initCleansingRuleTemplates() {
 			DefaultConfig: models.JSONB(map[string]interface{}{
 				"preserve_order": true,
 			}),
-			ApplicableTypes: models.JSONB(map[string]interface{}{"types": []string{"varchar", "char", "text"}}),
+			ApplicableTypes: models.JSONB(map[string]interface{}{
+				"types": []string{"varchar", "char", "text"},
+			}),
 			ComplexityLevel: "medium",
 			IsBuiltIn:       true,
 			IsEnabled:       true,
@@ -811,7 +818,9 @@ func (s *TemplateService) initCleansingRuleTemplates() {
 			DefaultConfig: models.JSONB(map[string]interface{}{
 				"correction_strategy": "default_value",
 			}),
-			ApplicableTypes: models.JSONB(map[string]interface{}{"types": []string{"phone", "email", "varchar"}}),
+			ApplicableTypes: models.JSONB(map[string]interface{}{
+				"types": []string{"phone", "email", "varchar"},
+			}),
 			ComplexityLevel: "high",
 			IsBuiltIn:       true,
 			IsEnabled:       true,
@@ -843,7 +852,9 @@ func (s *TemplateService) initCleansingRuleTemplates() {
 			DefaultConfig: models.JSONB(map[string]interface{}{
 				"target_format": "yyyy-MM-dd",
 			}),
-			ApplicableTypes: models.JSONB(map[string]interface{}{"types": []string{"date", "datetime", "varchar"}}),
+			ApplicableTypes: models.JSONB(map[string]interface{}{
+				"types": []string{"date", "datetime", "varchar"},
+			}),
 			ComplexityLevel: "medium",
 			IsBuiltIn:       true,
 			IsEnabled:       true,
@@ -875,7 +886,9 @@ func (s *TemplateService) initCleansingRuleTemplates() {
 			DefaultConfig: models.JSONB(map[string]interface{}{
 				"data_source": "geo_api",
 			}),
-			ApplicableTypes: models.JSONB(map[string]interface{}{"types": []string{"address", "postcode", "varchar"}}),
+			ApplicableTypes: models.JSONB(map[string]interface{}{
+				"types": []string{"address", "postcode", "varchar"},
+			}),
 			ComplexityLevel: "high",
 			IsBuiltIn:       true,
 			IsEnabled:       true,
@@ -890,10 +903,11 @@ func (s *TemplateService) initCleansingRuleTemplates() {
 	// 批量插入或更新清洗规则模板
 	for _, template := range cleansingTemplates {
 		var existingTemplate models.DataCleansingTemplate
-		result := s.db.Where("id = ?", template.ID).First(&existingTemplate)
+		result := s.db.Where("name = ? AND is_built_in = ?", template.Name, true).First(&existingTemplate)
 
 		if result.Error != nil {
-			// 模板不存在，创建新模板
+			// 模板不存在，创建新模板（让BeforeCreate钩子生成UUID）
+			template.ID = "" // 清空ID，让BeforeCreate钩子生成UUID
 			if err := s.db.Create(&template).Error; err != nil {
 				fmt.Printf("创建内置清洗规则模板失败: %s, 错误: %v\n", template.Name, err)
 			}

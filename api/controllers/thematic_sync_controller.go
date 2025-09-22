@@ -27,16 +27,11 @@ type ThematicSyncController struct {
 	thematicSyncService *thematic_library.ThematicSyncService
 }
 
-// NewThematicSyncController 创建主题同步控制器实例
+// NewThematicSyncController 创建主题同步控制器实例 - 简化版本
 func NewThematicSyncController() *ThematicSyncController {
-	// 使用全局服务实例
-	// TODO: 需要为 BasicLibraryService 和 ThematicLibraryService 创建适配器，
-	// 使其实现 BasicLibraryServiceInterface 和 ThematicLibraryServiceInterface
-	// 暂时传递 nil，在实际使用时需要实现相应的接口方法
+	// 直接创建服务，无需复杂的适配器
 	thematicSyncService := thematic_library.NewThematicSyncService(
 		service.DB,
-		nil, // service.GlobalBasicLibraryService - 需要适配器
-		nil, // service.GlobalThematicLibraryService - 需要适配器
 		service.GlobalGovernanceService,
 	)
 	return &ThematicSyncController{
@@ -52,27 +47,6 @@ type SQLDataSourceConfig struct {
 	Parameters  map[string]interface{} `json:"parameters,omitempty" example:"{\"status\":\"active\"}"`
 	Timeout     int                    `json:"timeout,omitempty" example:"30"`
 	MaxRows     int                    `json:"max_rows,omitempty" example:"10000"`
-}
-
-// UpdateThematicSyncTaskRequest 更新同步任务请求结构
-type UpdateThematicSyncTaskRequest struct {
-	TaskName          string                              `json:"task_name,omitempty" example:"更新后的用户数据同步任务"`
-	Description       string                              `json:"description,omitempty" example:"更新后的描述"`
-	Status            string                              `json:"status,omitempty" example:"active"` // active, inactive, paused
-	ScheduleConfig    *thematic_library.ScheduleConfig    `json:"schedule_config,omitempty"`
-	AggregationConfig *thematic_library.AggregationConfig `json:"aggregation_config,omitempty"`
-	KeyMatchingRules  *thematic_library.KeyMatchingRules  `json:"key_matching_rules,omitempty"`
-	FieldMappingRules *thematic_library.FieldMappingRules `json:"field_mapping_rules,omitempty"`
-
-	// 数据治理规则配置 - 使用数据治理中定义的规则ID
-	QualityRuleIDs    []string                                    `json:"quality_rule_ids,omitempty"`    // 质量规则ID列表
-	CleansingRuleIDs  []string                                    `json:"cleansing_rule_ids,omitempty"`  // 清洗规则ID列表
-	MaskingRuleIDs    []string                                    `json:"masking_rule_ids,omitempty"`    // 脱敏规则ID列表
-	TransformRuleIDs  []string                                    `json:"transform_rule_ids,omitempty"`  // 转换规则ID列表
-	ValidationRuleIDs []string                                    `json:"validation_rule_ids,omitempty"` // 校验规则ID列表
-	GovernanceConfig  *thematic_library.GovernanceExecutionConfig `json:"governance_config,omitempty"`   // 数据治理执行配置
-
-	UpdatedBy string `json:"updated_by" validate:"required" example:"admin"`
 }
 
 // ExecuteSyncTaskRequest 执行同步任务请求结构
@@ -282,7 +256,7 @@ func (c *ThematicSyncController) GetSyncTask(w http.ResponseWriter, r *http.Requ
 // @Accept json
 // @Produce json
 // @Param id path string true "任务ID"
-// @Param request body UpdateThematicSyncTaskRequest true "更新同步任务请求"
+// @Param request body thematic_library.UpdateThematicSyncTaskRequest true "更新同步任务请求"
 // @Success 200 {object} APIResponse
 // @Failure 400 {object} APIResponse
 // @Failure 404 {object} APIResponse
@@ -295,7 +269,7 @@ func (c *ThematicSyncController) UpdateSyncTask(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	var req UpdateThematicSyncTaskRequest
+	var req thematic_library.UpdateThematicSyncTaskRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
 		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
@@ -306,26 +280,8 @@ func (c *ThematicSyncController) UpdateSyncTask(w http.ResponseWriter, r *http.R
 		req.UpdatedBy = "system"
 	}
 
-	// 转换为服务层请求结构
-	serviceReq := &thematic_library.UpdateThematicSyncTaskRequest{
-		TaskName:          req.TaskName,
-		Description:       req.Description,
-		Status:            req.Status,
-		ScheduleConfig:    req.ScheduleConfig,
-		AggregationConfig: req.AggregationConfig,
-		KeyMatchingRules:  req.KeyMatchingRules,
-		FieldMappingRules: req.FieldMappingRules,
-
-		// 数据治理规则配置
-		QualityRuleIDs:    req.QualityRuleIDs,
-		CleansingRuleIDs:  req.CleansingRuleIDs,
-		MaskingRuleIDs:    req.MaskingRuleIDs,
-		TransformRuleIDs:  req.TransformRuleIDs,
-		ValidationRuleIDs: req.ValidationRuleIDs,
-		GovernanceConfig:  req.GovernanceConfig,
-
-		UpdatedBy: req.UpdatedBy,
-	}
+	// 直接使用服务层请求结构
+	serviceReq := &req
 
 	task, err := c.thematicSyncService.UpdateSyncTask(r.Context(), id, serviceReq)
 	if err != nil {

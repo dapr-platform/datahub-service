@@ -75,7 +75,54 @@ func (s *InterfaceService) CreateDataInterface(interfaceData *models.DataInterfa
 		return errors.New("接口英文名称在该基础库中已存在")
 	}
 
-	return s.db.Create(interfaceData).Error
+	// 开启事务
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 创建接口记录
+	if err := tx.Create(interfaceData).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("创建接口记录失败: %w", err)
+	}
+
+	// 如果配置了表字段，自动创建数据表
+	if interfaceData.TableFieldsConfig != nil && len(interfaceData.TableFieldsConfig) > 0 {
+		// 解析字段配置
+		fields, err := s.parseTableFields(interfaceData.TableFieldsConfig)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("解析表字段配置失败: %w", err)
+		}
+
+		// 如果有字段配置，创建数据表
+		if len(fields) > 0 {
+			schemaName := library.NameEn
+			tableName := interfaceData.NameEn
+
+			// 创建数据表
+			if err := s.schemaService.ManageTableSchema(interfaceData.ID, "create_table", schemaName, tableName, fields); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("创建数据表失败: %w", err)
+			}
+
+			// 更新表创建状态
+			if err := tx.Model(&models.DataInterface{}).Where("id = ?", interfaceData.ID).Update("is_table_created", true).Error; err != nil {
+				tx.Rollback()
+				// 尝试清理已创建的表
+				s.schemaService.ManageTableSchema(interfaceData.ID, "drop_table", schemaName, tableName, []models.TableField{})
+				return fmt.Errorf("更新表创建状态失败: %w", err)
+			}
+
+			// 更新内存中的状态
+			interfaceData.IsTableCreated = true
+		}
+	}
+
+	return tx.Commit().Error
 }
 
 // UpdateDataInterface 更新数据接口
@@ -549,6 +596,9 @@ func (s *InterfaceService) CreateInterfaceFields(interfaceID string, fields []ma
 
 // UpdateInterfaceFields 更新接口字段配置
 func (s *InterfaceService) UpdateInterfaceFields(interfaceID string, fields []models.TableField, updateTable bool) error {
+	// 验证和修正字段配置
+	fields = s.validateAndFixFields(fields)
+
 	// 获取接口信息
 	interfaceData, err := s.GetDataInterface(interfaceID)
 	if err != nil {
@@ -633,4 +683,157 @@ func (s *InterfaceService) UpdateInterfaceFields(interfaceID string, fields []mo
 	}
 
 	return nil
+}
+
+// parseTableFields 解析表字段配置
+func (s *InterfaceService) parseTableFields(tableFieldsConfig models.JSONB) ([]models.TableField, error) {
+	var fields []models.TableField
+
+	// 如果配置为空，返回空字段列表
+	if tableFieldsConfig == nil {
+		return fields, nil
+	}
+
+	// 检查是否有 fields 字段
+	if fieldsData, exists := tableFieldsConfig["fields"]; exists {
+		// 将 fields 转换为字段列表
+		if fieldsArray, ok := fieldsData.([]interface{}); ok {
+			for _, fieldData := range fieldsArray {
+				if fieldMap, ok := fieldData.(map[string]interface{}); ok {
+					field := models.TableField{}
+
+					// 解析字段名
+					if fieldName, ok := fieldMap["field_name"].(string); ok {
+						field.NameEn = fieldName
+						field.NameZh = fieldName // 默认中英文名相同
+					}
+
+					// 解析字段类型
+					if fieldType, ok := fieldMap["field_type"].(string); ok {
+						field.DataType = fieldType
+					}
+
+					// 解析是否为主键
+					if isPrimaryKey, ok := fieldMap["is_primary_key"].(bool); ok {
+						field.IsPrimaryKey = isPrimaryKey
+					}
+
+					// 解析是否可为空
+					if isNullable, ok := fieldMap["is_nullable"].(bool); ok {
+						field.IsNullable = isNullable
+					} else {
+						field.IsNullable = true // 默认可为空
+					}
+
+					// 解析默认值
+					if defaultValue, exists := fieldMap["default_value"]; exists {
+						if defaultValueStr, ok := defaultValue.(string); ok {
+							field.DefaultValue = defaultValueStr
+						}
+					}
+
+					// 解析注释
+					if comment, ok := fieldMap["comment"].(string); ok {
+						field.Description = comment
+					}
+
+					// 解析排序
+					if orderNum, ok := fieldMap["order_num"].(float64); ok {
+						field.OrderNum = int(orderNum)
+					}
+
+					fields = append(fields, field)
+				}
+			}
+		}
+	}
+
+	// 如果没有解析到字段，尝试从 auto_create_table 配置创建默认字段
+	if len(fields) == 0 {
+		if autoCreate, exists := tableFieldsConfig["auto_create_table"]; exists {
+			if autoCreateBool, ok := autoCreate.(bool); ok && autoCreateBool {
+				// 创建默认字段结构
+				fields = append(fields, models.TableField{
+					NameZh:       "主键ID",
+					NameEn:       "id",
+					DataType:     "string",
+					IsPrimaryKey: true,
+					IsNullable:   false,
+					Description:  "主键ID",
+					OrderNum:     1,
+				})
+				fields = append(fields, models.TableField{
+					NameZh:       "创建时间",
+					NameEn:       "created_at",
+					DataType:     "timestamp",
+					IsPrimaryKey: false,
+					IsNullable:   false,
+					DefaultValue: "NOW()",
+					Description:  "创建时间",
+					OrderNum:     2,
+				})
+				fields = append(fields, models.TableField{
+					NameZh:       "更新时间",
+					NameEn:       "updated_at",
+					DataType:     "timestamp",
+					IsPrimaryKey: false,
+					IsNullable:   false,
+					DefaultValue: "NOW()",
+					Description:  "更新时间",
+					OrderNum:     3,
+				})
+			}
+		}
+	}
+
+	return fields, nil
+}
+
+// validateAndFixFields 验证和修正字段配置
+func (s *InterfaceService) validateAndFixFields(fields []models.TableField) []models.TableField {
+	validatedFields := make([]models.TableField, len(fields))
+	copy(validatedFields, fields)
+
+	for i, field := range validatedFields {
+		// 修正主键字段的配置
+		if field.IsPrimaryKey {
+			// 主键字段不能为空
+			validatedFields[i].IsNullable = false
+
+			// 如果主键字段没有设置唯一性，自动设置
+			if !field.IsUnique {
+				validatedFields[i].IsUnique = true
+			}
+
+			// 主键字段的默认值处理
+			if field.DefaultValue == "" && field.DataType == "varchar" {
+				// 对于字符串类型的主键，不设置默认值
+				validatedFields[i].DefaultValue = ""
+			}
+		}
+
+		// 修正数据类型映射
+		switch field.DataType {
+		case "string":
+			validatedFields[i].DataType = "varchar"
+		case "int":
+			validatedFields[i].DataType = "integer"
+		case "bool":
+			validatedFields[i].DataType = "boolean"
+		case "datetime":
+			validatedFields[i].DataType = "timestamp"
+		}
+
+		// 清理空的默认值
+		if field.DefaultValue == "" {
+			validatedFields[i].DefaultValue = ""
+		}
+
+		// 确保描述信息的格式
+		if field.Description == "" {
+			validatedFields[i].Description = fmt.Sprintf("%s字段", field.NameZh)
+		}
+	}
+
+	return validatedFields
 }

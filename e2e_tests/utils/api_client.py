@@ -86,6 +86,7 @@ class APIClient:
         self.base_url = base_url.rstrip('/')
         self.api_prefix = api_prefix.strip('/')
         self.timeout = timeout
+        self.retry_count = retry_count
         self.headers = headers or {}
         
         # 创建会话
