@@ -109,6 +109,35 @@ func (c *ThematicSyncController) CreateSyncTask(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// 验证源库配置中的增量配置
+	for i, sourceLib := range req.SourceLibraries {
+		for j, sourceInterface := range sourceLib.Interfaces {
+			if sourceInterface.IncrementalConfig != nil && sourceInterface.IncrementalConfig.Enabled {
+				if sourceInterface.IncrementalConfig.IncrementalField == "" {
+					render.JSON(w, r, BadRequestResponse(fmt.Sprintf("源库%d接口%d的增量字段不能为空", i+1, j+1), nil))
+					return
+				}
+				if sourceInterface.IncrementalConfig.FieldType == "" {
+					render.JSON(w, r, BadRequestResponse(fmt.Sprintf("源库%d接口%d的增量字段类型不能为空", i+1, j+1), nil))
+					return
+				}
+				// 验证字段类型
+				validFieldTypes := []string{"timestamp", "number", "string"}
+				isValidType := false
+				for _, validType := range validFieldTypes {
+					if sourceInterface.IncrementalConfig.FieldType == validType {
+						isValidType = true
+						break
+					}
+				}
+				if !isValidType {
+					render.JSON(w, r, BadRequestResponse(fmt.Sprintf("源库%d接口%d的增量字段类型无效，支持的类型：timestamp, number, string", i+1, j+1), nil))
+					return
+				}
+			}
+		}
+	}
+
 	// 验证SQL数据源配置
 	for i, sqlConfig := range req.DataSourceSQL {
 		if sqlConfig.SQLQuery == "" {

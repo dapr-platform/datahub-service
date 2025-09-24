@@ -353,32 +353,72 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 					libraryID := getStringFromMap(configMap, "library_id")
 
 					// 处理嵌套的interfaces结构
-					var interfaceIDs []string
+					var interfaceConfigs []thematic_sync.SourceInterfaceConfig
 					if interfacesRaw, exists := configMap["interfaces"]; exists {
 						if interfacesSlice, ok := interfacesRaw.([]interface{}); ok {
 							for _, interfaceRaw := range interfacesSlice {
 								if interfaceMap, ok := interfaceRaw.(map[string]interface{}); ok {
-									if interfaceID := getStringFromMap(interfaceMap, "interface_id"); interfaceID != "" {
-										interfaceIDs = append(interfaceIDs, interfaceID)
+									interfaceConfig := thematic_sync.SourceInterfaceConfig{
+										InterfaceID: getStringFromMap(interfaceMap, "interface_id"),
 									}
+
+									// 解析增量配置
+									if incrementalRaw, exists := interfaceMap["incremental_config"]; exists {
+										if incrementalMap, ok := incrementalRaw.(map[string]interface{}); ok {
+											incrementalConfig := &thematic_sync.IncrementalConfig{
+												Enabled:            getBoolFromMap(incrementalMap, "enabled"),
+												IncrementalField:   getStringFromMap(incrementalMap, "incremental_field"),
+												FieldType:          getStringFromMap(incrementalMap, "field_type"),
+												CompareOperator:    getStringFromMap(incrementalMap, "compare_operator"),
+												LastSyncValue:      getStringFromMap(incrementalMap, "last_sync_value"),
+												InitialValue:       getStringFromMap(incrementalMap, "initial_value"),
+												MaxLookbackHours:   getIntFromMap(incrementalMap, "max_lookback_hours"),
+												CheckDeletedField:  getStringFromMap(incrementalMap, "check_deleted_field"),
+												DeletedValue:       getStringFromMap(incrementalMap, "deleted_value"),
+												BatchSize:          getIntFromMap(incrementalMap, "batch_size"),
+												SyncDeletedRecords: getBoolFromMap(incrementalMap, "sync_deleted_records"),
+												TimestampFormat:    getStringFromMap(incrementalMap, "timestamp_format"),
+												TimeZone:           getStringFromMap(incrementalMap, "timezone"),
+											}
+
+											// 设置默认值
+											if incrementalConfig.CompareOperator == "" {
+												incrementalConfig.CompareOperator = ">"
+											}
+											if incrementalConfig.BatchSize == 0 {
+												incrementalConfig.BatchSize = 1000
+											}
+											if incrementalConfig.TimeZone == "" {
+												incrementalConfig.TimeZone = "Asia/Shanghai"
+											}
+
+											interfaceConfig.IncrementalConfig = incrementalConfig
+										}
+									}
+
+									interfaceConfigs = append(interfaceConfigs, interfaceConfig)
 								}
 							}
 						}
 					}
 
 					// 如果没有找到嵌套结构，尝试直接获取interface_id（向前兼容）
-					if len(interfaceIDs) == 0 {
+					if len(interfaceConfigs) == 0 {
 						if interfaceID := getStringFromMap(configMap, "interface_id"); interfaceID != "" {
-							interfaceIDs = append(interfaceIDs, interfaceID)
+							interfaceConfig := thematic_sync.SourceInterfaceConfig{
+								InterfaceID: interfaceID,
+							}
+							interfaceConfigs = append(interfaceConfigs, interfaceConfig)
 						}
 					}
 
 					// 为每个接口创建一个配置
-					for _, interfaceID := range interfaceIDs {
+					for _, interfaceConfig := range interfaceConfigs {
 						config := thematic_sync.SourceLibraryConfig{
-							LibraryID:   libraryID,
-							InterfaceID: interfaceID,
-							SQLQuery:    getStringFromMap(configMap, "sql_query"),
+							LibraryID:         libraryID,
+							InterfaceID:       interfaceConfig.InterfaceID,
+							SQLQuery:          getStringFromMap(configMap, "sql_query"),
+							IncrementalConfig: interfaceConfig.IncrementalConfig,
 						}
 
 						// 解析参数
@@ -793,4 +833,37 @@ func getStringFromMap(m map[string]interface{}, key string) string {
 		return fmt.Sprintf("%v", value)
 	}
 	return ""
+}
+
+// getBoolFromMap 从map中获取布尔值
+func getBoolFromMap(m map[string]interface{}, key string) bool {
+	if value, exists := m[key]; exists {
+		if boolVal, ok := value.(bool); ok {
+			return boolVal
+		}
+		// 尝试从字符串转换
+		strVal := fmt.Sprintf("%v", value)
+		return strVal == "true" || strVal == "1" || strVal == "yes"
+	}
+	return false
+}
+
+// getIntFromMap 从map中获取整数值
+func getIntFromMap(m map[string]interface{}, key string) int {
+	if value, exists := m[key]; exists {
+		if intVal, ok := value.(int); ok {
+			return intVal
+		}
+		if floatVal, ok := value.(float64); ok {
+			return int(floatVal)
+		}
+		// 尝试从字符串转换
+		strVal := fmt.Sprintf("%v", value)
+		if intVal, err := fmt.Sscanf(strVal, "%d"); err == nil && intVal == 1 {
+			var result int
+			fmt.Sscanf(strVal, "%d", &result)
+			return result
+		}
+	}
+	return 0
 }

@@ -16288,7 +16288,6 @@ const docTemplate = `{
             ],
             "properties": {
                 "cleansing_rule_configs": {
-                    "description": "清洗规则配置列表",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/models.DataCleansingConfig"
@@ -16310,25 +16309,24 @@ const docTemplate = `{
                     "$ref": "#/definitions/thematic_library.FieldMappingRules"
                 },
                 "governance_config": {
-                    "description": "数据治理执行配置",
+                    "$ref": "#/definitions/thematic_library.GovernanceExecutionConfig"
+                },
+                "key_matching_rules": {
+                    "description": "规则配置",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/thematic_library.GovernanceExecutionConfig"
+                            "$ref": "#/definitions/thematic_library.KeyMatchingRules"
                         }
                     ]
                 },
-                "key_matching_rules": {
-                    "$ref": "#/definitions/thematic_library.KeyMatchingRules"
-                },
                 "masking_rule_configs": {
-                    "description": "脱敏规则配置列表",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/models.DataMaskingConfig"
                     }
                 },
                 "quality_rule_configs": {
-                    "description": "数据治理规则配置 - 使用数据治理中定义的规则配置，包含字段信息",
+                    "description": "数据治理规则配置",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/models.QualityRuleConfig"
@@ -16338,7 +16336,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/thematic_library.ScheduleConfig"
                 },
                 "source_libraries": {
-                    "description": "数据源配置 - 两种方式二选一，SQL数据源优先级更高",
+                    "description": "数据源配置 - 使用结构化配置",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/thematic_library.SourceLibraryConfig"
@@ -16464,7 +16462,6 @@ const docTemplate = `{
                     }
                 },
                 "export_format": {
-                    "description": "json, csv, excel",
                     "type": "string",
                     "default": "json"
                 },
@@ -16490,7 +16487,6 @@ const docTemplate = `{
                     "default": true
                 },
                 "report_interval": {
-                    "description": "每处理多少条记录报告一次",
                     "type": "integer",
                     "default": 1000
                 },
@@ -16504,24 +16500,20 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "days": {
-                    "description": "允许执行的星期几 (1-7)",
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
                 },
                 "end_time": {
-                    "description": "结束时间 HH:MM",
                     "type": "string",
                     "example": "18:00"
                 },
                 "holidays": {
-                    "description": "是否在节假日执行",
                     "type": "boolean",
                     "default": false
                 },
                 "start_time": {
-                    "description": "开始时间 HH:MM",
                     "type": "string",
                     "example": "09:00"
                 }
@@ -16546,7 +16538,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "transform": {
-                    "description": "转换函数",
                     "type": "string"
                 }
             }
@@ -16595,7 +16586,6 @@ const docTemplate = `{
                     "default": true
                 },
                 "default_policy": {
-                    "description": "ignore, error, null",
                     "type": "string",
                     "default": "ignore"
                 },
@@ -16670,7 +16660,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "algorithm": {
-                    "description": "levenshtein, jaro, soundex",
                     "type": "string",
                     "default": "levenshtein"
                 },
@@ -16704,41 +16693,92 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "batch_size": {
-                    "description": "批处理大小",
                     "type": "integer"
                 },
                 "custom_config": {
-                    "description": "自定义配置",
                     "type": "object",
                     "additionalProperties": true
                 },
                 "enable_cleansing": {
-                    "description": "启用数据清洗",
                     "type": "boolean"
                 },
                 "enable_masking": {
-                    "description": "启用数据脱敏",
                     "type": "boolean"
                 },
                 "enable_quality_check": {
-                    "description": "启用质量检查",
                     "type": "boolean"
                 },
                 "max_retries": {
-                    "description": "最大重试次数",
                     "type": "integer"
                 },
                 "quality_threshold": {
-                    "description": "质量阈值",
                     "type": "number"
                 },
                 "stop_on_quality_failure": {
-                    "description": "质量检查失败时停止",
                     "type": "boolean"
                 },
                 "timeout_seconds": {
-                    "description": "超时时间（秒）",
                     "type": "integer"
+                }
+            }
+        },
+        "thematic_library.IncrementalConfig": {
+            "type": "object",
+            "properties": {
+                "batch_size": {
+                    "description": "增量同步批次大小",
+                    "type": "integer",
+                    "default": 1000
+                },
+                "check_deleted_field": {
+                    "description": "软删除字段名称",
+                    "type": "string"
+                },
+                "compare_operator": {
+                    "description": "比较操作符",
+                    "type": "string",
+                    "default": "\u003e"
+                },
+                "deleted_value": {
+                    "description": "删除标记值",
+                    "type": "string"
+                },
+                "enabled": {
+                    "description": "是否启用增量同步",
+                    "type": "boolean"
+                },
+                "field_type": {
+                    "description": "字段类型：timestamp, number, string",
+                    "type": "string"
+                },
+                "incremental_field": {
+                    "description": "增量字段名称",
+                    "type": "string"
+                },
+                "initial_value": {
+                    "description": "初始值",
+                    "type": "string"
+                },
+                "last_sync_value": {
+                    "description": "上次同步的值",
+                    "type": "string"
+                },
+                "max_lookback_hours": {
+                    "description": "最大回溯小时数",
+                    "type": "integer"
+                },
+                "sync_deleted_records": {
+                    "description": "是否同步已删除的记录",
+                    "type": "boolean"
+                },
+                "timestamp_format": {
+                    "description": "时间戳格式",
+                    "type": "string"
+                },
+                "timezone": {
+                    "description": "时区",
+                    "type": "string",
+                    "default": "Asia/Shanghai"
                 }
             }
         },
@@ -16816,7 +16856,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "pattern": {
-                    "description": "正则表达式",
                     "type": "string"
                 },
                 "required": {
@@ -16926,55 +16965,40 @@ const docTemplate = `{
             ],
             "properties": {
                 "cron_expression": {
-                    "description": "Cron表达式",
                     "type": "string"
                 },
                 "enabled": {
-                    "description": "是否启用",
                     "type": "boolean",
                     "default": true
                 },
                 "end_date": {
-                    "description": "结束日期",
                     "type": "string"
                 },
                 "execution_window": {
-                    "description": "执行时间窗口",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/thematic_library.ExecutionWindow"
-                        }
-                    ]
+                    "$ref": "#/definitions/thematic_library.ExecutionWindow"
                 },
                 "interval_seconds": {
-                    "description": "间隔秒数",
                     "type": "integer"
                 },
                 "max_retries": {
-                    "description": "最大重试次数",
                     "type": "integer",
                     "default": 3
                 },
                 "retry_interval": {
-                    "description": "重试间隔(秒)",
                     "type": "integer",
                     "default": 300
                 },
                 "scheduled_time": {
-                    "description": "计划执行时间",
                     "type": "string"
                 },
                 "start_date": {
-                    "description": "开始日期",
                     "type": "string"
                 },
                 "timezone": {
-                    "description": "时区",
                     "type": "string",
                     "default": "Asia/Shanghai"
                 },
                 "type": {
-                    "description": "manual, one_time, interval, cron",
                     "type": "string",
                     "enum": [
                         "manual",
@@ -17021,14 +17045,15 @@ const docTemplate = `{
                     }
                 },
                 "filter_condition": {
-                    "description": "SQL WHERE 条件",
                     "type": "string"
+                },
+                "incremental_config": {
+                    "$ref": "#/definitions/thematic_library.IncrementalConfig"
                 },
                 "interface_id": {
                     "type": "string"
                 },
                 "parameters": {
-                    "description": "接口参数",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
@@ -17050,7 +17075,6 @@ const docTemplate = `{
             ],
             "properties": {
                 "enabled": {
-                    "description": "是否启用",
                     "type": "boolean",
                     "default": true
                 },
@@ -17071,7 +17095,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "priority": {
-                    "description": "优先级，数字越小优先级越高",
                     "type": "integer",
                     "default": 1
                 },
@@ -17147,7 +17170,6 @@ const docTemplate = `{
                     "default": false
                 },
                 "timeout": {
-                    "description": "超时时间(秒)",
                     "type": "integer",
                     "default": 3600
                 }
@@ -17192,7 +17214,6 @@ const docTemplate = `{
             ],
             "properties": {
                 "cleansing_rule_configs": {
-                    "description": "清洗规则配置列表",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/models.DataCleansingConfig"
@@ -17205,25 +17226,19 @@ const docTemplate = `{
                     "$ref": "#/definitions/thematic_library.FieldMappingRules"
                 },
                 "governance_config": {
-                    "description": "数据治理执行配置",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/thematic_library.GovernanceExecutionConfig"
-                        }
-                    ]
+                    "$ref": "#/definitions/thematic_library.GovernanceExecutionConfig"
                 },
                 "key_matching_rules": {
                     "$ref": "#/definitions/thematic_library.KeyMatchingRules"
                 },
                 "masking_rule_configs": {
-                    "description": "脱敏规则配置列表",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/models.DataMaskingConfig"
                     }
                 },
                 "quality_rule_configs": {
-                    "description": "数据治理规则配置 - 使用数据治理中定义的规则配置，包含字段信息",
+                    "description": "数据治理规则配置",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/models.QualityRuleConfig"

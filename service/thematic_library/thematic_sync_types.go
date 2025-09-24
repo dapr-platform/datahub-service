@@ -1,10 +1,10 @@
 /*
- * @module service/thematic_sync_types
- * @description 主题同步服务相关的请求和响应类型定义
+ * @module service/thematic_library/thematic_sync_types
+ * @description 主题同步API层类型定义 - 请求和响应结构
  * @architecture 数据传输对象 - 定义API请求和响应结构
  * @documentReference ai_docs/thematic_sync_design.md
  * @stateFlow N/A
- * @rules 确保类型定义的一致性和可扩展性
+ * @rules 确保类型定义的一致性和可扩展性，只包含API层相关类型
  * @dependencies time, models包
  * @refs thematic_sync_service.go, models/thematic_sync.go
  */
@@ -16,15 +16,7 @@ import (
 	"time"
 )
 
-// SQLDataSourceConfig SQL数据源配置
-type SQLDataSourceConfig struct {
-	LibraryID   string                 `json:"library_id"`
-	InterfaceID string                 `json:"interface_id"`
-	SQLQuery    string                 `json:"sql_query"`
-	Parameters  map[string]interface{} `json:"parameters,omitempty"`
-	Timeout     int                    `json:"timeout,omitempty"`
-	MaxRows     int                    `json:"max_rows,omitempty"`
-}
+// ==================== 任务管理相关请求/响应 ====================
 
 // CreateThematicSyncTaskRequest 创建主题同步任务请求
 type CreateThematicSyncTaskRequest struct {
@@ -33,18 +25,19 @@ type CreateThematicSyncTaskRequest struct {
 	TaskName            string `json:"task_name" binding:"required"`
 	Description         string `json:"description"`
 
-	// 数据源配置 - 两种方式二选一，SQL数据源优先级更高
+	// 数据源配置 - 使用结构化配置
 	SourceLibraries []SourceLibraryConfig `json:"source_libraries,omitempty"`
 	DataSourceSQL   []SQLDataSourceConfig `json:"data_source_sql,omitempty"`
 
+	// 规则配置
 	KeyMatchingRules  *KeyMatchingRules  `json:"key_matching_rules,omitempty"`
 	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`
 
-	// 数据治理规则配置 - 使用数据治理中定义的规则配置，包含字段信息
-	QualityRuleConfigs   []models.QualityRuleConfig   `json:"quality_rule_configs,omitempty"`   // 质量规则配置列表
-	CleansingRuleConfigs []models.DataCleansingConfig `json:"cleansing_rule_configs,omitempty"` // 清洗规则配置列表
-	MaskingRuleConfigs   []models.DataMaskingConfig   `json:"masking_rule_configs,omitempty"`   // 脱敏规则配置列表
-	GovernanceConfig     *GovernanceExecutionConfig   `json:"governance_config,omitempty"`      // 数据治理执行配置
+	// 数据治理规则配置
+	QualityRuleConfigs   []models.QualityRuleConfig   `json:"quality_rule_configs,omitempty"`
+	CleansingRuleConfigs []models.DataCleansingConfig `json:"cleansing_rule_configs,omitempty"`
+	MaskingRuleConfigs   []models.DataMaskingConfig   `json:"masking_rule_configs,omitempty"`
+	GovernanceConfig     *GovernanceExecutionConfig   `json:"governance_config,omitempty"`
 
 	ScheduleConfig *ScheduleConfig `json:"schedule_config" binding:"required"`
 	CreatedBy      string          `json:"created_by" binding:"required"`
@@ -59,11 +52,11 @@ type UpdateThematicSyncTaskRequest struct {
 	KeyMatchingRules  *KeyMatchingRules  `json:"key_matching_rules,omitempty"`
 	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`
 
-	// 数据治理规则配置 - 使用数据治理中定义的规则配置，包含字段信息
-	QualityRuleConfigs   []models.QualityRuleConfig   `json:"quality_rule_configs,omitempty"`   // 质量规则配置列表
-	CleansingRuleConfigs []models.DataCleansingConfig `json:"cleansing_rule_configs,omitempty"` // 清洗规则配置列表
-	MaskingRuleConfigs   []models.DataMaskingConfig   `json:"masking_rule_configs,omitempty"`   // 脱敏规则配置列表
-	GovernanceConfig     *GovernanceExecutionConfig   `json:"governance_config,omitempty"`      // 数据治理执行配置
+	// 数据治理规则配置
+	QualityRuleConfigs   []models.QualityRuleConfig   `json:"quality_rule_configs,omitempty"`
+	CleansingRuleConfigs []models.DataCleansingConfig `json:"cleansing_rule_configs,omitempty"`
+	MaskingRuleConfigs   []models.DataMaskingConfig   `json:"masking_rule_configs,omitempty"`
+	GovernanceConfig     *GovernanceExecutionConfig   `json:"governance_config,omitempty"`
 
 	UpdatedBy string `json:"updated_by" binding:"required"`
 }
@@ -120,17 +113,284 @@ type ThematicSyncTaskStatistics struct {
 	RecentExecutions   []models.ThematicSyncExecution `json:"recent_executions"`
 }
 
+// ==================== 配置相关类型 ====================
+
+// SourceLibraryConfig 源库配置
+type SourceLibraryConfig struct {
+	LibraryID   string                  `json:"library_id" validate:"required"`
+	Interfaces  []SourceInterfaceConfig `json:"interfaces" validate:"required,min=1"`
+	FilterRules []DataFilterRule        `json:"filter_rules,omitempty"`
+	Priority    int                     `json:"priority" default:"1"`
+	Enabled     bool                    `json:"enabled" default:"true"`
+	SyncMode    string                  `json:"sync_mode" default:"full"` // full, incremental, realtime
+}
+
+// SourceInterfaceConfig 源接口配置
+type SourceInterfaceConfig struct {
+	InterfaceID       string             `json:"interface_id" validate:"required"`
+	FieldMapping      []FieldMapping     `json:"field_mapping,omitempty"`
+	FilterCondition   string             `json:"filter_condition,omitempty"`
+	SortOrder         []SortField        `json:"sort_order,omitempty"`
+	BatchSize         int                `json:"batch_size,omitempty" default:"1000"`
+	Parameters        map[string]string  `json:"parameters,omitempty"`
+	IncrementalConfig *IncrementalConfig `json:"incremental_config,omitempty"`
+}
+
+// FieldMapping 字段映射
+type FieldMapping struct {
+	SourceField  string      `json:"source_field" validate:"required"`
+	TargetField  string      `json:"target_field" validate:"required"`
+	Transform    string      `json:"transform,omitempty"`
+	Required     bool        `json:"required" default:"false"`
+	DefaultValue interface{} `json:"default_value,omitempty"`
+}
+
+// SortField 排序字段
+type SortField struct {
+	Field string `json:"field" validate:"required"`
+	Order string `json:"order" validate:"oneof=ASC DESC" default:"ASC"`
+}
+
+// DataFilterRule 数据过滤规则
+type DataFilterRule struct {
+	Field    string      `json:"field" validate:"required"`
+	Operator string      `json:"operator" validate:"required,oneof=eq ne gt lt ge le in nin like"`
+	Value    interface{} `json:"value" validate:"required"`
+	LogicOp  string      `json:"logic_op,omitempty" validate:"oneof=AND OR" default:"AND"`
+}
+
+// IncrementalConfig 增量同步配置
+type IncrementalConfig struct {
+	Enabled            bool   `json:"enabled"`                          // 是否启用增量同步
+	IncrementalField   string `json:"incremental_field"`                // 增量字段名称
+	FieldType          string `json:"field_type"`                       // 字段类型：timestamp, number, string
+	CompareOperator    string `json:"compare_operator" default:">"`     // 比较操作符
+	LastSyncValue      string `json:"last_sync_value,omitempty"`        // 上次同步的值
+	InitialValue       string `json:"initial_value,omitempty"`          // 初始值
+	MaxLookbackHours   int    `json:"max_lookback_hours,omitempty"`     // 最大回溯小时数
+	CheckDeletedField  string `json:"check_deleted_field,omitempty"`    // 软删除字段名称
+	DeletedValue       string `json:"deleted_value,omitempty"`          // 删除标记值
+	BatchSize          int    `json:"batch_size" default:"1000"`        // 增量同步批次大小
+	SyncDeletedRecords bool   `json:"sync_deleted_records"`             // 是否同步已删除的记录
+	TimestampFormat    string `json:"timestamp_format,omitempty"`       // 时间戳格式
+	TimeZone           string `json:"timezone" default:"Asia/Shanghai"` // 时区
+}
+
+// SQLDataSourceConfig SQL数据源配置
+type SQLDataSourceConfig struct {
+	LibraryID   string                 `json:"library_id"`
+	InterfaceID string                 `json:"interface_id"`
+	SQLQuery    string                 `json:"sql_query"`
+	Parameters  map[string]interface{} `json:"parameters,omitempty"`
+	Timeout     int                    `json:"timeout,omitempty"`
+	MaxRows     int                    `json:"max_rows,omitempty"`
+}
+
+// ScheduleConfig 调度配置
+type ScheduleConfig struct {
+	Type            string           `json:"type" validate:"required,oneof=manual one_time interval cron"`
+	CronExpression  string           `json:"cron_expression,omitempty"`
+	IntervalSeconds int              `json:"interval_seconds,omitempty"`
+	ScheduledTime   *time.Time       `json:"scheduled_time,omitempty"`
+	TimeZone        string           `json:"timezone,omitempty" default:"Asia/Shanghai"`
+	MaxRetries      int              `json:"max_retries,omitempty" default:"3"`
+	RetryInterval   int              `json:"retry_interval,omitempty" default:"300"`
+	Enabled         bool             `json:"enabled" default:"true"`
+	StartDate       *time.Time       `json:"start_date,omitempty"`
+	EndDate         *time.Time       `json:"end_date,omitempty"`
+	ExecutionWindow *ExecutionWindow `json:"execution_window,omitempty"`
+}
+
+// ExecutionWindow 执行时间窗口
+type ExecutionWindow struct {
+	StartTime string `json:"start_time" example:"09:00"`
+	EndTime   string `json:"end_time" example:"18:00"`
+	Days      []int  `json:"days,omitempty"`
+	Holidays  bool   `json:"holidays" default:"false"`
+}
+
+// SyncExecutionOptions 同步执行选项
+type SyncExecutionOptions struct {
+	Mode             string              `json:"mode" validate:"required,oneof=full incremental realtime test"`
+	DryRun           bool                `json:"dry_run" default:"false"`
+	BatchSize        int                 `json:"batch_size" default:"1000"`
+	MaxRecords       int                 `json:"max_records,omitempty"`
+	Timeout          int                 `json:"timeout" default:"3600"`
+	ForceRefresh     bool                `json:"force_refresh" default:"false"`
+	SkipValidation   bool                `json:"skip_validation" default:"false"`
+	IgnoreErrors     bool                `json:"ignore_errors" default:"false"`
+	ParallelWorkers  int                 `json:"parallel_workers" default:"1"`
+	DataRange        *ExecutionDataRange `json:"data_range,omitempty"`
+	FilterConditions []ExecutionFilter   `json:"filter_conditions,omitempty"`
+	OutputSettings   *ExecutionOutput    `json:"output_settings,omitempty"`
+	DebugMode        bool                `json:"debug_mode" default:"false"`
+	CustomParameters map[string]string   `json:"custom_parameters,omitempty"`
+}
+
+// ExecutionDataRange 执行数据范围
+type ExecutionDataRange struct {
+	StartTime    *time.Time `json:"start_time,omitempty"`
+	EndTime      *time.Time `json:"end_time,omitempty"`
+	DateField    string     `json:"date_field,omitempty"`
+	PartitionKey string     `json:"partition_key,omitempty"`
+	Conditions   []string   `json:"conditions,omitempty"`
+}
+
+// ExecutionFilter 执行过滤条件
+type ExecutionFilter struct {
+	Field    string      `json:"field" validate:"required"`
+	Operator string      `json:"operator" validate:"required,oneof=eq ne gt lt ge le in nin like"`
+	Value    interface{} `json:"value" validate:"required"`
+	LogicOp  string      `json:"logic_op,omitempty" validate:"oneof=AND OR" default:"AND"`
+}
+
+// ExecutionOutput 执行输出设置
+type ExecutionOutput struct {
+	LogLevel       string   `json:"log_level" default:"INFO"`
+	DetailedLog    bool     `json:"detailed_log" default:"false"`
+	ProgressReport bool     `json:"progress_report" default:"true"`
+	ReportInterval int      `json:"report_interval" default:"1000"`
+	SaveMetrics    bool     `json:"save_metrics" default:"true"`
+	ExportResults  bool     `json:"export_results" default:"false"`
+	ExportFormat   string   `json:"export_format" default:"json"`
+	ExportPath     string   `json:"export_path,omitempty"`
+	IncludeFields  []string `json:"include_fields,omitempty"`
+	ExcludeFields  []string `json:"exclude_fields,omitempty"`
+}
+
+// ==================== 规则配置相关类型 ====================
+
+// KeyMatchingRules 主键匹配规则
+type KeyMatchingRules struct {
+	PrimaryKeys    []PrimaryKeyRule  `json:"primary_keys" validate:"required,min=1"`
+	FuzzyMatching  *FuzzyMatchConfig `json:"fuzzy_matching,omitempty"`
+	ConflictPolicy string            `json:"conflict_policy" validate:"required,oneof=first last merge error"`
+	MatchThreshold float64           `json:"match_threshold,omitempty" default:"0.8"`
+	CaseSensitive  bool              `json:"case_sensitive" default:"true"`
+}
+
+// PrimaryKeyRule 主键规则
+type PrimaryKeyRule struct {
+	Fields     []string       `json:"fields" validate:"required,min=1"`
+	Weight     float64        `json:"weight" default:"1.0"`
+	Transform  []KeyTransform `json:"transform,omitempty"`
+	Validation *KeyValidation `json:"validation,omitempty"`
+}
+
+// KeyTransform 主键转换
+type KeyTransform struct {
+	Type       string            `json:"type" validate:"required,oneof=trim upper lower hash normalize"`
+	Parameters map[string]string `json:"parameters,omitempty"`
+}
+
+// KeyValidation 主键验证
+type KeyValidation struct {
+	Required   bool   `json:"required" default:"true"`
+	Pattern    string `json:"pattern,omitempty"`
+	MinLength  int    `json:"min_length,omitempty"`
+	MaxLength  int    `json:"max_length,omitempty"`
+	AllowEmpty bool   `json:"allow_empty" default:"false"`
+}
+
+// FuzzyMatchConfig 模糊匹配配置
+type FuzzyMatchConfig struct {
+	Enabled       bool             `json:"enabled" default:"false"`
+	Algorithm     string           `json:"algorithm" default:"levenshtein"`
+	Threshold     float64          `json:"threshold" default:"0.8"`
+	Fields        []string         `json:"fields,omitempty"`
+	CaseIgnore    bool             `json:"case_ignore" default:"true"`
+	Preprocessing []PreprocessRule `json:"preprocessing,omitempty"`
+}
+
+// PreprocessRule 预处理规则
+type PreprocessRule struct {
+	Type       string `json:"type" validate:"required,oneof=trim normalize remove_special"`
+	Parameters string `json:"parameters,omitempty"`
+}
+
+// FieldMappingRules 字段映射规则
+type FieldMappingRules struct {
+	Mappings       []FieldMappingRule    `json:"mappings" validate:"required,min=1"`
+	DefaultPolicy  string                `json:"default_policy" default:"ignore"`
+	CaseSensitive  bool                  `json:"case_sensitive" default:"true"`
+	TypeConversion *TypeConversionConfig `json:"type_conversion,omitempty"`
+	Validation     *MappingValidation    `json:"validation,omitempty"`
+}
+
+// FieldMappingRule 字段映射规则
+type FieldMappingRule struct {
+	SourceField  string               `json:"source_field" validate:"required"`
+	TargetField  string               `json:"target_field" validate:"required"`
+	DataType     string               `json:"data_type,omitempty"`
+	Transform    *FieldTransform      `json:"transform,omitempty"`
+	Validation   *FieldValidationRule `json:"validation,omitempty"`
+	DefaultValue interface{}          `json:"default_value,omitempty"`
+	Required     bool                 `json:"required" default:"false"`
+	Nullable     bool                 `json:"nullable" default:"true"`
+}
+
+// FieldTransform 字段转换
+type FieldTransform struct {
+	Type        string            `json:"type" validate:"required"`
+	Expression  string            `json:"expression,omitempty"`
+	Parameters  map[string]string `json:"parameters,omitempty"`
+	Conditional []ConditionalRule `json:"conditional,omitempty"`
+}
+
+// ConditionalRule 条件规则
+type ConditionalRule struct {
+	Condition string      `json:"condition" validate:"required"`
+	Value     interface{} `json:"value"`
+	Transform string      `json:"transform,omitempty"`
+}
+
+// FieldValidationRule 字段验证规则
+type FieldValidationRule struct {
+	Pattern       string        `json:"pattern,omitempty"`
+	MinLength     int           `json:"min_length,omitempty"`
+	MaxLength     int           `json:"max_length,omitempty"`
+	MinValue      interface{}   `json:"min_value,omitempty"`
+	MaxValue      interface{}   `json:"max_value,omitempty"`
+	AllowedValues []interface{} `json:"allowed_values,omitempty"`
+	CustomRules   []string      `json:"custom_rules,omitempty"`
+}
+
+// TypeConversionConfig 类型转换配置
+type TypeConversionConfig struct {
+	AutoConvert  bool             `json:"auto_convert" default:"true"`
+	StrictMode   bool             `json:"strict_mode" default:"false"`
+	DateFormat   string           `json:"date_format" default:"2006-01-02 15:04:05"`
+	NumberFormat string           `json:"number_format,omitempty"`
+	BooleanMap   map[string]bool  `json:"boolean_map,omitempty"`
+	CustomRules  []ConversionRule `json:"custom_rules,omitempty"`
+}
+
+// ConversionRule 转换规则
+type ConversionRule struct {
+	FromType string `json:"from_type" validate:"required"`
+	ToType   string `json:"to_type" validate:"required"`
+	Rule     string `json:"rule" validate:"required"`
+}
+
+// MappingValidation 映射验证
+type MappingValidation struct {
+	CheckDuplicates bool     `json:"check_duplicates" default:"true"`
+	RequiredFields  []string `json:"required_fields,omitempty"`
+	ValidateTypes   bool     `json:"validate_types" default:"true"`
+	AllowUnmapped   bool     `json:"allow_unmapped" default:"true"`
+}
+
 // GovernanceExecutionConfig 数据治理执行配置
 type GovernanceExecutionConfig struct {
-	EnableQualityCheck   bool                   `json:"enable_quality_check"`    // 启用质量检查
-	EnableCleansing      bool                   `json:"enable_cleansing"`        // 启用数据清洗
-	EnableMasking        bool                   `json:"enable_masking"`          // 启用数据脱敏
-	StopOnQualityFailure bool                   `json:"stop_on_quality_failure"` // 质量检查失败时停止
-	QualityThreshold     float64                `json:"quality_threshold"`       // 质量阈值
-	BatchSize            int                    `json:"batch_size"`              // 批处理大小
-	MaxRetries           int                    `json:"max_retries"`             // 最大重试次数
-	TimeoutSeconds       int                    `json:"timeout_seconds"`         // 超时时间（秒）
-	CustomConfig         map[string]interface{} `json:"custom_config,omitempty"` // 自定义配置
+	EnableQualityCheck   bool                   `json:"enable_quality_check"`
+	EnableCleansing      bool                   `json:"enable_cleansing"`
+	EnableMasking        bool                   `json:"enable_masking"`
+	StopOnQualityFailure bool                   `json:"stop_on_quality_failure"`
+	QualityThreshold     float64                `json:"quality_threshold"`
+	BatchSize            int                    `json:"batch_size"`
+	MaxRetries           int                    `json:"max_retries"`
+	TimeoutSeconds       int                    `json:"timeout_seconds"`
+	CustomConfig         map[string]interface{} `json:"custom_config,omitempty"`
 }
 
 // GovernanceExecutionResult 数据治理执行结果

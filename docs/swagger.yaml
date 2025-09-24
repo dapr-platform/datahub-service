@@ -4317,7 +4317,6 @@ definitions:
   thematic_library.CreateThematicSyncTaskRequest:
     properties:
       cleansing_rule_configs:
-        description: 清洗规则配置列表
         items:
           $ref: '#/definitions/models.DataCleansingConfig'
         type: array
@@ -4332,25 +4331,24 @@ definitions:
       field_mapping_rules:
         $ref: '#/definitions/thematic_library.FieldMappingRules'
       governance_config:
-        allOf:
-        - $ref: '#/definitions/thematic_library.GovernanceExecutionConfig'
-        description: 数据治理执行配置
+        $ref: '#/definitions/thematic_library.GovernanceExecutionConfig'
       key_matching_rules:
-        $ref: '#/definitions/thematic_library.KeyMatchingRules'
+        allOf:
+        - $ref: '#/definitions/thematic_library.KeyMatchingRules'
+        description: 规则配置
       masking_rule_configs:
-        description: 脱敏规则配置列表
         items:
           $ref: '#/definitions/models.DataMaskingConfig'
         type: array
       quality_rule_configs:
-        description: 数据治理规则配置 - 使用数据治理中定义的规则配置，包含字段信息
+        description: 数据治理规则配置
         items:
           $ref: '#/definitions/models.QualityRuleConfig'
         type: array
       schedule_config:
         $ref: '#/definitions/thematic_library.ScheduleConfig'
       source_libraries:
-        description: 数据源配置 - 两种方式二选一，SQL数据源优先级更高
+        description: 数据源配置 - 使用结构化配置
         items:
           $ref: '#/definitions/thematic_library.SourceLibraryConfig'
         type: array
@@ -4449,7 +4447,6 @@ definitions:
         type: array
       export_format:
         default: json
-        description: json, csv, excel
         type: string
       export_path:
         type: string
@@ -4468,7 +4465,6 @@ definitions:
         type: boolean
       report_interval:
         default: 1000
-        description: 每处理多少条记录报告一次
         type: integer
       save_metrics:
         default: true
@@ -4477,20 +4473,16 @@ definitions:
   thematic_library.ExecutionWindow:
     properties:
       days:
-        description: 允许执行的星期几 (1-7)
         items:
           type: integer
         type: array
       end_time:
-        description: 结束时间 HH:MM
         example: "18:00"
         type: string
       holidays:
         default: false
-        description: 是否在节假日执行
         type: boolean
       start_time:
-        description: 开始时间 HH:MM
         example: "09:00"
         type: string
     type: object
@@ -4505,7 +4497,6 @@ definitions:
       target_field:
         type: string
       transform:
-        description: 转换函数
         type: string
     required:
     - source_field
@@ -4541,7 +4532,6 @@ definitions:
         type: boolean
       default_policy:
         default: ignore
-        description: ignore, error, null
         type: string
       mappings:
         items:
@@ -4594,7 +4584,6 @@ definitions:
     properties:
       algorithm:
         default: levenshtein
-        description: levenshtein, jaro, soundex
         type: string
       case_ignore:
         default: true
@@ -4617,33 +4606,69 @@ definitions:
   thematic_library.GovernanceExecutionConfig:
     properties:
       batch_size:
-        description: 批处理大小
         type: integer
       custom_config:
         additionalProperties: true
-        description: 自定义配置
         type: object
       enable_cleansing:
-        description: 启用数据清洗
         type: boolean
       enable_masking:
-        description: 启用数据脱敏
         type: boolean
       enable_quality_check:
-        description: 启用质量检查
         type: boolean
       max_retries:
-        description: 最大重试次数
         type: integer
       quality_threshold:
-        description: 质量阈值
         type: number
       stop_on_quality_failure:
-        description: 质量检查失败时停止
         type: boolean
       timeout_seconds:
-        description: 超时时间（秒）
         type: integer
+    type: object
+  thematic_library.IncrementalConfig:
+    properties:
+      batch_size:
+        default: 1000
+        description: 增量同步批次大小
+        type: integer
+      check_deleted_field:
+        description: 软删除字段名称
+        type: string
+      compare_operator:
+        default: '>'
+        description: 比较操作符
+        type: string
+      deleted_value:
+        description: 删除标记值
+        type: string
+      enabled:
+        description: 是否启用增量同步
+        type: boolean
+      field_type:
+        description: 字段类型：timestamp, number, string
+        type: string
+      incremental_field:
+        description: 增量字段名称
+        type: string
+      initial_value:
+        description: 初始值
+        type: string
+      last_sync_value:
+        description: 上次同步的值
+        type: string
+      max_lookback_hours:
+        description: 最大回溯小时数
+        type: integer
+      sync_deleted_records:
+        description: 是否同步已删除的记录
+        type: boolean
+      timestamp_format:
+        description: 时间戳格式
+        type: string
+      timezone:
+        default: Asia/Shanghai
+        description: 时区
+        type: string
     type: object
   thematic_library.KeyMatchingRules:
     properties:
@@ -4698,7 +4723,6 @@ definitions:
       min_length:
         type: integer
       pattern:
-        description: 正则表达式
         type: string
       required:
         default: true
@@ -4771,42 +4795,30 @@ definitions:
   thematic_library.ScheduleConfig:
     properties:
       cron_expression:
-        description: Cron表达式
         type: string
       enabled:
         default: true
-        description: 是否启用
         type: boolean
       end_date:
-        description: 结束日期
         type: string
       execution_window:
-        allOf:
-        - $ref: '#/definitions/thematic_library.ExecutionWindow'
-        description: 执行时间窗口
+        $ref: '#/definitions/thematic_library.ExecutionWindow'
       interval_seconds:
-        description: 间隔秒数
         type: integer
       max_retries:
         default: 3
-        description: 最大重试次数
         type: integer
       retry_interval:
         default: 300
-        description: 重试间隔(秒)
         type: integer
       scheduled_time:
-        description: 计划执行时间
         type: string
       start_date:
-        description: 开始日期
         type: string
       timezone:
         default: Asia/Shanghai
-        description: 时区
         type: string
       type:
-        description: manual, one_time, interval, cron
         enum:
         - manual
         - one_time
@@ -4839,14 +4851,14 @@ definitions:
           $ref: '#/definitions/thematic_library.FieldMapping'
         type: array
       filter_condition:
-        description: SQL WHERE 条件
         type: string
+      incremental_config:
+        $ref: '#/definitions/thematic_library.IncrementalConfig'
       interface_id:
         type: string
       parameters:
         additionalProperties:
           type: string
-        description: 接口参数
         type: object
       sort_order:
         items:
@@ -4859,7 +4871,6 @@ definitions:
     properties:
       enabled:
         default: true
-        description: 是否启用
         type: boolean
       filter_rules:
         items:
@@ -4874,7 +4885,6 @@ definitions:
         type: string
       priority:
         default: 1
-        description: 优先级，数字越小优先级越高
         type: integer
       sync_mode:
         default: full
@@ -4930,7 +4940,6 @@ definitions:
         type: boolean
       timeout:
         default: 3600
-        description: 超时时间(秒)
         type: integer
     required:
     - mode
@@ -4960,7 +4969,6 @@ definitions:
   thematic_library.UpdateThematicSyncTaskRequest:
     properties:
       cleansing_rule_configs:
-        description: 清洗规则配置列表
         items:
           $ref: '#/definitions/models.DataCleansingConfig'
         type: array
@@ -4969,18 +4977,15 @@ definitions:
       field_mapping_rules:
         $ref: '#/definitions/thematic_library.FieldMappingRules'
       governance_config:
-        allOf:
-        - $ref: '#/definitions/thematic_library.GovernanceExecutionConfig'
-        description: 数据治理执行配置
+        $ref: '#/definitions/thematic_library.GovernanceExecutionConfig'
       key_matching_rules:
         $ref: '#/definitions/thematic_library.KeyMatchingRules'
       masking_rule_configs:
-        description: 脱敏规则配置列表
         items:
           $ref: '#/definitions/models.DataMaskingConfig'
         type: array
       quality_rule_configs:
-        description: 数据治理规则配置 - 使用数据治理中定义的规则配置，包含字段信息
+        description: 数据治理规则配置
         items:
           $ref: '#/definitions/models.QualityRuleConfig'
         type: array
