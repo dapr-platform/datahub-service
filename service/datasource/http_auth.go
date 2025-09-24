@@ -133,8 +133,10 @@ func (h *HTTPAuthDataSource) Start(ctx context.Context) error {
 			return fmt.Errorf("启动脚本执行失败: %v", err)
 		}
 
-		// 启动会话刷新定时器
-		h.startSessionRefresh()
+		// 只有当配置了会话刷新间隔时才启动定时器
+		if h.sessionRefreshInterval > 0 {
+			h.startSessionRefresh()
+		}
 	} else {
 		// HTTP数据源启动时可以进行连接测试
 		if err := h.testConnection(ctx); err != nil {
@@ -214,7 +216,19 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 
 	// 确定HTTP方法
 	method := "GET"
-	if request.Operation != "" {
+
+	// 优先使用从查询构建器传递的方法
+	if request.Params != nil {
+		if methodParam, exists := request.Params["method"]; exists {
+			if methodStr, ok := methodParam.(string); ok && methodStr != "" {
+				method = strings.ToUpper(methodStr)
+				fmt.Printf("[DEBUG] executeHTTPRequest - 使用查询构建器传递的HTTP方法: %s\n", method)
+			}
+		}
+	}
+
+	// 如果没有从参数中获取到方法，则根据Operation推断
+	if method == "GET" && request.Operation != "" {
 		switch strings.ToLower(request.Operation) {
 		case "query", "get":
 			method = "GET"
@@ -227,18 +241,63 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 		default:
 			method = "GET"
 		}
+		fmt.Printf("[DEBUG] executeHTTPRequest - 根据Operation推断HTTP方法: %s (Operation: %s)\n", method, request.Operation)
 	}
 
 	// 准备请求体
 	var reqBody io.Reader
-	if request.Data != nil && (method == "POST" || method == "PUT") {
-		jsonData, err := json.Marshal(request.Data)
-		if err != nil {
-			response.Error = fmt.Sprintf("序列化请求数据失败: %v", err)
-			response.Duration = time.Since(startTime)
-			return response, err
+	var contentType string = "application/json"
+
+	// 检查是否有从查询构建器传递的body数据
+	var bodyData interface{}
+	var useFormData bool
+
+	if request.Params != nil {
+		if bodyParam, exists := request.Params["body"]; exists && bodyParam != nil {
+			bodyData = bodyParam
+			fmt.Printf("[DEBUG] executeHTTPRequest - 使用查询构建器传递的body数据: %+v\n", bodyData)
 		}
-		reqBody = bytes.NewReader(jsonData)
+		if formDataParam, exists := request.Params["use_form_data"]; exists {
+			useFormData, _ = formDataParam.(bool)
+			fmt.Printf("[DEBUG] executeHTTPRequest - 使用表单数据模式: %v\n", useFormData)
+		}
+	}
+
+	// 如果没有从参数中获取到body，使用request.Data
+	if bodyData == nil {
+		bodyData = request.Data
+	}
+
+	if bodyData != nil && (method == "POST" || method == "PUT") {
+		if useFormData {
+			// 使用表单数据格式
+			if bodyStr, ok := bodyData.(string); ok {
+				reqBody = strings.NewReader(bodyStr)
+				contentType = "application/x-www-form-urlencoded"
+				fmt.Printf("[DEBUG] executeHTTPRequest - 使用表单数据: %s\n", bodyStr)
+			} else if bodyMap, ok := bodyData.(map[string]interface{}); ok {
+				// 将map转换为表单数据
+				values := make([]string, 0, len(bodyMap))
+				for k, v := range bodyMap {
+					values = append(values, fmt.Sprintf("%s=%s", k, fmt.Sprintf("%v", v)))
+				}
+				formBody := strings.Join(values, "&")
+				reqBody = strings.NewReader(formBody)
+				contentType = "application/x-www-form-urlencoded"
+				fmt.Printf("[DEBUG] executeHTTPRequest - 转换map为表单数据: %s\n", formBody)
+			}
+		} else {
+			// 使用JSON格式
+			jsonData, err := json.Marshal(bodyData)
+			if err != nil {
+				response.Error = fmt.Sprintf("序列化请求数据失败: %v", err)
+				response.Duration = time.Since(startTime)
+				return response, err
+			}
+			reqBody = bytes.NewReader(jsonData)
+			contentType = "application/json"
+			fmt.Printf("[DEBUG] executeHTTPRequest - 使用JSON数据: %s\n", string(jsonData))
+		}
 	}
 
 	// 创建HTTP请求
@@ -258,7 +317,22 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 
 	// 设置Content-Type
 	if reqBody != nil {
-		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Content-Type", contentType)
+		fmt.Printf("[DEBUG] executeHTTPRequest - 设置Content-Type: %s\n", contentType)
+	}
+
+	// 设置从查询构建器传递的额外头部
+	if request.Params != nil {
+		if headersParam, exists := request.Params["headers"]; exists {
+			if headers, ok := headersParam.(map[string]interface{}); ok {
+				for key, value := range headers {
+					if strValue, ok := value.(string); ok {
+						httpReq.Header.Set(key, strValue)
+						fmt.Printf("[DEBUG] executeHTTPRequest - 设置额外头部: %s = %s\n", key, strValue)
+					}
+				}
+			}
+		}
 	}
 
 	// 执行请求
@@ -361,7 +435,7 @@ func (h *HTTPAuthDataSource) HealthCheck(ctx context.Context) (*HealthStatus, er
 
 // extractCredentials 提取认证凭据
 func (h *HTTPAuthDataSource) extractCredentials(config map[string]interface{}) {
-	// 提取用户名和密码
+	// 提取基本认证信息
 	if username, ok := config[meta.DataSourceFieldUsername].(string); ok {
 		h.credentials["username"] = username
 	}
@@ -379,6 +453,43 @@ func (h *HTTPAuthDataSource) extractCredentials(config map[string]interface{}) {
 	if apiKeyHeader, ok := config[meta.DataSourceFieldApiKeyHeader].(string); ok {
 		h.credentials["api_key_header"] = apiKeyHeader
 	}
+
+	// 提取OAuth2相关信息
+	if clientId, ok := config[meta.DataSourceFieldClientId].(string); ok {
+		h.credentials["client_id"] = clientId
+	}
+	if clientSecret, ok := config[meta.DataSourceFieldClientSecret].(string); ok {
+		h.credentials["client_secret"] = clientSecret
+	}
+	if grantType, ok := config[meta.DataSourceFieldGrantType].(string); ok {
+		h.credentials["grant_type"] = grantType
+	}
+	if scope, ok := config[meta.DataSourceFieldScope].(string); ok {
+		h.credentials["scope"] = scope
+	}
+
+	// 如果是自定义认证类型，从custom_map中提取配置
+	if h.authType == meta.DataSourceAuthTypeCustom {
+		if customMapRaw, ok := config[meta.DatasourceFieldCustomMap]; ok {
+			if customMap, ok := customMapRaw.(map[string]interface{}); ok {
+				// 将custom_map的内容合并到credentials中
+				for key, value := range customMap {
+					h.credentials[key] = value
+				}
+
+				// 从custom_map中提取会话刷新间隔
+				if refreshIntervalRaw, exists := customMap["session_refresh_interval"]; exists {
+					if refreshInterval, ok := refreshIntervalRaw.(float64); ok && refreshInterval > 0 {
+						h.sessionRefreshInterval = time.Duration(refreshInterval) * time.Second
+					} else if refreshIntervalStr, ok := refreshIntervalRaw.(string); ok {
+						if duration, err := time.ParseDuration(refreshIntervalStr); err == nil {
+							h.sessionRefreshInterval = duration
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 // setAuthHeaders 设置认证头
@@ -390,6 +501,8 @@ func (h *HTTPAuthDataSource) setAuthHeaders(req *http.Request) error {
 		return h.setBearerAuth(req)
 	case meta.DataSourceAuthTypeAPIKey:
 		return h.setAPIKeyAuth(req)
+	case meta.DataSourceAuthTypeOAuth2:
+		return h.setOAuth2Auth(req)
 	case meta.DataSourceAuthTypeCustom:
 		return h.setCustomAuth(req)
 	default:
@@ -402,46 +515,307 @@ func (h *HTTPAuthDataSource) setBasicAuth(req *http.Request) error {
 	username, ok1 := h.credentials["username"].(string)
 	password, ok2 := h.credentials["password"].(string)
 
-	if !ok1 || !ok2 {
-		return fmt.Errorf("Basic认证缺少用户名或密码")
+	if !ok1 || username == "" {
+		return fmt.Errorf("Basic认证缺少用户名")
+	}
+	if !ok2 || password == "" {
+		return fmt.Errorf("Basic认证缺少密码")
 	}
 
 	req.SetBasicAuth(username, password)
+
+	// 添加常用的Basic认证相关头部
+	req.Header.Set("Content-Type", "application/json")
+
 	return nil
 }
 
 // setBearerAuth 设置Bearer认证
 func (h *HTTPAuthDataSource) setBearerAuth(req *http.Request) error {
-	token, ok := h.credentials["api_key"].(string)
-	if !ok || token == "" {
-		return fmt.Errorf("Bearer认证缺少token")
+	// 优先使用token字段，如果没有则使用api_key字段
+	var token string
+	if tokenValue, ok := h.credentials["token"].(string); ok && tokenValue != "" {
+		token = tokenValue
+	} else if apiKeyValue, ok := h.credentials["api_key"].(string); ok && apiKeyValue != "" {
+		token = apiKeyValue
+	} else {
+		return fmt.Errorf("Bearer认证缺少token或api_key")
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	// 如果有额外的头部配置，也可以添加
+	if extraHeaders, ok := h.credentials["headers"].(map[string]interface{}); ok {
+		for key, value := range extraHeaders {
+			if strValue, ok := value.(string); ok {
+				req.Header.Set(key, strValue)
+			}
+		}
+	}
+
 	return nil
 }
 
 // setAPIKeyAuth 设置API Key认证
 func (h *HTTPAuthDataSource) setAPIKeyAuth(req *http.Request) error {
 	apiKey, ok1 := h.credentials["api_key"].(string)
-	header, ok2 := h.credentials["api_key_header"].(string)
-
 	if !ok1 || apiKey == "" {
 		return fmt.Errorf("API Key认证缺少API Key")
 	}
 
+	// 获取API Key头部名称
+	header, ok2 := h.credentials["api_key_header"].(string)
 	if !ok2 || header == "" {
 		header = "X-API-Key" // 默认header名称
 	}
 
 	req.Header.Set(header, apiKey)
+
+	// 如果有API Secret，也添加到头部
+	if apiSecret, ok := h.credentials["api_secret"].(string); ok && apiSecret != "" {
+		secretHeader, ok := h.credentials["api_secret_header"].(string)
+		if !ok || secretHeader == "" {
+			secretHeader = "X-API-Secret" // 默认secret header名称
+		}
+		req.Header.Set(secretHeader, apiSecret)
+	}
+
+	// 设置Content-Type
+	req.Header.Set("Content-Type", "application/json")
+
+	// 如果有额外的头部配置，也可以添加
+	if extraHeaders, ok := h.credentials["headers"].(map[string]interface{}); ok {
+		for key, value := range extraHeaders {
+			if strValue, ok := value.(string); ok {
+				req.Header.Set(key, strValue)
+			}
+		}
+	}
+
+	return nil
+}
+
+// setOAuth2Auth 设置OAuth2认证
+func (h *HTTPAuthDataSource) setOAuth2Auth(req *http.Request) error {
+	// 检查是否已有访问令牌
+	h.mu.RLock()
+	accessToken, hasToken := h.sessionData["access_token"]
+	tokenExpiry, hasExpiry := h.sessionData["token_expiry"]
+	h.mu.RUnlock()
+
+	// 检查令牌是否过期
+	needsRefresh := !hasToken
+	if hasExpiry {
+		if expiryTime, ok := tokenExpiry.(time.Time); ok {
+			if time.Now().After(expiryTime.Add(-30 * time.Second)) { // 提前30秒刷新
+				needsRefresh = true
+			}
+		}
+	}
+
+	// 如果需要刷新令牌
+	if needsRefresh {
+		if err := h.refreshOAuth2Token(req.Context()); err != nil {
+			return fmt.Errorf("OAuth2令牌刷新失败: %v", err)
+		}
+
+		// 重新获取令牌
+		h.mu.RLock()
+		accessToken = h.sessionData["access_token"]
+		h.mu.RUnlock()
+	}
+
+	// 设置Authorization头部
+	if token, ok := accessToken.(string); ok && token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		return nil
+	}
+
+	return fmt.Errorf("OAuth2访问令牌不可用")
+}
+
+// refreshOAuth2Token 刷新OAuth2令牌
+func (h *HTTPAuthDataSource) refreshOAuth2Token(ctx context.Context) error {
+	clientId, ok1 := h.credentials["client_id"].(string)
+	clientSecret, ok2 := h.credentials["client_secret"].(string)
+
+	if !ok1 || clientId == "" {
+		return fmt.Errorf("OAuth2认证缺少client_id")
+	}
+	if !ok2 || clientSecret == "" {
+		return fmt.Errorf("OAuth2认证缺少client_secret")
+	}
+
+	// 获取授权类型，默认为client_credentials
+	grantType, ok := h.credentials["grant_type"].(string)
+	if !ok || grantType == "" {
+		grantType = "client_credentials"
+	}
+
+	// 构建令牌请求
+	tokenURL := h.baseURL
+	if tokenEndpoint, ok := h.credentials["token_endpoint"].(string); ok && tokenEndpoint != "" {
+		tokenURL = tokenEndpoint
+	} else {
+		// 尝试从baseURL构建token端点
+		if strings.HasSuffix(h.baseURL, "/") {
+			tokenURL = h.baseURL + "oauth/token"
+		} else {
+			tokenURL = h.baseURL + "/oauth/token"
+		}
+	}
+
+	// 准备请求参数
+	params := map[string]string{
+		"grant_type":    grantType,
+		"client_id":     clientId,
+		"client_secret": clientSecret,
+	}
+
+	// 添加scope（如果有）
+	if scope, ok := h.credentials["scope"].(string); ok && scope != "" {
+		params["scope"] = scope
+	}
+
+	// 对于password授权类型，添加用户名和密码
+	if grantType == "password" {
+		if username, ok := h.credentials["username"].(string); ok && username != "" {
+			params["username"] = username
+		}
+		if password, ok := h.credentials["password"].(string); ok && password != "" {
+			params["password"] = password
+		}
+	}
+
+	// 构建表单数据
+	values := make([]string, 0, len(params))
+	for k, v := range params {
+		values = append(values, fmt.Sprintf("%s=%s", k, v))
+	}
+	formBody := strings.Join(values, "&")
+
+	// 创建请求
+	tokenReq, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(formBody))
+	if err != nil {
+		return fmt.Errorf("创建令牌请求失败: %v", err)
+	}
+
+	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	tokenReq.Header.Set("Accept", "application/json")
+
+	// 执行请求
+	client := h.getHTTPClient(ctx)
+	resp, err := client.Do(tokenReq)
+	if err != nil {
+		return fmt.Errorf("令牌请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 读取响应
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("读取令牌响应失败: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("令牌请求失败，状态码: %d, 响应: %s", resp.StatusCode, string(body))
+	}
+
+	// 解析令牌响应
+	var tokenResponse map[string]interface{}
+	if err := json.Unmarshal(body, &tokenResponse); err != nil {
+		return fmt.Errorf("解析令牌响应失败: %v", err)
+	}
+
+	// 提取访问令牌
+	accessToken, ok := tokenResponse["access_token"].(string)
+	if !ok || accessToken == "" {
+		return fmt.Errorf("响应中缺少access_token")
+	}
+
+	// 计算令牌过期时间
+	var expiryTime time.Time
+	if expiresIn, ok := tokenResponse["expires_in"].(float64); ok {
+		expiryTime = time.Now().Add(time.Duration(expiresIn) * time.Second)
+	} else {
+		// 默认1小时过期
+		expiryTime = time.Now().Add(time.Hour)
+	}
+
+	// 保存令牌信息
+	h.mu.Lock()
+	h.sessionData["access_token"] = accessToken
+	h.sessionData["token_expiry"] = expiryTime
+	h.sessionData["token_type"] = tokenResponse["token_type"]
+	if refreshToken, ok := tokenResponse["refresh_token"].(string); ok {
+		h.sessionData["refresh_token"] = refreshToken
+	}
+	h.sessionData["token_obtained_at"] = time.Now().Format(time.RFC3339)
+	h.mu.Unlock()
+
 	return nil
 }
 
 // setCustomAuth 设置自定义认证
 func (h *HTTPAuthDataSource) setCustomAuth(req *http.Request) error {
-	// 自定义认证逻辑，可以通过脚本实现
-	return fmt.Errorf("自定义认证需要通过脚本实现")
+	// 对于自定义认证，主要通过脚本实现
+	// 但这里可以设置一些基础的头部信息
+
+	// 设置默认Content-Type
+	req.Header.Set("Content-Type", "application/json")
+
+	// 如果有预设的头部信息，添加到请求中
+	if extraHeaders, ok := h.credentials["headers"].(map[string]interface{}); ok {
+		for key, value := range extraHeaders {
+			if strValue, ok := value.(string); ok {
+				req.Header.Set(key, strValue)
+			}
+		}
+	}
+
+	// 检查是否有会话数据需要添加到头部
+	h.mu.RLock()
+	sessionId, hasSessionId := h.sessionData["sessionId"]
+	authToken, hasAuthToken := h.sessionData["auth_token"]
+	accessToken, hasAccessToken := h.sessionData["access_token"]
+	h.mu.RUnlock()
+
+	// 如果有sessionId，添加到头部或查询参数
+	if hasSessionId {
+		if sessionIdStr, ok := sessionId.(string); ok && sessionIdStr != "" {
+			// 检查配置决定sessionId放在头部还是查询参数
+			if sessionIdHeader, ok := h.credentials["session_id_header"].(string); ok && sessionIdHeader != "" {
+				req.Header.Set(sessionIdHeader, sessionIdStr)
+			} else {
+				// 默认添加到查询参数
+				query := req.URL.Query()
+				query.Add("sessionId", sessionIdStr)
+				req.URL.RawQuery = query.Encode()
+			}
+		}
+	}
+
+	// 如果有认证令牌，添加到Authorization头部
+	if hasAuthToken {
+		if tokenStr, ok := authToken.(string); ok && tokenStr != "" {
+			req.Header.Set("Authorization", "Bearer "+tokenStr)
+		}
+	} else if hasAccessToken {
+		if tokenStr, ok := accessToken.(string); ok && tokenStr != "" {
+			req.Header.Set("Authorization", "Bearer "+tokenStr)
+		}
+	}
+
+	// 从custom_map中获取其他认证相关配置
+	if authHeader, ok := h.credentials["auth_header"].(string); ok && authHeader != "" {
+		if authValue, ok := h.credentials["auth_value"].(string); ok && authValue != "" {
+			req.Header.Set(authHeader, authValue)
+		}
+	}
+
+	return nil
 }
 
 // testConnection 测试连接

@@ -208,7 +208,11 @@ func (qb *QueryBuilder) buildDatabaseTestRequest(parameters map[string]interface
 			if tableName, exists := interfaceConfig[meta.DataInterfaceConfigFieldTableName]; exists {
 				if tableStr, ok := tableName.(string); ok {
 					// 构建基本的SELECT查询
-					query = fmt.Sprintf("SELECT * FROM %s LIMIT 5", tableStr)
+					limit := 5
+					if l, exists := parameters["limit"]; exists {
+						limit = cast.ToInt(l)
+					}
+					query = fmt.Sprintf("SELECT * FROM %s LIMIT %d", tableStr, limit)
 				}
 			}
 		}
@@ -368,6 +372,22 @@ func (qb *QueryBuilder) buildAPIRequest(parameters map[string]interface{}, isSyn
 		Params:    finalQueryParams,
 		Timeout:   timeout,
 		Data:      requestData,
+	}
+
+	// 将HTTP方法和其他配置添加到Params中，供数据源使用
+	if request.Params == nil {
+		request.Params = make(map[string]interface{})
+	}
+	request.Params["method"] = method
+	request.Params["headers"] = headers
+	request.Params["body"] = body
+
+	// 获取use_form_data配置
+	if qb.dataInterface != nil {
+		interfaceConfig := map[string]interface{}(qb.dataInterface.InterfaceConfig)
+		if useFormData, exists := interfaceConfig[meta.DataInterfaceConfigFieldUseFormData]; exists {
+			request.Params["use_form_data"] = cast.ToBool(useFormData)
+		}
 	}
 
 	return request, nil
@@ -937,6 +957,22 @@ func (qb *QueryBuilder) buildAPIRequestWithPagination(parameters map[string]inte
 		Params:    finalQueryParams,
 		Timeout:   timeout,
 		Data:      requestData,
+	}
+
+	// 将HTTP方法和其他配置添加到Params中，供数据源使用
+	if request.Params == nil {
+		request.Params = make(map[string]interface{})
+	}
+	request.Params["method"] = method
+	request.Params["headers"] = headers
+	request.Params["body"] = body
+
+	// 获取use_form_data配置
+	if qb.dataInterface != nil {
+		interfaceConfig := map[string]interface{}(qb.dataInterface.InterfaceConfig)
+		if useFormData, exists := interfaceConfig[meta.DataInterfaceConfigFieldUseFormData]; exists {
+			request.Params["use_form_data"] = cast.ToBool(useFormData)
+		}
 	}
 
 	return request, nil

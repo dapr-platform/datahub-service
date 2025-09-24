@@ -105,6 +105,18 @@ func (dp *DataProcessor) FetchDataFromSourceWithExecuteType(ctx context.Context,
 
 	fmt.Printf("[DEBUG] FetchDataFromSource - 查询构建器创建成功\n")
 
+	// 打印接口配置的详细信息
+	fmt.Printf("[DEBUG] FetchDataFromSource - 接口配置详情:\n")
+	if method, exists := interfaceInfo.GetInterfaceConfig()["method"]; exists {
+		fmt.Printf("[DEBUG] FetchDataFromSource - 配置的HTTP方法: %v\n", method)
+	}
+	if body, exists := interfaceInfo.GetInterfaceConfig()["body"]; exists {
+		fmt.Printf("[DEBUG] FetchDataFromSource - 配置的请求体: %v\n", body)
+	}
+	if useFormData, exists := interfaceInfo.GetInterfaceConfig()["use_form_data"]; exists {
+		fmt.Printf("[DEBUG] FetchDataFromSource - 使用表单数据: %v\n", useFormData)
+	}
+
 	// 根据执行类型构建不同的请求
 	var executeRequest *datasource.ExecuteRequest
 	switch executeType {
@@ -123,7 +135,22 @@ func (dp *DataProcessor) FetchDataFromSourceWithExecuteType(ctx context.Context,
 		return nil, nil, nil, fmt.Errorf("构建查询请求失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchDataFromSource - 执行请求: %+v\n", executeRequest)
+	fmt.Printf("[DEBUG] FetchDataFromSource - 执行请求详情:\n")
+	fmt.Printf("[DEBUG] FetchDataFromSource - Operation: %s\n", executeRequest.Operation)
+	fmt.Printf("[DEBUG] FetchDataFromSource - Query: %s\n", executeRequest.Query)
+	fmt.Printf("[DEBUG] FetchDataFromSource - Data: %+v\n", executeRequest.Data)
+	if executeRequest.Params != nil {
+		fmt.Printf("[DEBUG] FetchDataFromSource - Params: %+v\n", executeRequest.Params)
+		if method, exists := executeRequest.Params["method"]; exists {
+			fmt.Printf("[DEBUG] FetchDataFromSource - 传递给数据源的HTTP方法: %v\n", method)
+		}
+		if body, exists := executeRequest.Params["body"]; exists {
+			fmt.Printf("[DEBUG] FetchDataFromSource - 传递给数据源的请求体: %v\n", body)
+		}
+		if useFormData, exists := executeRequest.Params["use_form_data"]; exists {
+			fmt.Printf("[DEBUG] FetchDataFromSource - 传递给数据源的表单数据标志: %v\n", useFormData)
+		}
+	}
 
 	// 执行数据查询
 	response, err := dsInstance.Execute(ctx, executeRequest)
@@ -133,6 +160,20 @@ func (dp *DataProcessor) FetchDataFromSourceWithExecuteType(ctx context.Context,
 	}
 
 	fmt.Printf("[DEBUG] FetchDataFromSource - 查询执行成功，响应: %+v\n", response)
+
+	// 检查响应是否成功
+	if !response.Success {
+		errorMsg := response.Message
+		if errorMsg == "" {
+			errorMsg = "接口调用失败"
+		}
+		// 如果有错误详情，添加到错误消息中
+		if response.Error != "" {
+			errorMsg = fmt.Sprintf("%s: %s", errorMsg, response.Error)
+		}
+		fmt.Printf("[ERROR] FetchDataFromSource - 接口返回错误: %s\n", errorMsg)
+		return nil, nil, nil, fmt.Errorf("接口调用失败: %s", errorMsg)
+	}
 
 	// 处理返回的数据
 	data, dataTypes, warnings := dp.ProcessResponseData(response.Data)
@@ -273,6 +314,20 @@ func (dp *DataProcessor) FetchBatchDataFromSource(ctx context.Context, interface
 	}
 
 	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 查询执行成功，响应: %+v\n", response)
+
+	// 检查响应是否成功
+	if !response.Success {
+		errorMsg := response.Message
+		if errorMsg == "" {
+			errorMsg = "接口调用失败"
+		}
+		// 如果有错误详情，添加到错误消息中
+		if response.Error != "" {
+			errorMsg = fmt.Sprintf("%s: %s", errorMsg, response.Error)
+		}
+		fmt.Printf("[ERROR] FetchBatchDataFromSource - 接口返回错误: %s\n", errorMsg)
+		return nil, nil, nil, fmt.Errorf("接口调用失败: %s", errorMsg)
+	}
 
 	// 处理返回的数据
 	data, dataTypes, warnings := dp.ProcessResponseData(response.Data)

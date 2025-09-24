@@ -32,7 +32,14 @@ func NewFieldMapper() *FieldMapper {
 // UpdateTableData 更新表数据
 func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfaceInfo InterfaceInfo, data []map[string]interface{}) (int64, error) {
 	// 构造表名
-	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
+	schemaName := interfaceInfo.GetSchemaName()
+	tableName := interfaceInfo.GetTableName()
+	var fullTableName string
+	if schemaName != "" {
+		fullTableName = fmt.Sprintf(`"%s"."%s"`, schemaName, tableName)
+	} else {
+		fullTableName = fmt.Sprintf(`"%s"`, tableName)
+	}
 
 	fmt.Printf("[DEBUG] FieldMapper.UpdateTableData - 开始更新表数据\n")
 	fmt.Printf("[DEBUG] UpdateTableData - 表名: %s\n", fullTableName)
@@ -198,6 +205,63 @@ func (fm *FieldMapper) InsertBatchData(ctx context.Context, db *gorm.DB, interfa
 	}
 
 	fmt.Printf("[DEBUG] InsertBatchData - 成功插入 %d 行数据\n", insertedRows)
+	return insertedRows, nil
+}
+
+// InsertBatchDataWithTx 使用提供的事务插入批量数据（不创建新事务）
+func (fm *FieldMapper) InsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, interfaceInfo InterfaceInfo, data []map[string]interface{}) (int64, error) {
+	if len(data) == 0 {
+		return 0, nil
+	}
+
+	// 构造表名
+	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
+
+	fmt.Printf("[DEBUG] FieldMapper.InsertBatchDataWithTx - 开始插入批量数据到表: %s\n", fullTableName)
+	fmt.Printf("[DEBUG] InsertBatchDataWithTx - 数据行数: %d\n", len(data))
+
+	// 插入数据（使用提供的事务）
+	var insertedRows int64
+	for i, row := range data {
+		fmt.Printf("[DEBUG] InsertBatchDataWithTx - 处理第 %d 行数据: %+v\n", i+1, row)
+
+		// 应用parseConfig中的fieldMapping
+		parseConfig := interfaceInfo.GetParseConfig()
+		mappedRow := fm.ApplyFieldMapping(row, parseConfig)
+		fmt.Printf("[DEBUG] InsertBatchDataWithTx - 字段映射后的数据: %+v\n", mappedRow)
+
+		// 构建插入SQL
+		columns := make([]string, 0, len(mappedRow))
+		placeholders := make([]string, 0, len(mappedRow))
+		values := make([]interface{}, 0, len(mappedRow))
+
+		for col, val := range mappedRow {
+			columns = append(columns, fmt.Sprintf(`"%s"`, col))
+			placeholders = append(placeholders, "?")
+			// 处理数据类型转换，特别是时间字段
+			processedVal := fm.ProcessValueForDatabase(col, val)
+			values = append(values, processedVal)
+		}
+
+		// 构建插入SQL
+		insertSQL := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+			fullTableName,
+			strings.Join(columns, ", "),
+			strings.Join(placeholders, ", "))
+
+		fmt.Printf("[DEBUG] InsertBatchDataWithTx - 插入SQL: %s\n", insertSQL)
+		fmt.Printf("[DEBUG] InsertBatchDataWithTx - 插入参数: %+v\n", values)
+
+		if err := tx.Exec(insertSQL, values...).Error; err != nil {
+			fmt.Printf("[ERROR] InsertBatchDataWithTx - 插入数据失败: %v\n", err)
+			fmt.Printf("[ERROR] InsertBatchDataWithTx - 失败的SQL: %s\n", insertSQL)
+			fmt.Printf("[ERROR] InsertBatchDataWithTx - 失败的参数: %+v\n", values)
+			return 0, fmt.Errorf("插入数据失败: %w", err)
+		}
+		insertedRows++
+	}
+
+	fmt.Printf("[DEBUG] InsertBatchDataWithTx - 成功插入 %d 行数据\n", insertedRows)
 	return insertedRows, nil
 }
 

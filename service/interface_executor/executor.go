@@ -26,7 +26,7 @@ type InterfaceExecutor struct {
 	datasourceManager datasource.DataSourceManager
 	dataSyncEngine    *DataSyncEngine
 	errorHandler      *ErrorHandler
-	infoProvider      *InterfaceInfoProvider
+	infoProvider      InterfaceInfoProviderInterface
 	executeOps        *ExecuteOperations
 }
 

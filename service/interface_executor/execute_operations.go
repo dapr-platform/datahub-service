@@ -52,6 +52,9 @@ func (ops *ExecuteOperations) ExecutePreview(ctx context.Context, interfaceInfo 
 
 	// 处理数据限制
 	limit := request.Limit
+	if limit == 0 {
+		limit = cast.ToInt(request.Parameters["limit"])
+	}
 	if limit <= 0 || limit > 1000 {
 		limit = 10
 	}
@@ -262,20 +265,29 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 		return ops.ExecuteSync(ctx, interfaceInfo, request, startTime)
 	}
 
-	// 清空目标表
-	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
-	fmt.Printf("[DEBUG] ExecuteBatchSync - 清空表: %s\n", fullTableName)
-
-	if err := ops.executor.db.Exec(fmt.Sprintf("DELETE FROM %s", fullTableName)).Error; err != nil {
-		fmt.Printf("[ERROR] ExecuteBatchSync - 清空表失败: %v\n", err)
+	// 开始事务，确保批量同步的原子性
+	tx := ops.executor.db.Begin()
+	if tx.Error != nil {
+		fmt.Printf("[ERROR] ExecuteBatchSync - 开始事务失败: %v\n", tx.Error)
 		return &ExecuteResponse{
 			Success:     false,
-			Message:     "清空表数据失败",
+			Message:     "开始事务失败",
 			Duration:    time.Since(startTime).Milliseconds(),
 			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
+			Error:       tx.Error.Error(),
+		}, tx.Error
 	}
+
+	// 确保在函数结束时处理事务
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[ERROR] ExecuteBatchSync - 发生panic，事务已回滚: %v\n", r)
+		}
+	}()
+
+	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
+	fmt.Printf("[DEBUG] ExecuteBatchSync - 开始事务批量同步，目标表: %s\n", fullTableName)
 
 	// 批量数据同步
 	dataProcessor := NewDataProcessor(ops.executor)
@@ -284,6 +296,7 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	var totalRows int64 = 0
 	var allDataTypes map[string]string
 	var allWarnings []string
+	var allBatchData []map[string]interface{} // 收集所有批次的数据
 	currentPage := 1
 	hasMoreData := true
 
@@ -332,6 +345,8 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 		batchData, dataTypes, warnings, err := dataProcessor.FetchBatchDataFromSource(ctx, interfaceInfo, request.Parameters, pageParams)
 		if err != nil {
 			fmt.Printf("[ERROR] ExecuteBatchSync - 获取第 %d 批数据失败: %v\n", currentPage, err)
+			// 回滚事务
+			tx.Rollback()
 			return &ExecuteResponse{
 				Success:     false,
 				Message:     fmt.Sprintf("获取第 %d 批数据失败", currentPage),
@@ -351,10 +366,14 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 
 		// 判断是否还有更多数据
 		if len(batchData) == 0 {
-			fmt.Printf("[DEBUG] ExecuteBatchSync - 第 %d 批没有数据，结束同步\n", currentPage)
+			fmt.Printf("[DEBUG] ExecuteBatchSync - 第 %d 批没有数据，结束数据收集\n", currentPage)
 			hasMoreData = false
 			break
 		}
+
+		// 将批次数据添加到总数据中
+		allBatchData = append(allBatchData, batchData...)
+		fmt.Printf("[DEBUG] ExecuteBatchSync - 第 %d 批收集了 %d 行数据，总计 %d 行\n", currentPage, len(batchData), len(allBatchData))
 
 		// 判断是否有更多数据的逻辑
 		if len(batchData) < batchSize {
@@ -362,33 +381,89 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 			hasMoreData = false
 		}
 
-		// 插入批量数据
-		batchRows, err := fieldMapper.InsertBatchData(ctx, ops.executor.db, interfaceInfo, batchData)
-		if err != nil {
-			fmt.Printf("[ERROR] ExecuteBatchSync - 插入第 %d 批数据失败: %v\n", currentPage, err)
-			return &ExecuteResponse{
-				Success:     false,
-				Message:     fmt.Sprintf("插入第 %d 批数据失败", currentPage),
-				Duration:    time.Since(startTime).Milliseconds(),
-				ExecuteType: request.ExecuteType,
-				Error:       err.Error(),
-			}, err
-		}
-
-		totalRows += batchRows
-		fmt.Printf("[DEBUG] ExecuteBatchSync - 第 %d 批成功插入 %d 行，累计 %d 行\n", currentPage, batchRows, totalRows)
-
 		currentPage++
 
 		// 防止无限循环
 		if currentPage > 1000 {
-			fmt.Printf("[WARN] ExecuteBatchSync - 达到最大批次限制(1000)，停止同步\n")
+			fmt.Printf("[WARN] ExecuteBatchSync - 达到最大批次限制(1000)，停止数据收集\n")
 			allWarnings = append(allWarnings, "达到最大批次限制，可能还有更多数据未同步")
 			break
 		}
 	}
 
-	fmt.Printf("[DEBUG] ExecuteBatchSync - 批量同步完成，总共处理 %d 批，插入 %d 行\n", currentPage-1, totalRows)
+	fmt.Printf("[DEBUG] ExecuteBatchSync - 数据收集完成，总共收集 %d 批，%d 行数据\n", currentPage-1, len(allBatchData))
+
+	// 如果没有数据，提交事务并返回
+	if len(allBatchData) == 0 {
+		tx.Commit()
+		return &ExecuteResponse{
+			Success:      true,
+			Message:      "批量同步完成，但没有新数据",
+			Duration:     time.Since(startTime).Milliseconds(),
+			ExecuteType:  request.ExecuteType,
+			RowCount:     0,
+			ColumnCount:  len(allDataTypes),
+			DataTypes:    allDataTypes,
+			TableUpdated: false,
+			UpdatedRows:  0,
+			Warnings:     allWarnings,
+			Metadata: map[string]interface{}{
+				"interface_id":   interfaceInfo.GetID(),
+				"interface_name": interfaceInfo.GetName(),
+				"schema_name":    interfaceInfo.GetSchemaName(),
+				"table_name":     interfaceInfo.GetTableName(),
+				"batch_count":    currentPage - 1,
+				"batch_size":     batchSize,
+			},
+		}, nil
+	}
+
+	// 在事务中执行数据库操作
+	fmt.Printf("[DEBUG] ExecuteBatchSync - 开始在事务中执行数据库操作\n")
+
+	// 1. 清空目标表（在事务中执行）
+	fmt.Printf("[DEBUG] ExecuteBatchSync - 清空表: %s\n", fullTableName)
+	if err := tx.Exec(fmt.Sprintf("DELETE FROM %s", fullTableName)).Error; err != nil {
+		fmt.Printf("[ERROR] ExecuteBatchSync - 清空表失败: %v\n", err)
+		tx.Rollback()
+		return &ExecuteResponse{
+			Success:     false,
+			Message:     "清空表数据失败",
+			Duration:    time.Since(startTime).Milliseconds(),
+			ExecuteType: request.ExecuteType,
+			Error:       err.Error(),
+		}, err
+	}
+
+	// 2. 批量插入所有数据（在事务中执行）
+	fmt.Printf("[DEBUG] ExecuteBatchSync - 开始批量插入 %d 行数据\n", len(allBatchData))
+	insertedRows, err := fieldMapper.InsertBatchDataWithTx(ctx, tx, interfaceInfo, allBatchData)
+	if err != nil {
+		fmt.Printf("[ERROR] ExecuteBatchSync - 批量插入数据失败: %v\n", err)
+		tx.Rollback()
+		return &ExecuteResponse{
+			Success:     false,
+			Message:     "批量插入数据失败",
+			Duration:    time.Since(startTime).Milliseconds(),
+			ExecuteType: request.ExecuteType,
+			Error:       err.Error(),
+		}, err
+	}
+
+	// 3. 提交事务
+	if err := tx.Commit().Error; err != nil {
+		fmt.Printf("[ERROR] ExecuteBatchSync - 提交事务失败: %v\n", err)
+		return &ExecuteResponse{
+			Success:     false,
+			Message:     "提交事务失败",
+			Duration:    time.Since(startTime).Milliseconds(),
+			ExecuteType: request.ExecuteType,
+			Error:       err.Error(),
+		}, err
+	}
+
+	totalRows = insertedRows
+	fmt.Printf("[DEBUG] ExecuteBatchSync - 事务提交成功，总共插入 %d 行\n", totalRows)
 
 	return &ExecuteResponse{
 		Success:      true,
@@ -408,6 +483,8 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 			"table_name":     interfaceInfo.GetTableName(),
 			"batch_count":    currentPage - 1,
 			"batch_size":     batchSize,
+			"total_rows":     totalRows,
+			"transaction":    "committed",
 		},
 	}, nil
 }

@@ -362,6 +362,10 @@ func (s *InterfaceService) PreviewInterfaceData(id string, limit int) (interface
 		InterfaceType: "basic_library",
 		ExecuteType:   "preview",
 		Limit:         limit,
+		Parameters: map[string]interface{}{
+			"limit": limit,
+		},
+		Options: map[string]interface{}{},
 	}
 
 	response, err := s.executor.Execute(ctx, request)

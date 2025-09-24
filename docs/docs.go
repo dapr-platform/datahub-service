@@ -13662,6 +13662,13 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default_value": {},
+                "dependencies": {
+                    "description": "依赖关系配置",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meta.DataSourceFieldDependency"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
@@ -13706,7 +13713,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "type": {
-                    "description": "string, number, boolean, array, object",
+                    "description": "string, number, boolean, array, object, enum",
                     "type": "string"
                 }
             }
@@ -13727,6 +13734,26 @@ const docTemplate = `{
                 "params_config": {
                     "type": "object",
                     "additionalProperties": true
+                }
+            }
+        },
+        "meta.DataSourceFieldDependency": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "description": "动作：show, hide, enable, disable, require, optional",
+                    "type": "string"
+                },
+                "condition": {
+                    "description": "条件：equals, not_equals, in, not_in, greater_than, less_than, contains, not_contains",
+                    "type": "string"
+                },
+                "field": {
+                    "description": "依赖的字段名",
+                    "type": "string"
+                },
+                "value": {
+                    "description": "条件值"
                 }
             }
         },

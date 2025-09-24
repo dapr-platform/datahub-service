@@ -89,6 +89,12 @@ func (t *ThematicLibraryInterfaceInfo) IsTableCreated() bool {
 	return t.ThematicInterface.IsTableCreated
 }
 
+// InterfaceInfoProviderInterface 接口信息提供者接口
+type InterfaceInfoProviderInterface interface {
+	GetBasicLibraryInterface(interfaceID string) (InterfaceInfo, error)
+	GetThematicLibraryInterface(interfaceID string) (InterfaceInfo, error)
+}
+
 // InterfaceInfoProvider 接口信息提供者
 type InterfaceInfoProvider struct {
 	db *gorm.DB

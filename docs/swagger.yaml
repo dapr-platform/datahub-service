@@ -2547,6 +2547,11 @@ definitions:
   meta.DataSourceConfigField:
     properties:
       default_value: {}
+      dependencies:
+        description: 依赖关系配置
+        items:
+          $ref: '#/definitions/meta.DataSourceFieldDependency'
+        type: array
       description:
         type: string
       display_name:
@@ -2579,7 +2584,7 @@ definitions:
       required:
         type: boolean
       type:
-        description: string, number, boolean, array, object
+        description: string, number, boolean, array, object, enum
         type: string
     type: object
   meta.DataSourceExample:
@@ -2594,6 +2599,21 @@ definitions:
       params_config:
         additionalProperties: true
         type: object
+    type: object
+  meta.DataSourceFieldDependency:
+    properties:
+      action:
+        description: 动作：show, hide, enable, disable, require, optional
+        type: string
+      condition:
+        description: 条件：equals, not_equals, in, not_in, greater_than, less_than, contains,
+          not_contains
+        type: string
+      field:
+        description: 依赖的字段名
+        type: string
+      value:
+        description: 条件值
     type: object
   meta.DataSourceTypeDefinition:
     properties:

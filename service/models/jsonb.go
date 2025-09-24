@@ -18,9 +18,19 @@ type JSONBStringArray []string
 type JSONBGenericArray []interface{}
 
 func (j *JSONBArray) Scan(value interface{}) error {
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("类型断言失败: 不是 []byte")
+	if value == nil {
+		*j = nil
+		return nil
+	}
+
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return errors.New("类型断言失败: 不是 []byte 或 string")
 	}
 	return json.Unmarshal(bytes, j)
 }
@@ -31,9 +41,19 @@ func (j JSONBArray) Value() (driver.Value, error) {
 
 // 实现 Scanner 接口
 func (j *JSONB) Scan(value interface{}) error {
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("类型断言失败: 不是 []byte")
+	if value == nil {
+		*j = nil
+		return nil
+	}
+
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return errors.New("类型断言失败: 不是 []byte 或 string")
 	}
 	return json.Unmarshal(bytes, j)
 }
@@ -50,9 +70,14 @@ func (j *JSONBStringArray) Scan(value interface{}) error {
 		return nil
 	}
 
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("类型断言失败: 不是 []byte")
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return errors.New("类型断言失败: 不是 []byte 或 string")
 	}
 	return json.Unmarshal(bytes, j)
 }
@@ -72,9 +97,14 @@ func (j *JSONBGenericArray) Scan(value interface{}) error {
 		return nil
 	}
 
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("类型断言失败: 不是 []byte")
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return errors.New("类型断言失败: 不是 []byte 或 string")
 	}
 	return json.Unmarshal(bytes, j)
 }

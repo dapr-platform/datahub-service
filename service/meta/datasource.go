@@ -26,7 +26,7 @@ type DataSourceTypeDefinition struct {
 type DataSourceConfigField struct {
 	Name         string      `json:"name"`
 	DisplayName  string      `json:"display_name"`
-	Type         string      `json:"type"` // string, number, boolean, array, object
+	Type         string      `json:"type"` // string, number, boolean, array, object, enum
 	Required     bool        `json:"required"`
 	DefaultValue interface{} `json:"default_value,omitempty"`
 	Description  string      `json:"description"`
@@ -37,6 +37,16 @@ type DataSourceConfigField struct {
 	Placeholder  string      `json:"placeholder,omitempty"` // 前端显示的占位符
 	HelpText     string      `json:"help_text,omitempty"`   // 帮助文本
 	Group        string      `json:"group,omitempty"`       // 字段分组
+	// 依赖关系配置
+	Dependencies []DataSourceFieldDependency `json:"dependencies,omitempty"` // 字段依赖关系
+}
+
+// DataSourceFieldDependency 字段依赖关系
+type DataSourceFieldDependency struct {
+	Field     string      `json:"field"`     // 依赖的字段名
+	Condition string      `json:"condition"` // 条件：equals, not_equals, in, not_in, greater_than, less_than, contains, not_contains
+	Value     interface{} `json:"value"`     // 条件值
+	Action    string      `json:"action"`    // 动作：show, hide, enable, disable, require, optional
 }
 
 // DataSourceValidationRule 验证规则定义
@@ -310,11 +320,13 @@ const DataSourceFieldGroupId = "group_id"
 const DataSourceFieldAutoOffsetReset = "auto_offset_reset"
 const DataSourceFieldMaxPollRecords = "max_poll_records"
 const DataSourceFieldBootstrapServers = "bootstrap_servers"
+const DatasourceFieldCustomMap = "custom_map"
 
 const (
 	DataSourceAuthTypeBasic  = "basic"
 	DataSourceAuthTypeBearer = "bearer"
 	DataSourceAuthTypeAPIKey = "api_key"
+	DataSourceAuthTypeOAuth2 = "oauth2"
 	DataSourceAuthTypeCustom = "custom"
 )
 
@@ -343,6 +355,7 @@ func initializeDefaultTypes() {
 				DefaultValue: "localhost",
 				Description:  "数据库服务器地址",
 				Pattern:      `^[a-zA-Z0-9.-]+$`,
+				Group:        "连接配置",
 			},
 			{
 				Name:         DataSourceFieldPort,
@@ -353,6 +366,7 @@ func initializeDefaultTypes() {
 				Description:  "数据库端口号",
 				Min:          1,
 				Max:          65535,
+				Group:        "连接配置",
 			},
 			{
 				Name:         DataSourceFieldDatabase,
@@ -361,6 +375,7 @@ func initializeDefaultTypes() {
 				Required:     true,
 				DefaultValue: "postgres",
 				Description:  "数据库名称",
+				Group:        "连接配置",
 			},
 			{
 				Name:         DataSourceFieldUsername,
@@ -369,6 +384,7 @@ func initializeDefaultTypes() {
 				Required:     true,
 				DefaultValue: "postgres",
 				Description:  "数据库用户名",
+				Group:        "认证配置",
 			},
 			{
 				Name:        DataSourceFieldPassword,
@@ -376,6 +392,7 @@ func initializeDefaultTypes() {
 				Type:        "string",
 				Required:    true,
 				Description: "数据库密码",
+				Group:       "认证配置",
 			},
 			{
 				Name:         DataSourceFieldSchema,
@@ -384,15 +401,17 @@ func initializeDefaultTypes() {
 				Required:     false,
 				DefaultValue: "public",
 				Description:  "数据库Schema",
+				Group:        "连接配置",
 			},
 			{
 				Name:         DataSourceFieldSSLMode,
 				DisplayName:  "SSL模式",
-				Type:         "string",
+				Type:         "enum",
 				Required:     false,
 				DefaultValue: "disable",
 				Description:  "SSL连接模式",
 				Options:      []string{"disable", "require", "verify-ca", "verify-full"},
+				Group:        "安全配置",
 			},
 		},
 		ParamsConfig: []DataSourceConfigField{
@@ -405,6 +424,7 @@ func initializeDefaultTypes() {
 				Description:  "连接超时时间",
 				Min:          1,
 				Max:          300,
+				Group:        "性能配置",
 			},
 			{
 				Name:         DataSourceFieldMaxConnections,
@@ -415,6 +435,7 @@ func initializeDefaultTypes() {
 				Description:  "连接池最大连接数",
 				Min:          1,
 				Max:          1000,
+				Group:        "性能配置",
 			},
 		},
 		Examples: []DataSourceExample{
@@ -454,6 +475,7 @@ func initializeDefaultTypes() {
 				DefaultValue: "http://localhost:8080",
 				Description:  "API基础地址",
 				Pattern:      `^https?://.*`,
+				Group:        "连接配置",
 			},
 		},
 		ParamsConfig: []DataSourceConfigField{
@@ -466,6 +488,7 @@ func initializeDefaultTypes() {
 				Description:  "请求超时时间",
 				Min:          1,
 				Max:          300,
+				Group:        "性能配置",
 			},
 		},
 		Examples: []DataSourceExample{
@@ -499,28 +522,84 @@ func initializeDefaultTypes() {
 			DefaultValue: "http://localhost:8080",
 			Description:  "API基础地址",
 			Pattern:      `^https?://.*`,
+			Group:        "连接配置",
 		},
 		{
 			Name:        DataSourceFieldUsername,
 			DisplayName: "用户名",
 			Type:        "string",
-			Required:    true,
+			Required:    false,
 			Description: "用户名",
+			Group:       "认证配置",
+			Dependencies: []DataSourceFieldDependency{
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "in",
+					Value:     []string{DataSourceAuthTypeBasic, DataSourceAuthTypeBearer, DataSourceAuthTypeOAuth2},
+					Action:    "show",
+				},
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "equals",
+					Value:     []string{DataSourceAuthTypeAPIKey, DataSourceAuthTypeCustom},
+					Action:    "hide",
+				},
+			},
 		},
 		{
 			Name:        DataSourceFieldPassword,
 			DisplayName: "密码",
 			Type:        "string",
-			Required:    true,
+			Required:    false,
 			Description: "密码",
+			Group:       "认证配置",
+			Dependencies: []DataSourceFieldDependency{
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "in",
+					Value:     []string{DataSourceAuthTypeBasic, DataSourceAuthTypeBearer, DataSourceAuthTypeOAuth2},
+					Action:    "show",
+				},
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "equals",
+					Value:     []string{DataSourceAuthTypeAPIKey, DataSourceAuthTypeCustom},
+					Action:    "hide",
+				},
+			},
 		},
 		{
-			Name:        DataSourceFieldAuthType,
-			DisplayName: "认证类型",
-			Type:        "string",
-			Required:    true,
-			Description: "认证类型",
-			Options:     []string{DataSourceAuthTypeBasic, DataSourceAuthTypeBearer, DataSourceAuthTypeAPIKey, DataSourceAuthTypeCustom},
+			Name:         DataSourceFieldAuthType,
+			DisplayName:  "认证类型",
+			Type:         "enum",
+			Required:     true,
+			DefaultValue: DataSourceAuthTypeBasic,
+			Description:  "认证类型",
+			Options:      []string{DataSourceAuthTypeBasic, DataSourceAuthTypeBearer, DataSourceAuthTypeAPIKey, DataSourceAuthTypeOAuth2, DataSourceAuthTypeCustom},
+			Group:        "认证配置",
+		},
+		{
+			Name:         DatasourceFieldCustomMap,
+			DisplayName:  "自定义映射",
+			Type:         "map",
+			Required:     false,
+			DefaultValue: map[string]interface{}{},
+			Description:  "自定义映射",
+			Group:        "认证配置",
+			Dependencies: []DataSourceFieldDependency{
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "equals",
+					Value:     DataSourceAuthTypeCustom,
+					Action:    "show",
+				},
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "not_equals",
+					Value:     DataSourceAuthTypeCustom,
+					Action:    "hide",
+				},
+			},
 		},
 		{
 			Name:        DataSourceFieldApiKey,
@@ -528,6 +607,21 @@ func initializeDefaultTypes() {
 			Type:        "string",
 			Required:    false,
 			Description: "API Key",
+			Group:       "认证配置",
+			Dependencies: []DataSourceFieldDependency{
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "equals",
+					Value:     DataSourceAuthTypeAPIKey,
+					Action:    "show",
+				},
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "not_equals",
+					Value:     DataSourceAuthTypeAPIKey,
+					Action:    "hide",
+				},
+			},
 		},
 		{
 			Name:        DataSourceFieldApiSecret,
@@ -535,6 +629,21 @@ func initializeDefaultTypes() {
 			Type:        "string",
 			Required:    false,
 			Description: "API Secret",
+			Group:       "认证配置",
+			Dependencies: []DataSourceFieldDependency{
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "equals",
+					Value:     DataSourceAuthTypeAPIKey,
+					Action:    "show",
+				},
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "not_equals",
+					Value:     DataSourceAuthTypeAPIKey,
+					Action:    "hide",
+				},
+			},
 		},
 		{
 			Name:        DataSourceFieldApiKeyHeader,
@@ -542,48 +651,112 @@ func initializeDefaultTypes() {
 			Type:        "string",
 			Required:    false,
 			Description: "API Key在HTTP头中的名称",
-		},
-		{
-			Name:        DataSourceFieldScript,
-			DisplayName: "脚本",
-			Type:        "string",
-			Required:    false,
-			Description: "脚本",
-		},
-		{
-			Name:        DataSourceFieldScriptEnabled,
-			DisplayName: "脚本启用",
-			Type:        "boolean",
-			Required:    false,
-			Description: "脚本启用",
+			Group:       "认证配置",
+			Dependencies: []DataSourceFieldDependency{
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "equals",
+					Value:     DataSourceAuthTypeAPIKey,
+					Action:    "show",
+				},
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "not_equals",
+					Value:     DataSourceAuthTypeAPIKey,
+					Action:    "hide",
+				},
+			},
 		},
 		{
 			Name:        DataSourceFieldClientId,
 			DisplayName: "客户端ID",
 			Type:        "string",
 			Required:    false,
-			Description: "客户端ID",
+			Description: "OAuth2客户端ID",
+			Group:       "OAuth2配置",
+			Dependencies: []DataSourceFieldDependency{
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "equals",
+					Value:     DataSourceAuthTypeOAuth2,
+					Action:    "show",
+				},
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "not_equals",
+					Value:     DataSourceAuthTypeOAuth2,
+					Action:    "hide",
+				},
+			},
 		},
 		{
 			Name:        DataSourceFieldClientSecret,
 			DisplayName: "客户端密钥",
 			Type:        "string",
 			Required:    false,
-			Description: "客户端密钥",
+			Description: "OAuth2客户端密钥",
+			Group:       "OAuth2配置",
+			Dependencies: []DataSourceFieldDependency{
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "equals",
+					Value:     DataSourceAuthTypeOAuth2,
+					Action:    "show",
+				},
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "not_equals",
+					Value:     DataSourceAuthTypeOAuth2,
+					Action:    "hide",
+				},
+			},
 		},
 		{
-			Name:        DataSourceFieldGrantType,
-			DisplayName: "授权类型",
-			Type:        "string",
-			Required:    false,
-			Description: "授权类型",
+			Name:         DataSourceFieldGrantType,
+			DisplayName:  "授权类型",
+			Type:         "enum",
+			Required:     false,
+			DefaultValue: "client_credentials",
+			Description:  "OAuth2授权类型",
+			Options:      []string{"client_credentials", "authorization_code", "password", "refresh_token"},
+			Group:        "OAuth2配置",
+			Dependencies: []DataSourceFieldDependency{
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "equals",
+					Value:     DataSourceAuthTypeOAuth2,
+					Action:    "show",
+				},
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "not_equals",
+					Value:     DataSourceAuthTypeOAuth2,
+					Action:    "hide",
+				},
+			},
 		},
 		{
 			Name:        DataSourceFieldScope,
 			DisplayName: "作用域",
 			Type:        "string",
 			Required:    false,
-			Description: "作用域",
+			Description: "OAuth2权限作用域，多个作用域用空格分隔",
+			Placeholder: "read write",
+			Group:       "OAuth2配置",
+			Dependencies: []DataSourceFieldDependency{
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "equals",
+					Value:     DataSourceAuthTypeOAuth2,
+					Action:    "show",
+				},
+				{
+					Field:     DataSourceFieldAuthType,
+					Condition: "not_equals",
+					Value:     DataSourceAuthTypeOAuth2,
+					Action:    "hide",
+				},
+			},
 		},
 	}
 	// MQTT 数据源
@@ -603,6 +776,7 @@ func initializeDefaultTypes() {
 				DefaultValue: "localhost",
 				Description:  "MQTT broker地址",
 				Pattern:      `^[a-zA-Z0-9.-]+$`,
+				Group:        "连接配置",
 			},
 			{
 				Name:         DataSourceFieldPort,
@@ -613,6 +787,7 @@ func initializeDefaultTypes() {
 				Description:  "MQTT端口号",
 				Min:          1,
 				Max:          65535,
+				Group:        "连接配置",
 			},
 			{
 				Name:         DataSourceFieldClientId,
@@ -621,6 +796,7 @@ func initializeDefaultTypes() {
 				Required:     true,
 				DefaultValue: "datahub-client",
 				Description:  "MQTT客户端标识",
+				Group:        "连接配置",
 			},
 			{
 				Name:         DataSourceFieldUsername,
@@ -628,14 +804,16 @@ func initializeDefaultTypes() {
 				Type:         "string",
 				Required:     false,
 				DefaultValue: "",
-				Description:  "MQTT认证用户名",
+				Description:  "MQTT认证用户名（可选）",
+				Group:        "认证配置",
 			},
 			{
 				Name:        DataSourceFieldPassword,
 				DisplayName: "密码",
 				Type:        "string",
 				Required:    false,
-				Description: "MQTT认证密码",
+				Description: "MQTT认证密码（可选）",
+				Group:       "认证配置",
 			},
 		},
 		ParamsConfig: []DataSourceConfigField{
@@ -648,6 +826,7 @@ func initializeDefaultTypes() {
 				Description:  "MQTT连接超时时间",
 				Min:          1,
 				Max:          300,
+				Group:        "性能配置",
 			},
 		},
 		Examples: []DataSourceExample{
@@ -686,6 +865,7 @@ func initializeDefaultTypes() {
 				Description:  "HTTP服务器监听端口",
 				Min:          1024,
 				Max:          65535,
+				Group:        "服务配置",
 			},
 			{
 				Name:         "path_prefix",
@@ -695,6 +875,7 @@ func initializeDefaultTypes() {
 				DefaultValue: "/webhook",
 				Description:  "接收POST请求的路径前缀",
 				Pattern:      `^/.*`,
+				Group:        "服务配置",
 			},
 			{
 				Name:         "auth_required",
@@ -703,6 +884,7 @@ func initializeDefaultTypes() {
 				Required:     false,
 				DefaultValue: false,
 				Description:  "是否需要认证才能接收数据",
+				Group:        "认证配置",
 			},
 			{
 				Name:         "auth_token",
@@ -711,6 +893,21 @@ func initializeDefaultTypes() {
 				Required:     false,
 				DefaultValue: "",
 				Description:  "用于验证POST请求的令牌",
+				Group:        "认证配置",
+				Dependencies: []DataSourceFieldDependency{
+					{
+						Field:     "auth_required",
+						Condition: "equals",
+						Value:     true,
+						Action:    "show",
+					},
+					{
+						Field:     "auth_required",
+						Condition: "equals",
+						Value:     false,
+						Action:    "hide",
+					},
+				},
 			},
 		},
 		ParamsConfig: []DataSourceConfigField{
@@ -723,6 +920,7 @@ func initializeDefaultTypes() {
 				Description:  "允许的最大请求体大小",
 				Min:          1,
 				Max:          100,
+				Group:        "性能配置",
 			},
 			{
 				Name:         DataSourceFieldTimeout,
@@ -733,6 +931,7 @@ func initializeDefaultTypes() {
 				Description:  "处理请求的超时时间",
 				Min:          1,
 				Max:          300,
+				Group:        "性能配置",
 			},
 		},
 		Examples: []DataSourceExample{
