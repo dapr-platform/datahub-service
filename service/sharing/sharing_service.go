@@ -81,7 +81,7 @@ func (s *SharingService) GetApiApplications(page, pageSize int, status string) (
 // GetApiApplicationByID 根据ID获取API应用
 func (s *SharingService) GetApiApplicationByID(id string) (*models.ApiApplication, error) {
 	var app models.ApiApplication
-	if err := s.db.First(&app, "id = ?", id).Error; err != nil {
+	if err := s.db.Preload("ThematicLibrary").Preload("ApiInterfaces").Preload("ApiInterfaces.ThematicInterface").First(&app, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &app, nil
