@@ -15,7 +15,6 @@ import (
 	"datahub-service/service/models"
 	"fmt"
 	"strings"
-	"time"
 
 	"gorm.io/gorm"
 )
@@ -133,10 +132,6 @@ func (dw *DataWriter) writeBatch(fullTableName string, primaryKeyFields []string
 		if len(record) == 0 {
 			continue
 		}
-
-		// 确保为NOT NULL字段提供默认值
-		record = dw.ensureRequiredFields(record)
-
 		// 构建插入SQL
 		columns := make([]string, 0, len(record))
 		placeholders := make([]string, 0, len(record))
@@ -242,72 +237,4 @@ func (dw *DataWriter) convertValueForDatabase(value interface{}) interface{} {
 	default:
 		return fmt.Sprintf("%v", v)
 	}
-}
-
-// ensureRequiredFields 确保为NOT NULL字段提供默认值
-func (dw *DataWriter) ensureRequiredFields(record map[string]interface{}) map[string]interface{} {
-	// 创建记录副本
-	result := make(map[string]interface{})
-	for k, v := range record {
-		result[k] = v
-	}
-
-	// 确保必需字段有值
-	if result["created_by"] == nil || result["created_by"] == "" {
-		result["created_by"] = "system"
-	}
-	if result["updated_by"] == nil || result["updated_by"] == "" {
-		result["updated_by"] = "system"
-	}
-	if result["created_time"] == nil {
-		result["created_time"] = time.Now()
-	}
-	if result["updated_time"] == nil {
-		result["updated_time"] = time.Now()
-	}
-	if result["group_id"] == nil {
-		result["group_id"] = ""
-	}
-	if result["parent_id"] == nil {
-		result["parent_id"] = ""
-	}
-	if result["product_id"] == nil {
-		result["product_id"] = ""
-	}
-	if result["protocol_config"] == nil {
-		result["protocol_config"] = ""
-	}
-
-	// 处理布尔类型字段的转换
-	if result["enabled"] != nil {
-		if v, ok := result["enabled"].(int); ok {
-			result["enabled"] = v != 0
-		} else if v, ok := result["enabled"].(int64); ok {
-			result["enabled"] = v != 0
-		}
-	} else {
-		result["enabled"] = false
-	}
-
-	if result["status"] != nil {
-		if v, ok := result["status"].(int); ok {
-			result["status"] = v != 0
-		} else if v, ok := result["status"].(int64); ok {
-			result["status"] = v != 0
-		}
-	} else {
-		result["status"] = false
-	}
-
-	if result["type"] != nil {
-		if v, ok := result["type"].(int); ok {
-			result["type"] = v != 0
-		} else if v, ok := result["type"].(int64); ok {
-			result["type"] = v != 0
-		}
-	} else {
-		result["type"] = false
-	}
-
-	return result
 }
