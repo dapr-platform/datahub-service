@@ -13,9 +13,7 @@ package thematic_sync
 
 import (
 	"datahub-service/service/models"
-	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -146,12 +144,104 @@ func (df *DataFetcher) FetchDataFromInterfaceWithConfig(libraryID, interfaceID s
 	tableName := dataInterface.NameEn
 	fullTableName := fmt.Sprintf("%s.%s", schema, tableName)
 
-	// 检查是否启用增量同步
-	if config.IncrementalConfig != nil && config.IncrementalConfig.Enabled {
-		return df.fetchIncrementalData(fullTableName, batchSize, config.IncrementalConfig)
+	// 获取数据接口的主键字段
+	primaryKeyFields, err := df.getDataInterfacePrimaryKeyFields(&dataInterface)
+	if err != nil {
+		fmt.Printf("[DEBUG] 获取数据接口主键字段失败: %v, 不使用排序\n", err)
+		primaryKeyFields = []string{} // 空切片表示没有主键
+	}
+	if len(primaryKeyFields) > 0 {
+		fmt.Printf("[DEBUG] 数据接口主键字段: %v\n", primaryKeyFields)
+	} else {
+		fmt.Printf("[DEBUG] 数据接口没有配置主键字段，查询时不使用排序\n")
 	}
 
-	return df.fetchDataInBatches(fullTableName, batchSize)
+	// 检查是否启用增量同步
+	if config.IncrementalConfig != nil && config.IncrementalConfig.Enabled {
+		return df.fetchIncrementalDataWithPrimaryKey(fullTableName, batchSize, config.IncrementalConfig, primaryKeyFields)
+	}
+
+	return df.fetchDataInBatchesWithPrimaryKey(fullTableName, batchSize, primaryKeyFields)
+}
+
+// fetchDataInBatchesWithPrimaryKey 分批获取数据 - 支持动态主键
+func (df *DataFetcher) fetchDataInBatchesWithPrimaryKey(fullTableName string, batchSize int, primaryKeyFields []string) ([]map[string]interface{}, error) {
+	var allRecords []map[string]interface{}
+	offset := 0
+
+	// 构建排序子句
+	var orderByClause string
+	if len(primaryKeyFields) > 0 {
+		orderByField := primaryKeyFields[0]
+		orderByClause = fmt.Sprintf(" ORDER BY \"%s\"", orderByField)
+		fmt.Printf("[DEBUG] 开始分批获取数据，表: %s, 批次大小: %d, 排序字段: %s\n", fullTableName, batchSize, orderByField)
+	} else {
+		orderByClause = "" // 没有主键时不使用排序
+		fmt.Printf("[DEBUG] 开始分批获取数据，表: %s, 批次大小: %d, 无排序字段\n", fullTableName, batchSize)
+	}
+
+	for {
+		// 构建分页查询SQL
+		sql := fmt.Sprintf("SELECT * FROM %s%s LIMIT %d OFFSET %d", fullTableName, orderByClause, batchSize, offset)
+
+		rows, err := df.db.Raw(sql).Rows()
+		if err != nil {
+			return nil, fmt.Errorf("查询数据失败 (offset: %d): %w", offset, err)
+		}
+
+		// 获取列信息
+		columns, err := rows.Columns()
+		if err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("获取列信息失败: %w", err)
+		}
+
+		// 扫描当前批次的数据
+		batchRecords := make([]map[string]interface{}, 0, batchSize)
+		for rows.Next() {
+			values := make([]interface{}, len(columns))
+			scanArgs := make([]interface{}, len(columns))
+			for i := range values {
+				scanArgs[i] = &values[i]
+			}
+
+			if err := rows.Scan(scanArgs...); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("扫描数据失败: %w", err)
+			}
+
+			record := make(map[string]interface{})
+			for i, column := range columns {
+				record[column] = df.convertDatabaseValue(values[i])
+			}
+			batchRecords = append(batchRecords, record)
+		}
+
+		rows.Close()
+
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("遍历数据失败: %w", err)
+		}
+
+		// 如果当前批次没有数据，说明已经获取完毕
+		if len(batchRecords) == 0 {
+			break
+		}
+
+		fmt.Printf("[DEBUG] 获取批次数据 offset: %d, 记录数: %d\n", offset, len(batchRecords))
+
+		allRecords = append(allRecords, batchRecords...)
+
+		// 如果当前批次的记录数少于批次大小，说明已经是最后一批
+		if len(batchRecords) < batchSize {
+			break
+		}
+
+		offset += batchSize
+	}
+
+	fmt.Printf("[DEBUG] 总共获取记录数: %d\n", len(allRecords))
+	return allRecords, nil
 }
 
 // fetchDataInBatches 分批获取数据
@@ -161,22 +251,9 @@ func (df *DataFetcher) fetchDataInBatches(fullTableName string, batchSize int) (
 
 	fmt.Printf("[DEBUG] 开始分批获取数据，表: %s, 批次大小: %d\n", fullTableName, batchSize)
 
-	// 获取表的主键字段用于排序
-	orderByClause := "ORDER BY id" // 默认排序
-
-	// 尝试从表名解析出接口ID来获取主键字段
-	if primaryKeys := df.getPrimaryKeysFromTableName(fullTableName); len(primaryKeys) > 0 {
-		// 构建ORDER BY子句，使用双引号包围字段名
-		var quotedKeys []string
-		for _, key := range primaryKeys {
-			quotedKeys = append(quotedKeys, fmt.Sprintf("\"%s\"", key))
-		}
-		orderByClause = fmt.Sprintf("ORDER BY %s", strings.Join(quotedKeys, ", "))
-	}
-
 	for {
 		// 构建分页查询SQL
-		sql := fmt.Sprintf("SELECT * FROM %s %s LIMIT %d OFFSET %d", fullTableName, orderByClause, batchSize, offset)
+		sql := fmt.Sprintf("SELECT * FROM %s ORDER BY id LIMIT %d OFFSET %d", fullTableName, batchSize, offset)
 
 		rows, err := df.db.Raw(sql).Rows()
 		if err != nil {
@@ -421,6 +498,111 @@ func (df *DataFetcher) isValidFieldValue(value interface{}) bool {
 	return str != "" && str != "null" && str != "NULL" && str != "nil"
 }
 
+// fetchIncrementalDataWithPrimaryKey 获取增量数据 - 支持动态主键
+func (df *DataFetcher) fetchIncrementalDataWithPrimaryKey(fullTableName string, batchSize int, config *IncrementalConfig, primaryKeyFields []string) ([]map[string]interface{}, error) {
+	// 构建排序字段，优先使用增量字段，否则使用第一个主键字段
+	var orderByField string
+	var orderByClause string
+
+	if config.IncrementalField != "" {
+		orderByField = config.IncrementalField
+		orderByClause = fmt.Sprintf(" ORDER BY \"%s\"", orderByField)
+	} else if len(primaryKeyFields) > 0 {
+		orderByField = primaryKeyFields[0]
+		orderByClause = fmt.Sprintf(" ORDER BY \"%s\"", orderByField)
+	} else {
+		orderByClause = "" // 没有排序字段时不使用ORDER BY
+	}
+
+	if orderByField != "" {
+		fmt.Printf("[DEBUG] 开始增量同步，表: %s, 增量字段: %s, 排序字段: %s\n", fullTableName, config.IncrementalField, orderByField)
+	} else {
+		fmt.Printf("[DEBUG] 开始增量同步，表: %s, 增量字段: %s, 无排序字段\n", fullTableName, config.IncrementalField)
+	}
+
+	// 构建增量查询条件
+	whereCondition, err := df.buildIncrementalCondition(config)
+	if err != nil {
+		return nil, fmt.Errorf("构建增量查询条件失败: %w", err)
+	}
+
+	var allRecords []map[string]interface{}
+	offset := 0
+
+	for {
+		// 构建增量查询SQL
+		var sql string
+		if whereCondition != "" {
+			sql = fmt.Sprintf("SELECT * FROM %s WHERE %s%s LIMIT %d OFFSET %d",
+				fullTableName, whereCondition, orderByClause, batchSize, offset)
+		} else {
+			// 如果没有增量条件（首次同步），使用普通查询
+			sql = fmt.Sprintf("SELECT * FROM %s%s LIMIT %d OFFSET %d",
+				fullTableName, orderByClause, batchSize, offset)
+		}
+
+		fmt.Printf("[DEBUG] 增量查询SQL: %s\n", sql)
+
+		rows, err := df.db.Raw(sql).Rows()
+		if err != nil {
+			return nil, fmt.Errorf("增量查询数据失败 (offset: %d): %w", offset, err)
+		}
+
+		// 获取列信息
+		columns, err := rows.Columns()
+		if err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("获取列信息失败: %w", err)
+		}
+
+		// 扫描当前批次的数据
+		batchRecords := make([]map[string]interface{}, 0, batchSize)
+		for rows.Next() {
+			values := make([]interface{}, len(columns))
+			scanArgs := make([]interface{}, len(columns))
+			for i := range values {
+				scanArgs[i] = &values[i]
+			}
+
+			if err := rows.Scan(scanArgs...); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("扫描数据失败: %w", err)
+			}
+
+			record := make(map[string]interface{})
+			for i, column := range columns {
+				record[column] = df.convertDatabaseValue(values[i])
+			}
+			batchRecords = append(batchRecords, record)
+		}
+
+		rows.Close()
+
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("遍历数据失败: %w", err)
+		}
+
+		// 如果当前批次没有数据，说明已经获取完毕
+		if len(batchRecords) == 0 {
+			break
+		}
+
+		fmt.Printf("[DEBUG] 获取增量批次数据 offset: %d, 记录数: %d\n", offset, len(batchRecords))
+
+		allRecords = append(allRecords, batchRecords...)
+
+		// 如果当前批次的记录数少于批次大小，说明已经是最后一批
+		if len(batchRecords) < batchSize {
+			break
+		}
+
+		offset += batchSize
+	}
+
+	fmt.Printf("[DEBUG] 增量同步总共获取记录数: %d\n", len(allRecords))
+	return allRecords, nil
+}
+
 // fetchIncrementalData 获取增量数据
 func (df *DataFetcher) fetchIncrementalData(fullTableName string, batchSize int, config *IncrementalConfig) ([]map[string]interface{}, error) {
 	fmt.Printf("[DEBUG] 开始增量同步，表: %s, 增量字段: %s\n", fullTableName, config.IncrementalField)
@@ -434,40 +616,16 @@ func (df *DataFetcher) fetchIncrementalData(fullTableName string, batchSize int,
 	var allRecords []map[string]interface{}
 	offset := 0
 
-	// 获取表的主键字段用于排序
-	orderByClause := fmt.Sprintf("ORDER BY \"%s\"", config.IncrementalField) // 使用增量字段排序
-
-	// 尝试获取主键字段，如果增量字段不是主键，则添加主键作为辅助排序
-	if primaryKeys := df.getPrimaryKeysFromTableName(fullTableName); len(primaryKeys) > 0 {
-		// 检查增量字段是否已经是主键之一
-		isIncrementalFieldPrimaryKey := false
-		for _, pk := range primaryKeys {
-			if pk == config.IncrementalField {
-				isIncrementalFieldPrimaryKey = true
-				break
-			}
-		}
-
-		// 如果增量字段不是主键，则添加主键作为辅助排序确保结果一致性
-		if !isIncrementalFieldPrimaryKey {
-			var quotedKeys []string
-			for _, key := range primaryKeys {
-				quotedKeys = append(quotedKeys, fmt.Sprintf("\"%s\"", key))
-			}
-			orderByClause = fmt.Sprintf("ORDER BY \"%s\", %s", config.IncrementalField, strings.Join(quotedKeys, ", "))
-		}
-	}
-
 	for {
 		// 构建增量查询SQL
 		var sql string
 		if whereCondition != "" {
-			sql = fmt.Sprintf("SELECT * FROM %s WHERE %s %s LIMIT %d OFFSET %d",
-				fullTableName, whereCondition, orderByClause, batchSize, offset)
+			sql = fmt.Sprintf("SELECT * FROM %s WHERE %s ORDER BY %s LIMIT %d OFFSET %d",
+				fullTableName, whereCondition, config.IncrementalField, batchSize, offset)
 		} else {
 			// 如果没有增量条件（首次同步），使用普通查询
-			sql = fmt.Sprintf("SELECT * FROM %s %s LIMIT %d OFFSET %d",
-				fullTableName, orderByClause, batchSize, offset)
+			sql = fmt.Sprintf("SELECT * FROM %s ORDER BY %s LIMIT %d OFFSET %d",
+				fullTableName, config.IncrementalField, batchSize, offset)
 		}
 
 		fmt.Printf("[DEBUG] 增量查询SQL: %s\n", sql)
@@ -640,65 +798,53 @@ func (df *DataFetcher) compareIncrementalValues(a, b string, fieldType string) i
 	}
 }
 
+// getDataInterfacePrimaryKeyFields 获取数据接口的主键字段列表
+func (df *DataFetcher) getDataInterfacePrimaryKeyFields(dataInterface *models.DataInterface) ([]string, error) {
+	var primaryKeys []string
+
+	// 从TableFieldsConfig中解析主键字段
+	if len(dataInterface.TableFieldsConfig) > 0 {
+		// 遍历字段配置，查找主键字段
+		for fieldKey, fieldValue := range dataInterface.TableFieldsConfig {
+			if fieldMap, ok := fieldValue.(map[string]interface{}); ok {
+				// 检查是否为主键字段
+				if isPrimary, exists := fieldMap["is_primary_key"]; exists {
+					if isPrimaryBool, ok := isPrimary.(bool); ok && isPrimaryBool {
+						// 优先使用name_en字段作为字段名
+						if nameEn, exists := fieldMap["name_en"]; exists {
+							if nameEnStr, ok := nameEn.(string); ok && nameEnStr != "" {
+								primaryKeys = append(primaryKeys, nameEnStr)
+							}
+						} else {
+							// 如果没有name_en，使用字段键名
+							primaryKeys = append(primaryKeys, fieldKey)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 如果没有找到主键，尝试查找常见的主键字段名
+	if len(primaryKeys) == 0 {
+		commonPrimaryKeys := []string{"id", "uuid", "primary_key", "pk"}
+		for _, pkField := range commonPrimaryKeys {
+			if _, exists := dataInterface.TableFieldsConfig[pkField]; exists {
+				primaryKeys = []string{pkField}
+				break
+			}
+		}
+	}
+
+	// 如果仍然没有找到主键，返回空切片，不使用默认值
+	// 这样可以避免在查询中使用不存在的字段
+	return primaryKeys, nil
+}
+
 // getStringFromMap 从map中获取字符串值
 func (df *DataFetcher) getStringFromMap(m map[string]interface{}, key string) string {
 	if value, exists := m[key]; exists {
 		return fmt.Sprintf("%v", value)
 	}
 	return ""
-}
-
-// getPrimaryKeysFromTableName 从表名获取主键字段
-func (df *DataFetcher) getPrimaryKeysFromTableName(fullTableName string) []string {
-	// 从完整表名中解析schema和table名
-	parts := strings.Split(fullTableName, ".")
-	if len(parts) != 2 {
-		return []string{"id"} // 默认主键
-	}
-
-	schemaName := parts[0]
-	tableName := parts[1]
-
-	// 通过schema名和table名查找对应的主题接口
-	var thematicInterface models.ThematicInterface
-	if err := df.db.Joins("JOIN thematic_libraries ON thematic_interfaces.library_id = thematic_libraries.id").
-		Where("thematic_libraries.name_en = ? AND thematic_interfaces.name_en = ?", schemaName, tableName).
-		First(&thematicInterface).Error; err != nil {
-		fmt.Printf("[DEBUG] 无法找到主题接口，使用默认主键: %v\n", err)
-		return []string{"id"} // 默认主键
-	}
-
-	// 解析主键字段配置
-	return df.getThematicPrimaryKeyFields(thematicInterface.ID)
-}
-
-// getThematicPrimaryKeyFields 获取主题接口的主键字段列表
-func (df *DataFetcher) getThematicPrimaryKeyFields(thematicInterfaceID string) []string {
-	// 获取主题接口信息
-	var thematicInterface models.ThematicInterface
-	if err := df.db.First(&thematicInterface, "id = ?", thematicInterfaceID).Error; err != nil {
-		fmt.Printf("[DEBUG] 获取主题接口信息失败: %v, 使用默认主键\n", err)
-		return []string{"id"}
-	}
-
-	var primaryKeys []string
-
-	// 从TableFieldsConfig中解析主键字段
-	if len(thematicInterface.TableFieldsConfig) > 0 {
-		var tableFields []models.TableField
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", thematicInterface.TableFieldsConfig)), &tableFields); err == nil {
-			for _, field := range tableFields {
-				if field.IsPrimaryKey {
-					primaryKeys = append(primaryKeys, field.NameEn)
-				}
-			}
-		}
-	}
-
-	// 如果没有主键，使用默认的id字段
-	if len(primaryKeys) == 0 {
-		primaryKeys = []string{"id"}
-	}
-
-	return primaryKeys
 }
