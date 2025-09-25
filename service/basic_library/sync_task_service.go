@@ -894,7 +894,7 @@ func (s *SyncTaskService) RetrySyncTask(ctx context.Context, taskID string) (*mo
 func (s *SyncTaskService) GetSyncTaskStatus(ctx context.Context, taskID string) (*SyncTaskStatusResponse, error) {
 	// 获取任务
 	var task models.SyncTask
-	if err := s.db.Preload("DataSource").Preload("DataInterface").First(&task, "id = ?", taskID).Error; err != nil {
+	if err := s.db.Preload("DataSource").Preload("DataInterfaces").First(&task, "id = ?", taskID).Error; err != nil {
 		return nil, fmt.Errorf("任务不存在: %w", err)
 	}
 

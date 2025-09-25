@@ -32,13 +32,8 @@ type SchemaService struct {
 // NewSchemaService 创建表结构管理服务实例
 func NewSchemaService(db *gorm.DB) *SchemaService {
 	baseURL := "http://localhost:3001" // 默认postgres-meta服务地址
-
-	// 检查是否在Dapr环境中
-	if daprPort := os.Getenv("DAPR_HTTP_PORT"); daprPort != "" {
-		baseURL = fmt.Sprintf("http://localhost:%s/v1.0/invoke/postgres-meta/method", daprPort)
-		log.Printf("[DEBUG] SchemaService - 使用Dapr环境，baseURL: %s", baseURL)
-	} else {
-		log.Printf("[DEBUG] SchemaService - 使用默认环境，baseURL: %s", baseURL)
+	if os.Getenv("POSTGRES_META_URL") != "" {
+		baseURL = os.Getenv("POSTGRES_META_URL")
 	}
 
 	// 从环境变量获取数据库连接信息用于构建pg header
