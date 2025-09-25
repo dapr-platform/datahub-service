@@ -35,8 +35,8 @@ func (lr *LineageRecorder) RecordLineage(sourceRecords []SourceRecordInfo, proce
 	// 获取目标主题接口的主键字段
 	targetPrimaryKeys, err := lr.getThematicPrimaryKeyFields(request.TargetInterfaceID)
 	if err != nil {
-		fmt.Printf("[DEBUG] 获取目标主键字段失败: %v, 使用默认主键\n", err)
-		targetPrimaryKeys = []string{"id"}
+		fmt.Printf("[DEBUG] 获取目标主键字段失败: %v, 不使用排序\n", err)
+		targetPrimaryKeys = []string{}
 	}
 
 	// 为每个处理后的记录创建血缘记录
@@ -84,18 +84,7 @@ func (lr *LineageRecorder) getThematicPrimaryKeyFields(thematicInterfaceID strin
 		return nil, fmt.Errorf("获取主题接口信息失败: %w", err)
 	}
 
-	var primaryKeys []string
-
-	// 从TableFieldsConfig中解析主键字段
-	// 简化实现，直接返回默认主键
-	primaryKeys = []string{"id"}
-
-	// 如果没有主键，使用默认的id字段
-	if len(primaryKeys) == 0 {
-		primaryKeys = []string{"id"}
-	}
-
-	return primaryKeys, nil
+	return GetThematicPrimaryKeyFields(&thematicInterface), nil
 }
 
 // extractPrimaryKeyByFields 根据指定字段提取主键值

@@ -145,11 +145,7 @@ func (df *DataFetcher) FetchDataFromInterfaceWithConfig(libraryID, interfaceID s
 	fullTableName := fmt.Sprintf("%s.%s", schema, tableName)
 
 	// 获取数据接口的主键字段
-	primaryKeyFields, err := df.getDataInterfacePrimaryKeyFields(&dataInterface)
-	if err != nil {
-		fmt.Printf("[DEBUG] 获取数据接口主键字段失败: %v, 不使用排序\n", err)
-		primaryKeyFields = []string{} // 空切片表示没有主键
-	}
+	primaryKeyFields := GetDataInterfacePrimaryKeyFields(&dataInterface)
 	if len(primaryKeyFields) > 0 {
 		fmt.Printf("[DEBUG] 数据接口主键字段: %v\n", primaryKeyFields)
 	} else {
@@ -252,8 +248,8 @@ func (df *DataFetcher) fetchDataInBatches(fullTableName string, batchSize int) (
 	fmt.Printf("[DEBUG] 开始分批获取数据，表: %s, 批次大小: %d\n", fullTableName, batchSize)
 
 	for {
-		// 构建分页查询SQL
-		sql := fmt.Sprintf("SELECT * FROM %s ORDER BY id LIMIT %d OFFSET %d", fullTableName, batchSize, offset)
+		// 构建分页查询SQL - 注意：这个方法已废弃，应该使用fetchDataInBatchesWithPrimaryKey
+		sql := fmt.Sprintf("SELECT * FROM %s LIMIT %d OFFSET %d", fullTableName, batchSize, offset)
 
 		rows, err := df.db.Raw(sql).Rows()
 		if err != nil {
@@ -796,49 +792,6 @@ func (df *DataFetcher) compareIncrementalValues(a, b string, fieldType string) i
 		}
 		return 0
 	}
-}
-
-// getDataInterfacePrimaryKeyFields 获取数据接口的主键字段列表
-func (df *DataFetcher) getDataInterfacePrimaryKeyFields(dataInterface *models.DataInterface) ([]string, error) {
-	var primaryKeys []string
-
-	// 从TableFieldsConfig中解析主键字段
-	if len(dataInterface.TableFieldsConfig) > 0 {
-		// 遍历字段配置，查找主键字段
-		for fieldKey, fieldValue := range dataInterface.TableFieldsConfig {
-			if fieldMap, ok := fieldValue.(map[string]interface{}); ok {
-				// 检查是否为主键字段
-				if isPrimary, exists := fieldMap["is_primary_key"]; exists {
-					if isPrimaryBool, ok := isPrimary.(bool); ok && isPrimaryBool {
-						// 优先使用name_en字段作为字段名
-						if nameEn, exists := fieldMap["name_en"]; exists {
-							if nameEnStr, ok := nameEn.(string); ok && nameEnStr != "" {
-								primaryKeys = append(primaryKeys, nameEnStr)
-							}
-						} else {
-							// 如果没有name_en，使用字段键名
-							primaryKeys = append(primaryKeys, fieldKey)
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// 如果没有找到主键，尝试查找常见的主键字段名
-	if len(primaryKeys) == 0 {
-		commonPrimaryKeys := []string{"id", "uuid", "primary_key", "pk"}
-		for _, pkField := range commonPrimaryKeys {
-			if _, exists := dataInterface.TableFieldsConfig[pkField]; exists {
-				primaryKeys = []string{pkField}
-				break
-			}
-		}
-	}
-
-	// 如果仍然没有找到主键，返回空切片，不使用默认值
-	// 这样可以避免在查询中使用不存在的字段
-	return primaryKeys, nil
 }
 
 // getStringFromMap 从map中获取字符串值

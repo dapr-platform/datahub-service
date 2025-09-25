@@ -48,10 +48,9 @@ func (fss *FullSyncStrategy) ProcessSync(sourceRecords []map[string]interface{},
 	fullTableName := fmt.Sprintf("%s.%s", schema, tableName)
 
 	// 获取主键字段
-	primaryKeyFields, err := fss.getThematicPrimaryKeyFields(request.TargetInterfaceID)
-	if err != nil {
-		fmt.Printf("[DEBUG] 获取主键字段失败: %v, 使用默认主键\n", err)
-		primaryKeyFields = []string{"id"}
+	primaryKeyFields := fss.getThematicPrimaryKeyFields(&thematicInterface)
+	if len(primaryKeyFields) == 0 {
+		fmt.Printf("[DEBUG] 主题接口没有配置主键字段\n")
 	}
 
 	// 全量同步策略：
@@ -241,25 +240,8 @@ func (fss *FullSyncStrategy) deleteBatch(fullTableName string, primaryKeyFields 
 }
 
 // getThematicPrimaryKeyFields 获取主题接口的主键字段列表
-func (fss *FullSyncStrategy) getThematicPrimaryKeyFields(thematicInterfaceID string) ([]string, error) {
-	// 获取主题接口信息
-	var thematicInterface models.ThematicInterface
-	if err := fss.db.First(&thematicInterface, "id = ?", thematicInterfaceID).Error; err != nil {
-		return nil, fmt.Errorf("获取主题接口信息失败: %w", err)
-	}
-
-	var primaryKeys []string
-
-	// 从TableFieldsConfig中解析主键字段
-	// 简化实现，直接返回默认主键
-	primaryKeys = []string{"id"}
-
-	// 如果没有主键，使用默认的id字段
-	if len(primaryKeys) == 0 {
-		primaryKeys = []string{"id"}
-	}
-
-	return primaryKeys, nil
+func (fss *FullSyncStrategy) getThematicPrimaryKeyFields(thematicInterface *models.ThematicInterface) []string {
+	return GetThematicPrimaryKeyFields(thematicInterface)
 }
 
 // IncrementalSyncStrategy 增量同步策略
@@ -287,10 +269,9 @@ func (iss *IncrementalSyncStrategy) ProcessSync(sourceRecords []map[string]inter
 	fullTableName := fmt.Sprintf("%s.%s", schema, tableName)
 
 	// 获取主键字段
-	primaryKeyFields, err := iss.getThematicPrimaryKeyFields(request.TargetInterfaceID)
-	if err != nil {
-		fmt.Printf("[DEBUG] 获取主题接口主键字段失败: %v, 使用默认主键\n", err)
-		primaryKeyFields = []string{"id"}
+	primaryKeyFields := iss.getThematicPrimaryKeyFields(&thematicInterface)
+	if len(primaryKeyFields) == 0 {
+		fmt.Printf("[DEBUG] 主题接口没有配置主键字段\n")
 	}
 
 	// 增量同步：只执行 INSERT ON CONFLICT UPDATE（不删除）
@@ -419,35 +400,8 @@ func (iss *IncrementalSyncStrategy) upsertBatch(fullTableName string, primaryKey
 }
 
 // getThematicPrimaryKeyFields 获取主题接口的主键字段
-func (iss *IncrementalSyncStrategy) getThematicPrimaryKeyFields(thematicInterfaceID string) ([]string, error) {
-	var thematicInterface models.ThematicInterface
-	if err := iss.db.First(&thematicInterface, "id = ?", thematicInterfaceID).Error; err != nil {
-		return nil, fmt.Errorf("获取主题接口失败: %w", err)
-	}
-
-	// 从字段配置中解析主键字段
-	if len(thematicInterface.TableFieldsConfig) > 0 {
-		var primaryKeys []string
-		for key, value := range thematicInterface.TableFieldsConfig {
-			if fieldMap, ok := value.(map[string]interface{}); ok {
-				if isPrimary, exists := fieldMap["is_primary"]; exists {
-					if isPrimaryBool, ok := isPrimary.(bool); ok && isPrimaryBool {
-						if fieldName, exists := fieldMap["field_name"]; exists {
-							primaryKeys = append(primaryKeys, fmt.Sprintf("%v", fieldName))
-						} else {
-							primaryKeys = append(primaryKeys, key)
-						}
-					}
-				}
-			}
-		}
-		if len(primaryKeys) > 0 {
-			return primaryKeys, nil
-		}
-	}
-
-	// 默认主键
-	return []string{"id"}, nil
+func (iss *IncrementalSyncStrategy) getThematicPrimaryKeyFields(thematicInterface *models.ThematicInterface) []string {
+	return GetThematicPrimaryKeyFields(thematicInterface)
 }
 
 // buildConflictColumns 构建冲突列字符串

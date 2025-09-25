@@ -12,6 +12,7 @@
 package thematic_sync
 
 import (
+	"datahub-service/service/models"
 	"fmt"
 	"strconv"
 	"strings"
@@ -140,4 +141,88 @@ func (su *SyncUtils) ParseSQLDataSourceConfigs(request *SyncRequest) ([]SQLDataS
 	}
 
 	return nil, false
+}
+
+// GetThematicPrimaryKeyFields 获取主题接口的主键字段列表 - 通用工具方法
+func GetThematicPrimaryKeyFields(thematicInterface *models.ThematicInterface) []string {
+	var primaryKeys []string
+
+	// 从TableFieldsConfig中解析主键字段
+	if len(thematicInterface.TableFieldsConfig) > 0 {
+		// 遍历字段配置，查找主键字段
+		for fieldKey, fieldValue := range thematicInterface.TableFieldsConfig {
+			if fieldMap, ok := fieldValue.(map[string]interface{}); ok {
+				// 检查是否为主键字段
+				if isPrimary, exists := fieldMap["is_primary_key"]; exists {
+					if isPrimaryBool, ok := isPrimary.(bool); ok && isPrimaryBool {
+						// 优先使用name_en字段作为字段名
+						if nameEn, exists := fieldMap["name_en"]; exists {
+							if nameEnStr, ok := nameEn.(string); ok && nameEnStr != "" {
+								primaryKeys = append(primaryKeys, nameEnStr)
+							}
+						} else {
+							// 如果没有name_en，使用字段键名
+							primaryKeys = append(primaryKeys, fieldKey)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 如果没有找到主键，尝试查找常见的主键字段名
+	if len(primaryKeys) == 0 {
+		commonPrimaryKeys := []string{"id", "uuid", "primary_key", "pk"}
+		for _, pkField := range commonPrimaryKeys {
+			if _, exists := thematicInterface.TableFieldsConfig[pkField]; exists {
+				primaryKeys = []string{pkField}
+				break
+			}
+		}
+	}
+
+	// 如果仍然没有找到主键，返回空切片
+	return primaryKeys
+}
+
+// GetDataInterfacePrimaryKeyFields 获取数据接口的主键字段列表 - 通用工具方法
+func GetDataInterfacePrimaryKeyFields(dataInterface *models.DataInterface) []string {
+	var primaryKeys []string
+
+	// 从TableFieldsConfig中解析主键字段
+	if len(dataInterface.TableFieldsConfig) > 0 {
+		// 遍历字段配置，查找主键字段
+		for fieldKey, fieldValue := range dataInterface.TableFieldsConfig {
+			if fieldMap, ok := fieldValue.(map[string]interface{}); ok {
+				// 检查是否为主键字段
+				if isPrimary, exists := fieldMap["is_primary_key"]; exists {
+					if isPrimaryBool, ok := isPrimary.(bool); ok && isPrimaryBool {
+						// 优先使用name_en字段作为字段名
+						if nameEn, exists := fieldMap["name_en"]; exists {
+							if nameEnStr, ok := nameEn.(string); ok && nameEnStr != "" {
+								primaryKeys = append(primaryKeys, nameEnStr)
+							}
+						} else {
+							// 如果没有name_en，使用字段键名
+							primaryKeys = append(primaryKeys, fieldKey)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 如果没有找到主键，尝试查找常见的主键字段名
+	if len(primaryKeys) == 0 {
+		commonPrimaryKeys := []string{"id", "uuid", "primary_key", "pk"}
+		for _, pkField := range commonPrimaryKeys {
+			if _, exists := dataInterface.TableFieldsConfig[pkField]; exists {
+				primaryKeys = []string{pkField}
+				break
+			}
+		}
+	}
+
+	// 如果仍然没有找到主键，返回空切片
+	return primaryKeys
 }

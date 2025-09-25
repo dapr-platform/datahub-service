@@ -13,7 +13,6 @@ package thematic_sync
 
 import (
 	"datahub-service/service/models"
-	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"sort"
@@ -68,10 +67,14 @@ func (dp *DataProcessor) MergeData(sourceRecords []SourceRecordInfo, request *Sy
 	// 获取目标主题接口的主键字段
 	targetPrimaryKeys, err := dp.getThematicPrimaryKeyFields(request.TargetInterfaceID)
 	if err != nil {
-		fmt.Printf("[DEBUG] 获取目标主键字段失败: %v, 使用默认主键\n", err)
-		targetPrimaryKeys = []string{"id"}
+		fmt.Printf("[DEBUG] 获取目标主键字段失败: %v, 不使用排序\n", err)
+		targetPrimaryKeys = []string{}
 	}
-	fmt.Printf("[DEBUG] 目标主键字段: %v\n", targetPrimaryKeys)
+	if len(targetPrimaryKeys) > 0 {
+		fmt.Printf("[DEBUG] 目标主键字段: %v\n", targetPrimaryKeys)
+	} else {
+		fmt.Printf("[DEBUG] 目标接口没有配置主键字段\n")
+	}
 
 	// 使用map按ID合并数据
 	recordMap := make(map[string]map[string]interface{})
@@ -209,26 +212,7 @@ func (dp *DataProcessor) getThematicPrimaryKeyFields(thematicInterfaceID string)
 		return nil, fmt.Errorf("获取主题接口信息失败: %w", err)
 	}
 
-	var primaryKeys []string
-
-	// 从TableFieldsConfig中解析主键字段
-	if len(thematicInterface.TableFieldsConfig) > 0 {
-		var tableFields []models.TableField
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", thematicInterface.TableFieldsConfig)), &tableFields); err == nil {
-			for _, field := range tableFields {
-				if field.IsPrimaryKey {
-					primaryKeys = append(primaryKeys, field.NameEn)
-				}
-			}
-		}
-	}
-
-	// 如果没有主键，使用默认的id字段
-	if len(primaryKeys) == 0 {
-		primaryKeys = []string{"id"}
-	}
-
-	return primaryKeys, nil
+	return GetThematicPrimaryKeyFields(&thematicInterface), nil
 }
 
 // extractPrimaryKeyByFields 根据指定字段提取主键值

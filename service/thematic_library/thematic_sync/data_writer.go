@@ -84,12 +84,12 @@ func (dw *DataWriter) writeDataToTable(processedRecords []map[string]interface{}
 	fullTableName := fmt.Sprintf("%s.%s", schema, tableName)
 
 	// 获取主题接口的主键字段
-	primaryKeyFields, err := dw.getThematicPrimaryKeyFields(request.TargetInterfaceID)
-	if err != nil {
-		fmt.Printf("[DEBUG] 获取主题接口主键字段失败: %v, 使用默认主键\n", err)
-		primaryKeyFields = []string{"id"}
+	primaryKeyFields := dw.getThematicPrimaryKeyFields(&thematicInterface)
+	if len(primaryKeyFields) > 0 {
+		fmt.Printf("[DEBUG] 主题接口主键字段: %v\n", primaryKeyFields)
+	} else {
+		fmt.Printf("[DEBUG] 主题接口没有配置主键字段\n")
 	}
-	fmt.Printf("[DEBUG] 主题接口主键字段: %v\n", primaryKeyFields)
 
 	// 批量写入数据 - 支持批处理
 	return dw.batchWriteRecords(fullTableName, primaryKeyFields, processedRecords, result)
@@ -191,28 +191,8 @@ func (dw *DataWriter) writeBatch(fullTableName string, primaryKeyFields []string
 }
 
 // getThematicPrimaryKeyFields 获取主题接口的主键字段列表
-func (dw *DataWriter) getThematicPrimaryKeyFields(thematicInterfaceID string) ([]string, error) {
-	// 获取主题接口信息
-	var thematicInterface models.ThematicInterface
-	if err := dw.db.First(&thematicInterface, "id = ?", thematicInterfaceID).Error; err != nil {
-		return nil, fmt.Errorf("获取主题接口信息失败: %w", err)
-	}
-
-	var primaryKeys []string
-
-	// 从TableFieldsConfig中解析主键字段
-	if len(thematicInterface.TableFieldsConfig) > 0 {
-		// 这里需要实现JSON解析逻辑
-		// 简化实现，直接返回默认主键
-		primaryKeys = []string{"id"}
-	}
-
-	// 如果没有主键，使用默认的id字段
-	if len(primaryKeys) == 0 {
-		primaryKeys = []string{"id"}
-	}
-
-	return primaryKeys, nil
+func (dw *DataWriter) getThematicPrimaryKeyFields(thematicInterface *models.ThematicInterface) []string {
+	return GetThematicPrimaryKeyFields(thematicInterface)
 }
 
 // generateUpdateClauseWithPrimaryKeys 生成UPDATE子句，跳过指定的主键字段
