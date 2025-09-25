@@ -562,3 +562,156 @@ func (fm *FieldMapper) processRow(tx *gorm.DB, row map[string]interface{}, fullT
 
 	return nil
 }
+
+// ReplaceTableData 替换表数据（全量同步）
+func (fm *FieldMapper) ReplaceTableData(ctx context.Context, db *gorm.DB, interfaceInfo InterfaceInfo, data []map[string]interface{}) (int64, error) {
+	// 构造表名
+	schemaName := interfaceInfo.GetSchemaName()
+	tableName := interfaceInfo.GetTableName()
+	var fullTableName string
+	if schemaName != "" {
+		fullTableName = fmt.Sprintf(`"%s"."%s"`, schemaName, tableName)
+	} else {
+		fullTableName = fmt.Sprintf(`"%s"`, tableName)
+	}
+
+	fmt.Printf("[DEBUG] FieldMapper.ReplaceTableData - 开始替换表数据\n")
+	fmt.Printf("[DEBUG] ReplaceTableData - 表名: %s\n", fullTableName)
+	fmt.Printf("[DEBUG] ReplaceTableData - 数据行数: %d\n", len(data))
+
+	// 开启事务
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("[ERROR] ReplaceTableData - 事务回滚，原因: %v\n", r)
+			tx.Rollback()
+		}
+	}()
+
+	// 清空现有数据
+	deleteSQL := fmt.Sprintf("DELETE FROM %s", fullTableName)
+	fmt.Printf("[DEBUG] ReplaceTableData - 清空表SQL: %s\n", deleteSQL)
+
+	if err := tx.Exec(deleteSQL).Error; err != nil {
+		fmt.Printf("[ERROR] ReplaceTableData - 清空表数据失败: %v\n", err)
+		tx.Rollback()
+		return 0, fmt.Errorf("清空表数据失败: %w", err)
+	}
+
+	// 插入新数据
+	var insertedRows int64
+	for i, row := range data {
+		// 只对第一行数据输出详细调试信息
+		if i == 0 {
+			fmt.Printf("[DEBUG] ReplaceTableData - 处理第 %d 行数据: %+v\n", i+1, row)
+		} else if i%100 == 0 {
+			fmt.Printf("[DEBUG] ReplaceTableData - 已处理 %d 行数据...\n", i+1)
+		}
+
+		// 应用parseConfig中的fieldMapping
+		parseConfig := interfaceInfo.GetParseConfig()
+		mappedRow := fm.ApplyFieldMapping(row, parseConfig, i == 0)
+		if i == 0 {
+			fmt.Printf("[DEBUG] ReplaceTableData - 字段映射后的数据: %+v\n", mappedRow)
+		}
+
+		// 构建插入SQL
+		columns := make([]string, 0, len(mappedRow))
+		placeholders := make([]string, 0, len(mappedRow))
+		values := make([]interface{}, 0, len(mappedRow))
+
+		for col, val := range mappedRow {
+			columns = append(columns, fmt.Sprintf(`"%s"`, col))
+			placeholders = append(placeholders, "?")
+			// 处理数据类型转换，特别是时间字段
+			processedVal := fm.ProcessValueForDatabase(col, val)
+			values = append(values, processedVal)
+		}
+
+		// 构建插入SQL
+		insertSQL := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+			fullTableName,
+			strings.Join(columns, ", "),
+			strings.Join(placeholders, ", "))
+
+		if i == 0 {
+			fmt.Printf("[DEBUG] ReplaceTableData - 插入SQL: %s\n", insertSQL)
+			fmt.Printf("[DEBUG] ReplaceTableData - 插入参数: %+v\n", values)
+		}
+
+		if err := tx.Exec(insertSQL, values...).Error; err != nil {
+			fmt.Printf("[ERROR] ReplaceTableData - 插入数据失败: %v\n", err)
+			fmt.Printf("[ERROR] ReplaceTableData - 失败的SQL: %s\n", insertSQL)
+			fmt.Printf("[ERROR] ReplaceTableData - 失败的参数: %+v\n", values)
+			tx.Rollback()
+			return 0, fmt.Errorf("插入数据失败: %w", err)
+		}
+		insertedRows++
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		fmt.Printf("[ERROR] ReplaceTableData - 提交事务失败: %v\n", err)
+		return 0, fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	fmt.Printf("[DEBUG] ReplaceTableData - 成功插入 %d 行数据\n", insertedRows)
+	return insertedRows, nil
+}
+
+// UpsertBatchDataWithTx 使用提供的事务进行批量UPSERT操作（增量同步）
+func (fm *FieldMapper) UpsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, interfaceInfo InterfaceInfo, data []map[string]interface{}) (int64, error) {
+	if len(data) == 0 {
+		return 0, nil
+	}
+
+	// 构造表名
+	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
+
+	fmt.Printf("[DEBUG] FieldMapper.UpsertBatchDataWithTx - 开始UPSERT批量数据到表: %s\n", fullTableName)
+	fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 数据行数: %d\n", len(data))
+
+	// 处理数据（使用提供的事务）
+	var processedRows int64
+	for i, row := range data {
+		fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 处理第 %d 行数据: %+v\n", i+1, row)
+
+		// 应用parseConfig中的fieldMapping
+		parseConfig := interfaceInfo.GetParseConfig()
+		mappedRow := fm.ApplyFieldMapping(row, parseConfig)
+		fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 字段映射后的数据: %+v\n", mappedRow)
+
+		// 构建UPSERT SQL（这里简化为INSERT，实际应该实现UPSERT逻辑）
+		columns := make([]string, 0, len(mappedRow))
+		placeholders := make([]string, 0, len(mappedRow))
+		values := make([]interface{}, 0, len(mappedRow))
+
+		for col, val := range mappedRow {
+			columns = append(columns, fmt.Sprintf(`"%s"`, col))
+			placeholders = append(placeholders, "?")
+			// 处理数据类型转换，特别是时间字段
+			processedVal := fm.ProcessValueForDatabase(col, val)
+			values = append(values, processedVal)
+		}
+
+		// 构建INSERT SQL（简化版，实际应该是UPSERT）
+		insertSQL := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+			fullTableName,
+			strings.Join(columns, ", "),
+			strings.Join(placeholders, ", "))
+
+		fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 插入SQL: %s\n", insertSQL)
+		fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 插入参数: %+v\n", values)
+
+		if err := tx.Exec(insertSQL, values...).Error; err != nil {
+			fmt.Printf("[ERROR] UpsertBatchDataWithTx - 插入数据失败: %v\n", err)
+			fmt.Printf("[ERROR] UpsertBatchDataWithTx - 失败的SQL: %s\n", insertSQL)
+			fmt.Printf("[ERROR] UpsertBatchDataWithTx - 失败的参数: %+v\n", values)
+			return 0, fmt.Errorf("插入数据失败: %w", err)
+		}
+		processedRows++
+	}
+
+	fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 成功处理 %d 行数据\n", processedRows)
+	return processedRows, nil
+}

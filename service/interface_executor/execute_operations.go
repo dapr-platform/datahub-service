@@ -13,7 +13,6 @@ package interface_executor
 
 import (
 	"context"
-	"datahub-service/service/datasource"
 	"datahub-service/service/meta"
 	"datahub-service/service/models"
 	"fmt"
@@ -136,9 +135,8 @@ func (ops *ExecuteOperations) ExecuteTest(ctx context.Context, interfaceInfo Int
 	}, nil
 }
 
-// ExecuteSync 执行同步操作
+// ExecuteSync 执行同步操作（统一处理全量和增量同步）
 func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time) (*ExecuteResponse, error) {
-	// 同步操作：完整的数据同步流程
 	fmt.Printf("[DEBUG] ExecuteOperations.ExecuteSync - 开始同步接口: %s\n", interfaceInfo.GetID())
 
 	// 检查表是否创建
@@ -152,70 +150,65 @@ func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo Int
 		}, fmt.Errorf("接口表尚未创建")
 	}
 
-	// 检查是否需要批量同步
 	interfaceConfig := interfaceInfo.GetInterfaceConfig()
-	limitConfig, hasLimitConfig := interfaceConfig[meta.DataInterfaceConfigFieldLimitConfig]
-
 	fmt.Printf("[DEBUG] ExecuteSync - 接口配置: %+v\n", interfaceConfig)
-	fmt.Printf("[DEBUG] ExecuteSync - 限制配置: hasLimitConfig=%t, config=%+v\n", hasLimitConfig, limitConfig)
 
-	if hasLimitConfig {
-		if limitMap, ok := limitConfig.(map[string]interface{}); ok {
-			enabled := cast.ToBool(limitMap["enabled"])
-			fmt.Printf("[DEBUG] ExecuteSync - 限制配置启用状态: %t\n", enabled)
+	// 1. 检查是否启用增量同步
+	syncStrategy := "full" // 默认全量同步
+	var lastSyncTime interface{}
+	var incrementalKey string
+
+	if incrementalConfig, exists := interfaceConfig["incremental_config"]; exists {
+		if configMap, ok := incrementalConfig.(map[string]interface{}); ok {
+			enabled := cast.ToBool(configMap["enabled"])
+			fmt.Printf("[DEBUG] ExecuteSync - 增量配置启用状态: %t\n", enabled)
 
 			if enabled {
-				// 使用批量同步
-				return ops.ExecuteBatchSync(ctx, interfaceInfo, request, startTime, limitMap)
+				syncStrategy = "incremental"
+
+				// 获取增量字段名（源字段）
+				sourceFieldName := cast.ToString(configMap["field_name"])
+				if sourceFieldName == "" {
+					return &ExecuteResponse{
+						Success:     false,
+						Message:     "增量配置缺少字段名",
+						Duration:    time.Since(startTime).Milliseconds(),
+						ExecuteType: request.ExecuteType,
+						Error:       "incremental field_name is required",
+					}, fmt.Errorf("增量配置缺少字段名")
+				}
+
+				// 获取本系统表中对应字段的最新值
+				mappedFieldName, lastValue, err := ops.getLastSyncValue(interfaceInfo, sourceFieldName, configMap)
+				if err != nil {
+					fmt.Printf("[WARN] ExecuteSync - 获取最后同步值失败，将使用全量同步: %v\n", err)
+					syncStrategy = "full"
+				} else {
+					lastSyncTime = lastValue
+					incrementalKey = sourceFieldName
+					fmt.Printf("[DEBUG] ExecuteSync - 增量同步参数: sourceField=%s, mappedField=%s, lastValue=%v\n",
+						sourceFieldName, mappedFieldName, lastValue)
+				}
 			}
 		}
 	}
 
-	// 执行单次数据获取（传统方式）
-	dataProcessor := NewDataProcessor(ops.executor)
-	data, dataTypes, warnings, err := dataProcessor.FetchDataFromSourceWithExecuteType(ctx, interfaceInfo, request.Parameters, request.ExecuteType)
-	if err != nil {
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "同步数据获取失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
+	// 2. 检查是否需要批量同步
+	limitConfig, hasLimitConfig := interfaceConfig[meta.DataInterfaceConfigFieldLimitConfig]
+	if hasLimitConfig {
+		if limitMap, ok := limitConfig.(map[string]interface{}); ok {
+			enabled := cast.ToBool(limitMap["enabled"])
+			fmt.Printf("[DEBUG] ExecuteSync - 批量配置启用状态: %t\n", enabled)
+
+			if enabled {
+				// 使用批量同步（支持增量）
+				return ops.ExecuteBatchSyncWithStrategy(ctx, interfaceInfo, request, startTime, limitMap, syncStrategy, lastSyncTime, incrementalKey)
+			}
+		}
 	}
 
-	// 更新表数据
-	fieldMapper := NewFieldMapper()
-	updatedRows, err := fieldMapper.UpdateTableData(ctx, ops.executor.db, interfaceInfo, data)
-	if err != nil {
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "同步数据更新失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
-	}
-
-	return &ExecuteResponse{
-		Success:      true,
-		Message:      "数据同步成功",
-		Duration:     time.Since(startTime).Milliseconds(),
-		ExecuteType:  request.ExecuteType,
-		Data:         data,
-		RowCount:     len(data),
-		ColumnCount:  len(dataTypes),
-		DataTypes:    dataTypes,
-		TableUpdated: true,
-		UpdatedRows:  updatedRows,
-		Warnings:     warnings,
-		Metadata: map[string]interface{}{
-			"interface_id":   interfaceInfo.GetID(),
-			"interface_name": interfaceInfo.GetName(),
-			"schema_name":    interfaceInfo.GetSchemaName(),
-			"table_name":     interfaceInfo.GetTableName(),
-		},
-	}, nil
+	// 3. 执行单次数据同步
+	return ops.ExecuteSingleSync(ctx, interfaceInfo, request, startTime, syncStrategy, lastSyncTime, incrementalKey)
 }
 
 // ExecuteBatchSync 执行批量同步操作
@@ -489,90 +482,84 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	}, nil
 }
 
-// ExecuteIncrementalSync 执行增量同步
-func (ops *ExecuteOperations) ExecuteIncrementalSync(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time) (*ExecuteResponse, error) {
-	// 获取数据源
-	dataSourceID := interfaceInfo.GetDataSourceID()
-	dataSource, err := ops.executor.datasourceManager.Get(dataSourceID)
-	if err != nil {
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "获取数据源失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
+// getLastSyncValue 获取本系统表中增量字段的最新值
+func (ops *ExecuteOperations) getLastSyncValue(interfaceInfo InterfaceInfo, sourceFieldName string, incrementalConfig map[string]interface{}) (string, interface{}, error) {
+	// 1. 获取字段映射关系
+	mappedFieldName := sourceFieldName // 默认使用源字段名
+
+	// 从解析配置中获取字段映射
+	parseConfig := interfaceInfo.GetParseConfig()
+	if parseConfig != nil {
+		if fieldMapping, exists := parseConfig["field_mapping"]; exists {
+			if mappingMap, ok := fieldMapping.(map[string]interface{}); ok {
+				if mappedName, exists := mappingMap[sourceFieldName]; exists {
+					mappedFieldName = cast.ToString(mappedName)
+				}
+			}
+		}
 	}
 
-	// 获取实际的数据源模型
-	var dataSourceModel *models.DataSource
-	err = ops.executor.db.First(&dataSourceModel, "id = ?", dataSourceID).Error
-	if err != nil {
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "获取数据源模型失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
+	// 2. 构建查询SQL
+	schemaName := interfaceInfo.GetSchemaName()
+	tableName := interfaceInfo.GetTableName()
+	fullTableName := fmt.Sprintf(`"%s"."%s"`, schemaName, tableName)
+
+	// 检查表是否存在数据
+	var count int64
+	if err := ops.executor.db.Table(fullTableName).Count(&count).Error; err != nil {
+		return mappedFieldName, nil, fmt.Errorf("查询表数据失败: %w", err)
 	}
 
-	// 构建增量查询请求
-	queryBuilder, err := datasource.NewQueryBuilder(dataSourceModel, &models.DataInterface{
-		InterfaceConfig: interfaceInfo.GetInterfaceConfig(),
-	})
-	if err != nil {
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "创建查询构建器失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
+	if count == 0 {
+		fmt.Printf("[DEBUG] getLastSyncValue - 表 %s 为空，返回nil作为初始值\n", fullTableName)
+		return mappedFieldName, nil, nil
 	}
 
-	// 构建增量参数
-	incrementalParams := &datasource.IncrementalParams{
-		LastSyncTime:   request.LastSyncTime,
-		IncrementalKey: request.IncrementalKey,
-		ComparisonType: "gt", // 默认使用大于比较
-		BatchSize:      request.BatchSize,
+	// 3. 查询最新值
+	var lastValue interface{}
+	sql := fmt.Sprintf(`SELECT MAX("%s") FROM %s`, mappedFieldName, fullTableName)
+
+	row := ops.executor.db.Raw(sql).Row()
+	if err := row.Scan(&lastValue); err != nil {
+		return mappedFieldName, nil, fmt.Errorf("查询最新值失败: %w", err)
 	}
 
-	if incrementalParams.BatchSize <= 0 {
-		incrementalParams.BatchSize = 1000 // 默认批量大小
+	fmt.Printf("[DEBUG] getLastSyncValue - 查询SQL: %s, 结果: %v\n", sql, lastValue)
+	return mappedFieldName, lastValue, nil
+}
+
+// ExecuteSingleSync 执行单次数据同步
+func (ops *ExecuteOperations) ExecuteSingleSync(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time, syncStrategy string, lastSyncTime interface{}, incrementalKey string) (*ExecuteResponse, error) {
+	fmt.Printf("[DEBUG] ExecuteSingleSync - 开始单次同步，策略: %s\n", syncStrategy)
+
+	// 准备增量参数
+	syncParams := make(map[string]interface{})
+	for k, v := range request.Parameters {
+		syncParams[k] = v
 	}
 
-	// 构建增量查询请求
-	executeRequest, err := queryBuilder.BuildIncrementalRequest("sync", incrementalParams)
-	if err != nil {
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "构建增量查询请求失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
+	if syncStrategy == "incremental" && lastSyncTime != nil {
+		// 添加增量查询参数
+		syncParams["incremental_field"] = incrementalKey
+		syncParams["last_sync_time"] = lastSyncTime
+		syncParams["comparison_type"] = "gt" // 大于比较
 	}
 
-	// 执行查询
-	response, err := dataSource.Execute(ctx, executeRequest)
-	if err != nil {
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "执行增量查询失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
-	}
-
-	// 处理返回的数据
+	// 执行数据获取
 	dataProcessor := NewDataProcessor(ops.executor)
-	data, dataTypes, warnings := dataProcessor.ProcessResponseData(response.Data)
+	data, dataTypes, warnings, err := dataProcessor.FetchDataFromSourceWithSyncStrategy(ctx, interfaceInfo, syncParams, syncStrategy)
+	if err != nil {
+		return &ExecuteResponse{
+			Success:     false,
+			Message:     "同步数据获取失败",
+			Duration:    time.Since(startTime).Milliseconds(),
+			ExecuteType: request.ExecuteType,
+			Error:       err.Error(),
+		}, err
+	}
 
-	// 如果没有数据，返回成功但无更新
-	if len(data) == 0 {
+	// 如果是增量同步且没有新数据，直接返回
+	if syncStrategy == "incremental" && len(data) == 0 {
 		return &ExecuteResponse{
 			Success:      true,
 			Message:      "增量同步完成，无新数据",
@@ -586,68 +573,233 @@ func (ops *ExecuteOperations) ExecuteIncrementalSync(ctx context.Context, interf
 			UpdatedRows:  0,
 			Warnings:     warnings,
 			Metadata: map[string]interface{}{
+				"interface_id":    interfaceInfo.GetID(),
 				"interface_name":  interfaceInfo.GetName(),
 				"schema_name":     interfaceInfo.GetSchemaName(),
 				"table_name":      interfaceInfo.GetTableName(),
-				"sync_strategy":   "incremental",
-				"last_sync_time":  request.LastSyncTime,
-				"incremental_key": request.IncrementalKey,
+				"sync_strategy":   syncStrategy,
+				"last_sync_time":  lastSyncTime,
+				"incremental_key": incrementalKey,
 			},
 		}, nil
 	}
 
-	// 使用DataSyncEngine进行增量同步
-	target := TableTarget{
-		TableName:   interfaceInfo.GetTableName(),
-		Schema:      interfaceInfo.GetSchemaName(),
-		PrimaryKeys: []string{"id"}, // 默认主键，实际应该从接口配置中获取
-		Columns:     make([]string, 0, len(dataTypes)),
+	// 更新表数据
+	fieldMapper := NewFieldMapper()
+	var updatedRows int64
+
+	if syncStrategy == "full" {
+		// 全量同步：先清空表，再插入新数据
+		updatedRows, err = fieldMapper.ReplaceTableData(ctx, ops.executor.db, interfaceInfo, data)
+	} else {
+		// 增量同步：使用UPSERT操作
+		updatedRows, err = fieldMapper.UpdateTableData(ctx, ops.executor.db, interfaceInfo, data)
 	}
 
-	// 从数据类型中提取列名
-	for column := range dataTypes {
-		target.Columns = append(target.Columns, column)
-	}
-
-	// 执行增量同步
-	syncResult, err := ops.executor.dataSyncEngine.ExecuteSync(ctx, DataIncrementalSync, data, target)
 	if err != nil {
 		return &ExecuteResponse{
 			Success:     false,
-			Message:     "增量同步执行失败",
+			Message:     "同步数据更新失败",
 			Duration:    time.Since(startTime).Milliseconds(),
 			ExecuteType: request.ExecuteType,
 			Error:       err.Error(),
-			Warnings:    warnings,
 		}, err
 	}
 
-	// TODO: 更新接口的最后同步时间
-	// 这里需要根据接口类型更新相应的表
-
 	return &ExecuteResponse{
 		Success:      true,
-		Message:      "增量同步完成",
+		Message:      fmt.Sprintf("%s同步成功", map[string]string{"full": "全量", "incremental": "增量"}[syncStrategy]),
 		Duration:     time.Since(startTime).Milliseconds(),
 		ExecuteType:  request.ExecuteType,
 		Data:         data,
 		RowCount:     len(data),
 		ColumnCount:  len(dataTypes),
 		DataTypes:    dataTypes,
-		TableUpdated: syncResult.InsertedCount > 0 || syncResult.UpdatedCount > 0,
-		UpdatedRows:  syncResult.InsertedCount + syncResult.UpdatedCount,
+		TableUpdated: true,
+		UpdatedRows:  updatedRows,
 		Warnings:     warnings,
 		Metadata: map[string]interface{}{
-			"interface_name":   interfaceInfo.GetName(),
-			"schema_name":      interfaceInfo.GetSchemaName(),
-			"table_name":       interfaceInfo.GetTableName(),
-			"sync_strategy":    "incremental",
-			"last_sync_time":   request.LastSyncTime,
-			"incremental_key":  request.IncrementalKey,
-			"inserted_count":   syncResult.InsertedCount,
-			"updated_count":    syncResult.UpdatedCount,
-			"error_count":      syncResult.ErrorCount,
-			"sync_duration_ms": syncResult.Duration.Milliseconds(),
+			"interface_id":    interfaceInfo.GetID(),
+			"interface_name":  interfaceInfo.GetName(),
+			"schema_name":     interfaceInfo.GetSchemaName(),
+			"table_name":      interfaceInfo.GetTableName(),
+			"sync_strategy":   syncStrategy,
+			"last_sync_time":  lastSyncTime,
+			"incremental_key": incrementalKey,
+		},
+	}, nil
+}
+
+// ExecuteBatchSyncWithStrategy 执行批量同步（支持增量策略）
+func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time, limitConfig map[string]interface{}, syncStrategy string, lastSyncTime interface{}, incrementalKey string) (*ExecuteResponse, error) {
+	fmt.Printf("[DEBUG] ExecuteBatchSyncWithStrategy - 开始批量同步，策略: %s\n", syncStrategy)
+
+	// 获取批量配置参数
+	defaultLimit := cast.ToInt(limitConfig["default_limit"])
+	maxLimit := cast.ToInt(limitConfig["max_limit"])
+
+	if defaultLimit <= 0 {
+		defaultLimit = 1000
+	}
+	if maxLimit <= 0 {
+		maxLimit = 10000
+	}
+
+	batchSize := defaultLimit
+	if batchSize > maxLimit {
+		batchSize = maxLimit
+	}
+
+	// 准备同步参数
+	syncParams := make(map[string]interface{})
+	for k, v := range request.Parameters {
+		syncParams[k] = v
+	}
+
+	if syncStrategy == "incremental" && lastSyncTime != nil {
+		syncParams["incremental_field"] = incrementalKey
+		syncParams["last_sync_time"] = lastSyncTime
+		syncParams["comparison_type"] = "gt"
+	}
+
+	// 开始事务
+	tx := ops.executor.db.Begin()
+	if tx.Error != nil {
+		return &ExecuteResponse{
+			Success:     false,
+			Message:     "开始事务失败",
+			Duration:    time.Since(startTime).Milliseconds(),
+			ExecuteType: request.ExecuteType,
+			Error:       tx.Error.Error(),
+		}, tx.Error
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[ERROR] ExecuteBatchSyncWithStrategy - 发生panic，事务已回滚: %v\n", r)
+		}
+	}()
+
+	// 如果是全量同步，先清空表
+	if syncStrategy == "full" {
+		fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
+		if err := tx.Exec(fmt.Sprintf("DELETE FROM %s", fullTableName)).Error; err != nil {
+			tx.Rollback()
+			return &ExecuteResponse{
+				Success:     false,
+				Message:     "清空表数据失败",
+				Duration:    time.Since(startTime).Milliseconds(),
+				ExecuteType: request.ExecuteType,
+				Error:       err.Error(),
+			}, err
+		}
+	}
+
+	// 批量获取并处理数据
+	dataProcessor := NewDataProcessor(ops.executor)
+	fieldMapper := NewFieldMapper()
+
+	var totalRows int64
+	var allDataTypes map[string]string
+	var allWarnings []string
+	currentPage := 1
+	hasMoreData := true
+
+	for hasMoreData {
+		pageParams := map[string]interface{}{
+			"page":      currentPage,
+			"page_size": batchSize,
+		}
+
+		batchData, dataTypes, warnings, err := dataProcessor.FetchBatchDataFromSourceWithStrategy(ctx, interfaceInfo, syncParams, pageParams, syncStrategy)
+		if err != nil {
+			tx.Rollback()
+			return &ExecuteResponse{
+				Success:     false,
+				Message:     fmt.Sprintf("获取第 %d 批数据失败", currentPage),
+				Duration:    time.Since(startTime).Milliseconds(),
+				ExecuteType: request.ExecuteType,
+				Error:       err.Error(),
+			}, err
+		}
+
+		if allDataTypes == nil {
+			allDataTypes = dataTypes
+		}
+		allWarnings = append(allWarnings, warnings...)
+
+		if len(batchData) == 0 {
+			hasMoreData = false
+			break
+		}
+
+		// 批量处理数据
+		var batchRows int64
+		if syncStrategy == "full" {
+			batchRows, err = fieldMapper.InsertBatchDataWithTx(ctx, tx, interfaceInfo, batchData)
+		} else {
+			batchRows, err = fieldMapper.UpsertBatchDataWithTx(ctx, tx, interfaceInfo, batchData)
+		}
+
+		if err != nil {
+			tx.Rollback()
+			return &ExecuteResponse{
+				Success:     false,
+				Message:     fmt.Sprintf("处理第 %d 批数据失败", currentPage),
+				Duration:    time.Since(startTime).Milliseconds(),
+				ExecuteType: request.ExecuteType,
+				Error:       err.Error(),
+			}, err
+		}
+
+		totalRows += batchRows
+
+		if len(batchData) < batchSize {
+			hasMoreData = false
+		}
+
+		currentPage++
+
+		if currentPage > 1000 {
+			allWarnings = append(allWarnings, "达到最大批次限制，可能还有更多数据未同步")
+			break
+		}
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return &ExecuteResponse{
+			Success:     false,
+			Message:     "提交事务失败",
+			Duration:    time.Since(startTime).Milliseconds(),
+			ExecuteType: request.ExecuteType,
+			Error:       err.Error(),
+		}, err
+	}
+
+	return &ExecuteResponse{
+		Success:      true,
+		Message:      fmt.Sprintf("批量%s同步成功，处理 %d 批", map[string]string{"full": "全量", "incremental": "增量"}[syncStrategy], currentPage-1),
+		Duration:     time.Since(startTime).Milliseconds(),
+		ExecuteType:  request.ExecuteType,
+		RowCount:     int(totalRows),
+		ColumnCount:  len(allDataTypes),
+		DataTypes:    allDataTypes,
+		TableUpdated: true,
+		UpdatedRows:  totalRows,
+		Warnings:     allWarnings,
+		Metadata: map[string]interface{}{
+			"interface_id":    interfaceInfo.GetID(),
+			"interface_name":  interfaceInfo.GetName(),
+			"schema_name":     interfaceInfo.GetSchemaName(),
+			"table_name":      interfaceInfo.GetTableName(),
+			"sync_strategy":   syncStrategy,
+			"last_sync_time":  lastSyncTime,
+			"incremental_key": incrementalKey,
+			"batch_count":     currentPage - 1,
+			"batch_size":      batchSize,
+			"total_rows":      totalRows,
 		},
 	}, nil
 }

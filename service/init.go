@@ -14,11 +14,9 @@ package service
 import (
 	"context"
 	"datahub-service/service/basic_library"
-	"datahub-service/service/basic_library/basic_sync"
 	"datahub-service/service/database"
 	"datahub-service/service/event"
 	"datahub-service/service/governance"
-	"datahub-service/service/scheduler"
 	"datahub-service/service/sharing"
 	"datahub-service/service/thematic_library"
 	"fmt"
@@ -36,10 +34,8 @@ var (
 	GlobalBasicLibraryService    *basic_library.Service
 	GlobalThematicLibraryService *thematic_library.Service
 	GlobalThematicSyncService    *thematic_library.ThematicSyncService
-	GlobalSyncEngine             *basic_sync.SyncEngine
 	GlobalSchemaService          *database.SchemaService
-	GlobalSyncTaskService        *basic_library.SyncTaskService
-	GlobalSchedulerService       *scheduler.SchedulerService
+	GlobalSyncTaskService        *basic_library.SyncTaskService // 现在包含调度功能
 	GlobalGovernanceService      *governance.GovernanceService
 	GlobalSharingService         *sharing.SharingService
 )
@@ -118,23 +114,19 @@ func initServices() {
 	GlobalBasicLibraryService = basic_library.NewService(DB, GlobalEventService)
 	GlobalThematicLibraryService = thematic_library.NewService(DB)
 	GlobalSchemaService = database.NewSchemaService(DB)
-	GlobalSyncTaskService = basic_library.NewSyncTaskService(DB, GlobalBasicLibraryService, nil)
-	GlobalSyncEngine = basic_sync.NewSyncEngine(DB, 10, GlobalSyncTaskService)
-	// 更新SyncTaskService中的SyncEngine引用
-	GlobalSyncTaskService.SetSyncEngine(GlobalSyncEngine)
+	// 初始化同步任务服务（现在集成了调度功能）
+	GlobalSyncTaskService = basic_library.NewSyncTaskService(DB, GlobalBasicLibraryService)
 	// 初始化主题同步服务
 	// GlobalThematicSyncService = NewThematicSyncService(DB, GlobalBasicLibraryService, GlobalThematicLibraryService)
-	// 初始化调度器服务
-	GlobalSchedulerService = scheduler.NewSchedulerService(DB, GlobalSyncTaskService, GlobalSyncEngine)
 	GlobalGovernanceService = governance.NewGovernanceService(DB)
 	GlobalSharingService = sharing.NewSharingService(DB)
 
 	// 初始化数据源
 	initializeDataSources()
 
-	// 启动调度器
-	if err := GlobalSchedulerService.Start(); err != nil {
-		log.Printf("启动调度器服务失败: %v", err)
+	// 启动集成的调度器
+	if err := GlobalSyncTaskService.StartScheduler(); err != nil {
+		log.Printf("启动同步任务调度器失败: %v", err)
 	}
 	log.Println("服务初始化完成")
 }

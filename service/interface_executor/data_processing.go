@@ -41,7 +41,18 @@ func (dp *DataProcessor) FetchDataFromSource(ctx context.Context, interfaceInfo 
 
 // FetchDataFromSourceWithExecuteType 从数据源获取数据（支持指定执行类型）
 func (dp *DataProcessor) FetchDataFromSourceWithExecuteType(ctx context.Context, interfaceInfo InterfaceInfo, parameters map[string]interface{}, executeType string) ([]map[string]interface{}, map[string]string, []string, error) {
-	fmt.Printf("[DEBUG] DataProcessor.FetchDataFromSource - 开始从数据源获取数据\n")
+	// 将executeType转换为syncStrategy
+	syncStrategy := "full"
+	if executeType == "incremental_sync" {
+		syncStrategy = "incremental"
+	}
+
+	return dp.FetchDataFromSourceWithSyncStrategy(ctx, interfaceInfo, parameters, syncStrategy)
+}
+
+// FetchDataFromSourceWithSyncStrategy 从数据源获取数据（支持指定同步策略）
+func (dp *DataProcessor) FetchDataFromSourceWithSyncStrategy(ctx context.Context, interfaceInfo InterfaceInfo, parameters map[string]interface{}, syncStrategy string) ([]map[string]interface{}, map[string]string, []string, error) {
+	fmt.Printf("[DEBUG] DataProcessor.FetchDataFromSourceWithSyncStrategy - 开始从数据源获取数据，策略: %s\n", syncStrategy)
 	fmt.Printf("[DEBUG] FetchDataFromSource - 接口ID: %s\n", interfaceInfo.GetID())
 	fmt.Printf("[DEBUG] FetchDataFromSource - 数据源ID: %s\n", interfaceInfo.GetDataSourceID())
 	fmt.Printf("[DEBUG] FetchDataFromSource - 请求参数: %+v\n", parameters)
@@ -105,27 +116,31 @@ func (dp *DataProcessor) FetchDataFromSourceWithExecuteType(ctx context.Context,
 
 	fmt.Printf("[DEBUG] FetchDataFromSource - 查询构建器创建成功\n")
 
-	// 打印接口配置的详细信息
-	fmt.Printf("[DEBUG] FetchDataFromSource - 接口配置详情:\n")
-	if method, exists := interfaceInfo.GetInterfaceConfig()["method"]; exists {
-		fmt.Printf("[DEBUG] FetchDataFromSource - 配置的HTTP方法: %v\n", method)
-	}
-	if body, exists := interfaceInfo.GetInterfaceConfig()["body"]; exists {
-		fmt.Printf("[DEBUG] FetchDataFromSource - 配置的请求体: %v\n", body)
-	}
-	if useFormData, exists := interfaceInfo.GetInterfaceConfig()["use_form_data"]; exists {
-		fmt.Printf("[DEBUG] FetchDataFromSource - 使用表单数据: %v\n", useFormData)
-	}
-
-	// 根据执行类型构建不同的请求
+	// 根据同步策略构建不同的请求
 	var executeRequest *datasource.ExecuteRequest
-	switch executeType {
-	case "test", "preview":
-		executeRequest, err = queryBuilder.BuildTestRequest(parameters)
-	case "sync":
+	switch syncStrategy {
+	case "full":
 		executeRequest, err = queryBuilder.BuildSyncRequest("full", parameters)
-	case "incremental_sync":
-		executeRequest, err = queryBuilder.BuildSyncRequest("incremental", parameters)
+	case "incremental":
+		// 如果有增量参数，使用增量请求构建器
+		if incrementalField, exists := parameters["incremental_field"]; exists {
+			incrementalParams := &datasource.IncrementalParams{
+				LastSyncTime:   parameters["last_sync_time"],
+				IncrementalKey: cast.ToString(incrementalField),
+				ComparisonType: cast.ToString(parameters["comparison_type"]),
+				BatchSize:      cast.ToInt(parameters["batch_size"]),
+			}
+			if incrementalParams.ComparisonType == "" {
+				incrementalParams.ComparisonType = "gt"
+			}
+			if incrementalParams.BatchSize <= 0 {
+				incrementalParams.BatchSize = 1000
+			}
+
+			executeRequest, err = queryBuilder.BuildIncrementalRequest("sync", incrementalParams)
+		} else {
+			executeRequest, err = queryBuilder.BuildSyncRequest("incremental", parameters)
+		}
 	default:
 		executeRequest, err = queryBuilder.BuildTestRequest(parameters)
 	}
@@ -139,18 +154,6 @@ func (dp *DataProcessor) FetchDataFromSourceWithExecuteType(ctx context.Context,
 	fmt.Printf("[DEBUG] FetchDataFromSource - Operation: %s\n", executeRequest.Operation)
 	fmt.Printf("[DEBUG] FetchDataFromSource - Query: %s\n", executeRequest.Query)
 	fmt.Printf("[DEBUG] FetchDataFromSource - Data: %+v\n", executeRequest.Data)
-	if executeRequest.Params != nil {
-		fmt.Printf("[DEBUG] FetchDataFromSource - Params: %+v\n", executeRequest.Params)
-		if method, exists := executeRequest.Params["method"]; exists {
-			fmt.Printf("[DEBUG] FetchDataFromSource - 传递给数据源的HTTP方法: %v\n", method)
-		}
-		if body, exists := executeRequest.Params["body"]; exists {
-			fmt.Printf("[DEBUG] FetchDataFromSource - 传递给数据源的请求体: %v\n", body)
-		}
-		if useFormData, exists := executeRequest.Params["use_form_data"]; exists {
-			fmt.Printf("[DEBUG] FetchDataFromSource - 传递给数据源的表单数据标志: %v\n", useFormData)
-		}
-	}
 
 	// 执行数据查询
 	response, err := dsInstance.Execute(ctx, executeRequest)
@@ -338,6 +341,177 @@ func (dp *DataProcessor) FetchBatchDataFromSource(ctx context.Context, interface
 	}
 	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 数据类型: %+v\n", dataTypes)
 	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 警告信息: %+v\n", warnings)
+
+	return data, dataTypes, warnings, nil
+}
+
+// FetchBatchDataFromSourceWithStrategy 从数据源获取批量数据（支持指定同步策略）
+func (dp *DataProcessor) FetchBatchDataFromSourceWithStrategy(ctx context.Context, interfaceInfo InterfaceInfo, parameters map[string]interface{}, pageParams map[string]interface{}, syncStrategy string) ([]map[string]interface{}, map[string]string, []string, error) {
+	fmt.Printf("[DEBUG] DataProcessor.FetchBatchDataFromSourceWithStrategy - 开始获取批量数据，策略: %s\n", syncStrategy)
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 接口ID: %s\n", interfaceInfo.GetID())
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 数据源ID: %s\n", interfaceInfo.GetDataSourceID())
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 请求参数: %+v\n", parameters)
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 分页参数: %+v\n", pageParams)
+
+	// 获取数据源信息
+	var dataSource models.DataSource
+	if err := dp.executor.db.First(&dataSource, "id = ?", interfaceInfo.GetDataSourceID()).Error; err != nil {
+		fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 获取数据源信息失败: %v\n", err)
+		return nil, nil, nil, fmt.Errorf("获取数据源信息失败: %w", err)
+	}
+
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 数据源信息: %+v\n", dataSource)
+
+	// 获取或创建数据源实例
+	var dsInstance datasource.DataSourceInterface
+	var err error
+
+	// 首先尝试从管理器获取已注册的实例
+	dsInstance, err = dp.executor.datasourceManager.Get(dataSource.ID)
+	if err != nil {
+		fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 数据源未注册，创建临时实例，错误: %v\n", err)
+		// 如果没有注册，创建临时实例
+		dsInstance, err = dp.executor.datasourceManager.CreateInstance(dataSource.Type)
+		if err != nil {
+			fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 创建数据源实例失败: %v\n", err)
+			return nil, nil, nil, fmt.Errorf("创建数据源实例失败: %w", err)
+		}
+
+		// 初始化数据源
+		if err := dsInstance.Init(ctx, &dataSource); err != nil {
+			fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 初始化数据源失败: %v\n", err)
+			return nil, nil, nil, fmt.Errorf("初始化数据源失败: %w", err)
+		}
+		fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 临时数据源实例创建并初始化成功\n")
+	} else {
+		fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 使用已注册的数据源实例\n")
+	}
+
+	// 创建查询构建器
+	// 将[]interface{}转换为JSONB
+	tableFieldsConfig := make(models.JSONB)
+	for i, v := range interfaceInfo.GetTableFieldsConfig() {
+		tableFieldsConfig[fmt.Sprintf("%d", i)] = v
+	}
+
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 接口配置信息:\n")
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - InterfaceConfig: %+v\n", interfaceInfo.GetInterfaceConfig())
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - ParseConfig: %+v\n", interfaceInfo.GetParseConfig())
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - TableFieldsConfig: %+v\n", tableFieldsConfig)
+
+	queryBuilder, err := datasource.GetQueryBuilder(&dataSource, &models.DataInterface{
+		ID:                interfaceInfo.GetID(),
+		InterfaceConfig:   interfaceInfo.GetInterfaceConfig(),
+		ParseConfig:       interfaceInfo.GetParseConfig(),
+		TableFieldsConfig: tableFieldsConfig,
+	})
+	if err != nil {
+		fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 创建查询构建器失败: %v\n", err)
+		return nil, nil, nil, fmt.Errorf("创建查询构建器失败: %w", err)
+	}
+
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 查询构建器创建成功\n")
+
+	// 合并分页参数到基础参数中
+	allParams := make(map[string]interface{})
+	for k, v := range parameters {
+		allParams[k] = v
+	}
+	for k, v := range pageParams {
+		allParams[k] = v
+	}
+
+	// 根据同步策略和数据源类型构建不同的请求
+	var executeRequest *datasource.ExecuteRequest
+	switch syncStrategy {
+	case "incremental":
+		// 增量同步：检查是否有增量参数
+		if incrementalField, exists := allParams["incremental_field"]; exists {
+			incrementalParams := &datasource.IncrementalParams{
+				LastSyncTime:   allParams["last_sync_time"],
+				IncrementalKey: cast.ToString(incrementalField),
+				ComparisonType: cast.ToString(allParams["comparison_type"]),
+				BatchSize:      cast.ToInt(allParams["batch_size"]),
+			}
+			if incrementalParams.ComparisonType == "" {
+				incrementalParams.ComparisonType = "gt"
+			}
+			if incrementalParams.BatchSize <= 0 {
+				incrementalParams.BatchSize = cast.ToInt(pageParams["page_size"])
+				if incrementalParams.BatchSize <= 0 {
+					incrementalParams.BatchSize = 1000
+				}
+			}
+
+			executeRequest, err = queryBuilder.BuildIncrementalRequest("sync", incrementalParams)
+		} else {
+			// 没有增量参数，使用普通分页同步请求
+			executeRequest, err = queryBuilder.BuildSyncRequestWithPagination("full", allParams, pageParams)
+		}
+	case "full":
+		// 全量同步：根据数据源类型构建请求
+		switch dataSource.Category {
+		case meta.DataSourceCategoryDatabase:
+			// 数据库类型：使用带分页的同步请求
+			executeRequest, err = queryBuilder.BuildSyncRequestWithPagination("full", allParams, pageParams)
+		case meta.DataSourceCategoryAPI:
+			// API类型：检查是否有分页配置
+			interfaceConfig := interfaceInfo.GetInterfaceConfig()
+			if paginationEnabled := cast.ToBool(interfaceConfig[meta.DataInterfaceConfigFieldPaginationEnabled]); paginationEnabled {
+				// 使用带分页的API同步请求
+				executeRequest, err = queryBuilder.BuildSyncRequestWithPagination("full", allParams, pageParams)
+			} else {
+				// 没有分页配置，使用普通同步请求
+				executeRequest, err = queryBuilder.BuildSyncRequest("full", allParams)
+			}
+		default:
+			// 其他类型：使用普通测试请求
+			executeRequest, err = queryBuilder.BuildTestRequest(allParams)
+		}
+	default:
+		// 默认使用全量同步
+		executeRequest, err = queryBuilder.BuildSyncRequestWithPagination("full", allParams, pageParams)
+	}
+
+	if err != nil {
+		fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 构建查询请求失败: %v\n", err)
+		return nil, nil, nil, fmt.Errorf("构建查询请求失败: %w", err)
+	}
+
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 执行请求: %+v\n", executeRequest)
+
+	// 执行数据查询
+	response, err := dsInstance.Execute(ctx, executeRequest)
+	if err != nil {
+		fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 执行接口查询失败: %v\n", err)
+		return nil, nil, nil, fmt.Errorf("执行接口查询失败: %w", err)
+	}
+
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 查询执行成功，响应: %+v\n", response)
+
+	// 检查响应是否成功
+	if !response.Success {
+		errorMsg := response.Message
+		if errorMsg == "" {
+			errorMsg = "接口调用失败"
+		}
+		// 如果有错误详情，添加到错误消息中
+		if response.Error != "" {
+			errorMsg = fmt.Sprintf("%s: %s", errorMsg, response.Error)
+		}
+		fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 接口返回错误: %s\n", errorMsg)
+		return nil, nil, nil, fmt.Errorf("接口调用失败: %s", errorMsg)
+	}
+
+	// 处理返回的数据
+	data, dataTypes, warnings := dp.ProcessResponseData(response.Data)
+
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 处理后的数据: %d 行\n", len(data))
+	if len(data) > 0 {
+		fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 第一行数据示例: %+v\n", data[0])
+	}
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 数据类型: %+v\n", dataTypes)
+	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 警告信息: %+v\n", warnings)
 
 	return data, dataTypes, warnings, nil
 }

@@ -554,14 +554,13 @@ func (suite *InterfaceExecutorTestSuite) TestValidateRequest() {
 			expectError: true,
 		},
 		{
-			name: "增量同步缺少必要参数",
+			name: "有效的同步请求",
 			request: &ExecuteRequest{
 				InterfaceID:   "test-interface",
 				InterfaceType: "basic_library",
-				ExecuteType:   "incremental_sync",
-				// 缺少 LastSyncTime 和 IncrementalKey
+				ExecuteType:   "sync",
 			},
-			expectError: true,
+			expectError: false,
 		},
 	}
 

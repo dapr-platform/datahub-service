@@ -14,7 +14,6 @@ package controllers
 import (
 	"datahub-service/service"
 	"datahub-service/service/basic_library"
-	"datahub-service/service/basic_library/basic_sync"
 	"datahub-service/service/meta"
 	"encoding/json"
 	"net/http"
@@ -28,14 +27,12 @@ import (
 // SyncTaskController 基础库同步任务控制器
 type SyncTaskController struct {
 	syncTaskService *basic_library.SyncTaskService
-	syncEngine      *basic_sync.SyncEngine
 }
 
 // NewSyncTaskController 创建基础库同步任务控制器
 func NewSyncTaskController() *SyncTaskController {
 	return &SyncTaskController{
 		syncTaskService: service.GlobalSyncTaskService,
-		syncEngine:      service.GlobalSyncEngine,
 	}
 }
 

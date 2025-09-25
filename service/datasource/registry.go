@@ -128,6 +128,16 @@ func (r *DataSourceRegistry) registerBuiltinTypes() {
 		r.logger.Printf("注册HTTP数据源失败: %v", err)
 	}
 
+	// 注册HTTP POST数据源
+	if err := r.factory.RegisterType(meta.DataSourceTypeMessagingHttpPost, NewHTTPPostDataSource); err != nil {
+		r.logger.Printf("注册HTTP POST数据源失败: %v", err)
+	}
+
+	// 注册MQTT数据源
+	if err := r.factory.RegisterType(meta.DataSourceTypeMessagingMQTT, NewMQTTDataSource); err != nil {
+		r.logger.Printf("注册MQTT数据源失败: %v", err)
+	}
+
 	r.logger.Printf("内置数据源类型注册完成，支持类型: %v", r.factory.GetSupportedTypes())
 }
 

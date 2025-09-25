@@ -1,26 +1,27 @@
 /*
  * @module service/basic_library/sync_task_service
- * @description 基础库同步任务服务，专门处理基础库数据同步任务管理
- * @architecture 分层架构 - 服务层
+ * @description 基础库同步任务服务，专门处理基础库数据同步任务管理和调度
+ * @architecture 分层架构 - 服务层，集成调度功能
  * @documentReference ai_docs/refactor_sync_task.md
- * @stateFlow 服务初始化 -> 任务CRUD操作 -> 任务执行管理
- * @rules 专门支持基础库同步任务，移除主题库相关逻辑
- * @dependencies gorm.io/gorm, service/models, service/meta, service/basic_library
- * @refs api/controllers/sync_task_controller.go, service/basic_library/basic_sync
+ * @stateFlow 服务初始化 -> 任务CRUD操作 -> 任务执行管理 -> 调度器管理
+ * @rules 专门支持基础库同步任务，统一使用interface_executor执行
+ * @dependencies gorm.io/gorm, service/models, service/meta, service/interface_executor, github.com/robfig/cron/v3
+ * @refs api/controllers/sync_task_controller.go, service/interface_executor
  */
 
 package basic_library
 
 import (
 	"context"
-	"datahub-service/service/basic_library/basic_sync"
 	"datahub-service/service/datasource"
 	"datahub-service/service/interface_executor"
 	"datahub-service/service/meta"
 	"datahub-service/service/models"
 	"fmt"
+	"log"
 	"time"
 
+	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
 
@@ -109,31 +110,40 @@ func (h *BasicLibraryHandler) GetLibraryInterfaces(libraryID string) ([]models.D
 	return interfaces, err
 }
 
-// SyncTaskService 基础库同步任务服务
+// SyncTaskService 基础库同步任务服务（集成调度功能）
 type SyncTaskService struct {
 	db                *gorm.DB
 	handler           *BasicLibraryHandler
-	syncEngine        *basic_sync.SyncEngine
 	interfaceExecutor *interface_executor.InterfaceExecutor
 	datasourceManager datasource.DataSourceManager
-}
-
-// SetSyncEngine 设置同步引擎
-func (s *SyncTaskService) SetSyncEngine(syncEngine *basic_sync.SyncEngine) {
-	s.syncEngine = syncEngine
+	// 调度器相关字段
+	cron             *cron.Cron
+	intervalTicker   *time.Ticker
+	ctx              context.Context
+	cancel           context.CancelFunc
+	schedulerStarted bool
 }
 
 // NewSyncTaskService 创建基础库同步任务服务
-func NewSyncTaskService(db *gorm.DB, basicLibService *Service, syncEngine *basic_sync.SyncEngine) *SyncTaskService {
+func NewSyncTaskService(db *gorm.DB, basicLibService *Service) *SyncTaskService {
 	// 初始化数据源管理器
 	datasourceManager := datasource.GetGlobalRegistry().GetManager()
+
+	// 创建上下文
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// 创建带时区的cron调度器
+	c := cron.New(cron.WithSeconds())
 
 	service := &SyncTaskService{
 		db:                db,
 		handler:           NewBasicLibraryHandler(db, basicLibService),
-		syncEngine:        syncEngine,
 		interfaceExecutor: interface_executor.NewInterfaceExecutor(db, datasourceManager),
 		datasourceManager: datasourceManager,
+		cron:              c,
+		ctx:               ctx,
+		cancel:            cancel,
+		schedulerStarted:  false,
 	}
 
 	return service
@@ -605,12 +615,16 @@ func (s *SyncTaskService) StartSyncTask(ctx context.Context, taskID string) erro
 	if len(task.TaskInterfaces) > 0 {
 		go s.executeTaskWithInterfaces(taskCtx, &task)
 	} else {
-		// 没有指定接口，使用原有的同步引擎
-		go s.executeTaskWithSyncEngine(taskCtx, &task)
+		// 没有指定接口的情况，返回错误
+		s.updateTaskStatus(task.ID, meta.SyncTaskStatusFailed, "任务必须关联至少一个接口")
+		return fmt.Errorf("任务必须关联至少一个接口")
 	}
 
 	return nil
 }
+
+// 注意：hasIncrementalConfig 和 getLastSyncTime 方法已被移除
+// 现在统一使用 sync 执行类型，增量逻辑由 interface_executor 内部处理
 
 // executeTaskWithInterfaces 使用InterfaceExecutor执行任务
 func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *models.SyncTask) {
@@ -632,12 +646,16 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 	for _, taskInterface := range task.TaskInterfaces {
 		fmt.Printf("[DEBUG] 执行接口: %s\n", taskInterface.InterfaceID)
 
+		// 使用统一的sync类型，内部根据接口的incremental_config自动判断全量/增量
+		executeType := "sync" // 统一使用sync类型
+
+		fmt.Printf("[DEBUG] 接口 %s 使用统一的sync执行类型，将根据接口配置自动判断全量/增量同步\n", taskInterface.InterfaceID)
+
 		// 准备执行请求
 		executeRequest := &interface_executor.ExecuteRequest{
 			InterfaceID:   taskInterface.InterfaceID,
 			InterfaceType: "basic_library", // 固定为基础库
-			ExecuteType:   meta.GetExecuteTypeFromTaskType(task.TaskType),
-			SyncStrategy:  meta.GetSyncStrategyFromTaskType(task.TaskType),
+			ExecuteType:   executeType,     // 统一使用sync
 			Parameters:    taskInterface.Config,
 		}
 
@@ -713,33 +731,6 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 	}
 
 	fmt.Printf("[DEBUG] 任务 %s 执行完成，状态: %s，处理行数: %d\n", task.ID, finalStatus, totalProcessed)
-}
-
-// executeTaskWithSyncEngine 使用原有的同步引擎执行任务
-func (s *SyncTaskService) executeTaskWithSyncEngine(ctx context.Context, task *models.SyncTask) {
-	fmt.Printf("[DEBUG] SyncTaskService.executeTaskWithSyncEngine - 使用同步引擎执行任务: %s\n", task.ID)
-
-	// 创建同步引擎请求
-	syncRequest := &basic_sync.SyncTaskRequest{
-		TaskID:       task.ID,
-		LibraryType:  task.LibraryType,
-		LibraryID:    task.LibraryID,
-		DataSourceID: task.DataSourceID,
-		SyncType:     basic_sync.SyncType(task.TaskType),
-		Config:       map[string]interface{}(task.Config),
-		Priority:     1,
-		ScheduledBy:  "manual",
-	}
-
-	// 提交任务到同步引擎
-	syncTask, err := s.syncEngine.SubmitSyncTask(syncRequest)
-	if err != nil {
-		fmt.Printf("[ERROR] 提交任务到引擎失败: %v\n", err)
-		s.updateTaskStatus(task.ID, meta.SyncTaskStatusFailed, err.Error())
-		return
-	}
-
-	fmt.Printf("[DEBUG] 任务已提交到同步引擎，返回任务ID: %s\n", syncTask.ID)
 }
 
 // updateTaskStatus 更新任务状态的辅助方法
@@ -1154,6 +1145,192 @@ func (s *SyncTaskService) UpdateTaskNextRunTime(ctx context.Context, taskID stri
 	}
 
 	return nil
+}
+
+// StartScheduler 启动调度器
+func (s *SyncTaskService) StartScheduler() error {
+	if s.schedulerStarted {
+		return fmt.Errorf("调度器已经启动")
+	}
+
+	log.Println("启动基础库同步任务调度器")
+
+	// 启动cron调度器
+	s.cron.Start()
+
+	// 启动间隔任务检查器（每分钟检查一次）
+	s.intervalTicker = time.NewTicker(1 * time.Minute)
+	go s.runIntervalChecker()
+
+	// 加载现有的调度任务
+	if err := s.loadScheduledTasks(); err != nil {
+		log.Printf("加载调度任务失败: %v", err)
+		return err
+	}
+
+	s.schedulerStarted = true
+	log.Println("基础库同步任务调度器启动完成")
+	return nil
+}
+
+// StopScheduler 停止调度器
+func (s *SyncTaskService) StopScheduler() {
+	if !s.schedulerStarted {
+		return
+	}
+
+	log.Println("停止基础库同步任务调度器")
+
+	s.cancel()
+
+	if s.cron != nil {
+		s.cron.Stop()
+	}
+
+	if s.intervalTicker != nil {
+		s.intervalTicker.Stop()
+	}
+
+	s.schedulerStarted = false
+	log.Println("基础库同步任务调度器已停止")
+}
+
+// loadScheduledTasks 加载调度任务
+func (s *SyncTaskService) loadScheduledTasks() error {
+	// 获取所有待执行的调度任务
+	tasks, err := s.GetScheduledTasks(s.ctx)
+	if err != nil {
+		return fmt.Errorf("获取调度任务失败: %w", err)
+	}
+
+	for _, task := range tasks {
+		if err := s.addTaskToScheduler(&task); err != nil {
+			log.Printf("添加任务到调度器失败 [%s]: %v", task.ID, err)
+		}
+	}
+
+	log.Printf("加载了 %d 个调度任务", len(tasks))
+	return nil
+}
+
+// addTaskToScheduler 添加任务到调度器
+func (s *SyncTaskService) addTaskToScheduler(task *models.SyncTask) error {
+	switch task.TriggerType {
+	case "cron":
+		if task.CronExpression == "" {
+			return fmt.Errorf("Cron任务缺少表达式")
+		}
+
+		_, err := s.cron.AddFunc(task.CronExpression, func() {
+			s.executeScheduledTask(task.ID)
+		})
+		if err != nil {
+			return fmt.Errorf("添加Cron任务失败: %w", err)
+		}
+
+		log.Printf("添加Cron任务: %s [%s]", task.ID, task.CronExpression)
+
+	case "once":
+		if task.ScheduledTime != nil && task.ScheduledTime.After(time.Now()) {
+			go func() {
+				timer := time.NewTimer(time.Until(*task.ScheduledTime))
+				defer timer.Stop()
+
+				select {
+				case <-timer.C:
+					s.executeScheduledTask(task.ID)
+				case <-s.ctx.Done():
+					return
+				}
+			}()
+
+			log.Printf("添加单次任务: %s [%s]", task.ID, task.ScheduledTime.Format("2006-01-02 15:04:05"))
+		}
+
+	case "interval":
+		// 间隔任务由intervalChecker处理
+		log.Printf("添加间隔任务: %s [%d秒]", task.ID, task.IntervalSeconds)
+	}
+
+	return nil
+}
+
+// runIntervalChecker 运行间隔任务检查器
+func (s *SyncTaskService) runIntervalChecker() {
+	for {
+		select {
+		case <-s.intervalTicker.C:
+			s.checkIntervalTasks()
+		case <-s.ctx.Done():
+			return
+		}
+	}
+}
+
+// checkIntervalTasks 检查间隔任务
+func (s *SyncTaskService) checkIntervalTasks() {
+	tasks, err := s.GetScheduledTasks(s.ctx)
+	if err != nil {
+		log.Printf("获取间隔任务失败: %v", err)
+		return
+	}
+
+	for _, task := range tasks {
+		if task.TriggerType == "interval" && task.ShouldExecuteNow() {
+			go s.executeScheduledTask(task.ID)
+		}
+	}
+}
+
+// executeScheduledTask 执行调度任务
+func (s *SyncTaskService) executeScheduledTask(taskID string) {
+	log.Printf("执行调度任务: %s", taskID)
+
+	// 获取任务详情
+	task, err := s.GetSyncTaskByID(s.ctx, taskID)
+	if err != nil {
+		log.Printf("获取任务失败 [%s]: %v", taskID, err)
+		return
+	}
+
+	// 检查任务是否可以执行
+	if !task.CanStart() {
+		log.Printf("任务不能执行 [%s]: 状态=%s", taskID, task.Status)
+		return
+	}
+
+	// 直接调用启动任务方法
+	if err := s.StartSyncTask(s.ctx, taskID); err != nil {
+		log.Printf("启动调度任务失败 [%s]: %v", taskID, err)
+		return
+	}
+
+	log.Printf("调度任务已启动 [%s]", taskID)
+}
+
+// AddScheduledTask 添加调度任务
+func (s *SyncTaskService) AddScheduledTask(task *models.SyncTask) error {
+	return s.addTaskToScheduler(task)
+}
+
+// RemoveScheduledTask 移除调度任务
+func (s *SyncTaskService) RemoveScheduledTask(taskID string) error {
+	// 由于cron库不支持按ID移除任务，这里我们重新加载所有任务
+	// 在生产环境中，可以考虑使用更高级的调度库
+	s.cron.Stop()
+	s.cron = cron.New(cron.WithSeconds())
+	s.cron.Start()
+
+	return s.loadScheduledTasks()
+}
+
+// ReloadScheduledTasks 重新加载调度任务
+func (s *SyncTaskService) ReloadScheduledTasks() error {
+	s.cron.Stop()
+	s.cron = cron.New(cron.WithSeconds())
+	s.cron.Start()
+
+	return s.loadScheduledTasks()
 }
 
 // 辅助函数

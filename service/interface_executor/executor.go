@@ -24,7 +24,6 @@ import (
 type InterfaceExecutor struct {
 	db                *gorm.DB
 	datasourceManager datasource.DataSourceManager
-	dataSyncEngine    *DataSyncEngine
 	errorHandler      *ErrorHandler
 	infoProvider      InterfaceInfoProviderInterface
 	executeOps        *ExecuteOperations
@@ -35,7 +34,6 @@ func NewInterfaceExecutor(db *gorm.DB, datasourceManager datasource.DataSourceMa
 	executor := &InterfaceExecutor{
 		db:                db,
 		datasourceManager: datasourceManager,
-		dataSyncEngine:    NewDataSyncEngine(db),
 		errorHandler:      NewErrorHandler(),
 		infoProvider:      NewInterfaceInfoProvider(db),
 	}
@@ -129,8 +127,6 @@ func (e *InterfaceExecutor) Execute(ctx context.Context, request *ExecuteRequest
 		return e.executeOps.ExecuteTest(ctx, interfaceInfo, request, startTime)
 	case "sync":
 		return e.executeOps.ExecuteSync(ctx, interfaceInfo, request, startTime)
-	case "incremental_sync":
-		return e.executeOps.ExecuteIncrementalSync(ctx, interfaceInfo, request, startTime)
 	default:
 		return &ExecuteResponse{
 			Success:     false,
@@ -170,7 +166,7 @@ func (e *InterfaceExecutor) validateRequest(request *ExecuteRequest) error {
 	}
 
 	// 验证执行类型
-	validExecuteTypes := []string{"preview", "test", "sync", "incremental_sync"}
+	validExecuteTypes := []string{"preview", "test", "sync"}
 	validExecute := false
 	for _, ve := range validExecuteTypes {
 		if request.ExecuteType == ve {
@@ -182,22 +178,7 @@ func (e *InterfaceExecutor) validateRequest(request *ExecuteRequest) error {
 		return fmt.Errorf("无效的执行类型: %s", request.ExecuteType)
 	}
 
-	// 增量同步特殊验证
-	if request.ExecuteType == "incremental_sync" {
-		if request.LastSyncTime == nil {
-			return fmt.Errorf("增量同步需要提供LastSyncTime参数")
-		}
-		if request.IncrementalKey == "" {
-			return fmt.Errorf("增量同步需要提供IncrementalKey参数")
-		}
-	}
-
 	return nil
-}
-
-// GetDataSyncEngine 获取数据同步引擎（供其他组件使用）
-func (e *InterfaceExecutor) GetDataSyncEngine() *DataSyncEngine {
-	return e.dataSyncEngine
 }
 
 // GetErrorHandler 获取错误处理器（供其他组件使用）

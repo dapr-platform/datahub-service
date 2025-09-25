@@ -32,9 +32,9 @@ const (
 type SyncType string
 
 const (
-	SyncTypeFull        SyncType = meta.SyncTaskTypeFullSync
-	SyncTypeIncremental SyncType = meta.SyncTaskTypeIncrementalSync
-	SyncTypeRealtime    SyncType = meta.SyncTaskTypeRealtimeSync
+	// 新的同步类型
+	SyncTypeBatch    SyncType = meta.SyncTaskTypeBatchSync
+	SyncTypeRealtime SyncType = meta.SyncTaskTypeRealtimeSync
 )
 
 // SyncTaskContext 同步任务上下文
@@ -124,7 +124,6 @@ type SyncTaskRequest struct {
 	ScheduledBy  string                 `json:"scheduled_by"`
 	IsScheduled  bool                   `json:"is_scheduled"` // 是否为调度执行
 	Callback     func(*SyncResult)      `json:"-"`
-
 }
 
 // ProgressEstimate 进度预估
