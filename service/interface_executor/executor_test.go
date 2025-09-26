@@ -505,7 +505,6 @@ func (suite *InterfaceExecutorTestSuite) TestNewInterfaceExecutor() {
 	assert.NotNil(suite.T(), executor)
 	assert.NotNil(suite.T(), executor.db)
 	assert.NotNil(suite.T(), executor.datasourceManager)
-	assert.NotNil(suite.T(), executor.dataSyncEngine)
 	assert.NotNil(suite.T(), executor.errorHandler)
 }
 

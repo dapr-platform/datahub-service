@@ -14,6 +14,7 @@ package interface_executor
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,11 +23,97 @@ import (
 )
 
 // FieldMapper 字段映射器
-type FieldMapper struct{}
+type FieldMapper struct {
+	// 字段类型映射缓存，提高性能
+	fieldTypeCache map[string]map[string]string // interfaceID -> fieldName -> dataType
+}
 
 // NewFieldMapper 创建字段映射器
 func NewFieldMapper() *FieldMapper {
-	return &FieldMapper{}
+	return &FieldMapper{
+		fieldTypeCache: make(map[string]map[string]string),
+	}
+}
+
+// FieldTypeInfo 字段类型信息
+type FieldTypeInfo struct {
+	Name     string `json:"name"`
+	DataType string `json:"data_type"`
+}
+
+// buildFieldTypeMapping 构建字段类型映射
+func (fm *FieldMapper) buildFieldTypeMapping(interfaceInfo InterfaceInfo) map[string]string {
+	interfaceID := interfaceInfo.GetID()
+
+	// 检查缓存
+	if cached, exists := fm.fieldTypeCache[interfaceID]; exists {
+		return cached
+	}
+
+	fieldTypeMap := make(map[string]string)
+
+	// 方法1：从TableFieldsConfig获取字段类型
+	tableFieldsConfig := interfaceInfo.GetTableFieldsConfig()
+	if len(tableFieldsConfig) > 0 {
+		for _, fieldConfigInterface := range tableFieldsConfig {
+			if fieldConfig, ok := fieldConfigInterface.(map[string]interface{}); ok {
+				// 尝试从fields数组中获取字段信息
+				if fieldsData, exists := fieldConfig["fields"]; exists {
+					if fieldsArray, ok := fieldsData.([]interface{}); ok {
+						for _, fieldData := range fieldsArray {
+							if fieldMap, ok := fieldData.(map[string]interface{}); ok {
+								if fieldName, ok := fieldMap["field_name"].(string); ok {
+									if fieldType, ok := fieldMap["field_type"].(string); ok {
+										fieldTypeMap[fieldName] = fieldType
+									}
+								}
+							}
+						}
+					}
+				}
+
+				// 直接从配置对象获取字段信息
+				if fieldName, ok := fieldConfig["field_name"].(string); ok {
+					if fieldType, ok := fieldConfig["field_type"].(string); ok {
+						fieldTypeMap[fieldName] = fieldType
+					}
+				}
+			}
+		}
+	}
+
+	// 方法2：从InterfaceInfo的字段信息获取（如果方法1没有获取到）
+	// 这需要InterfaceInfo提供字段信息的访问方法
+	// 由于当前InterfaceInfo接口没有直接提供Fields访问方法，我们先跳过这部分
+
+	// 缓存结果
+	fm.fieldTypeCache[interfaceID] = fieldTypeMap
+
+	return fieldTypeMap
+}
+
+// getFieldDataType 获取字段的数据类型
+func (fm *FieldMapper) getFieldDataType(fieldName string, interfaceInfo InterfaceInfo) string {
+	fieldTypeMap := fm.buildFieldTypeMapping(interfaceInfo)
+	if dataType, exists := fieldTypeMap[fieldName]; exists {
+		return strings.ToLower(dataType)
+	}
+
+	// 如果没有找到配置，尝试通过字段名推断（作为后备方案）
+	fieldNameLower := strings.ToLower(fieldName)
+	if strings.Contains(fieldNameLower, "time") ||
+		strings.Contains(fieldNameLower, "date") ||
+		strings.Contains(fieldNameLower, "created_at") ||
+		strings.Contains(fieldNameLower, "updated_at") {
+		return "timestamp"
+	}
+
+	if strings.Contains(fieldNameLower, "id") && strings.HasSuffix(fieldNameLower, "id") {
+		return "varchar"
+	}
+
+	// 默认返回字符串类型
+	return "varchar"
 }
 
 // UpdateTableData 更新表数据
@@ -99,8 +186,8 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 		for col, val := range mappedRow {
 			columns = append(columns, fmt.Sprintf(`"%s"`, col))
 			placeholders = append(placeholders, "?")
-			// 处理数据类型转换，特别是时间字段
-			processedVal := fm.ProcessValueForDatabase(col, val)
+			// 处理数据类型转换，基于字段配置
+			processedVal := fm.ProcessValueForDatabase(col, val, interfaceInfo, i == 0)
 			values = append(values, processedVal)
 		}
 
@@ -174,8 +261,8 @@ func (fm *FieldMapper) InsertBatchData(ctx context.Context, db *gorm.DB, interfa
 		for col, val := range mappedRow {
 			columns = append(columns, fmt.Sprintf(`"%s"`, col))
 			placeholders = append(placeholders, "?")
-			// 处理数据类型转换，特别是时间字段
-			processedVal := fm.ProcessValueForDatabase(col, val)
+			// 处理数据类型转换，基于字段配置
+			processedVal := fm.ProcessValueForDatabase(col, val, interfaceInfo)
 			values = append(values, processedVal)
 		}
 
@@ -238,8 +325,8 @@ func (fm *FieldMapper) InsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 		for col, val := range mappedRow {
 			columns = append(columns, fmt.Sprintf(`"%s"`, col))
 			placeholders = append(placeholders, "?")
-			// 处理数据类型转换，特别是时间字段
-			processedVal := fm.ProcessValueForDatabase(col, val)
+			// 处理数据类型转换，基于字段配置
+			processedVal := fm.ProcessValueForDatabase(col, val, interfaceInfo)
 			values = append(values, processedVal)
 		}
 
@@ -389,8 +476,8 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 	return mappedRow
 }
 
-// ProcessValueForDatabase 处理数据库值，特别是时间字段格式转换
-func (fm *FieldMapper) ProcessValueForDatabase(columnName string, value interface{}, debugLog ...bool) interface{} {
+// ProcessValueForDatabase 基于字段配置处理数据库值，支持多种数据类型转换
+func (fm *FieldMapper) ProcessValueForDatabase(columnName string, value interface{}, interfaceInfo InterfaceInfo, debugLog ...bool) interface{} {
 	if value == nil {
 		return value
 	}
@@ -400,72 +487,315 @@ func (fm *FieldMapper) ProcessValueForDatabase(columnName string, value interfac
 		fmt.Printf("[DEBUG] FieldMapper.ProcessValueForDatabase - 处理字段: %s, 原始值: %+v, 类型: %T\n", columnName, value, value)
 	}
 
-	// 检查是否是时间相关字段
-	isTimeField := strings.Contains(strings.ToLower(columnName), "time") ||
-		strings.Contains(strings.ToLower(columnName), "date") ||
-		strings.Contains(strings.ToLower(columnName), "created_at") ||
-		strings.Contains(strings.ToLower(columnName), "updated_at")
-
-	if isTimeField {
-		// 处理时间类型
-		switch v := value.(type) {
-		case time.Time:
-			// 转换为PostgreSQL兼容的字符串格式
-			formatted := v.Format("2006-01-02 15:04:05.000")
-			if debug {
-				fmt.Printf("[DEBUG] ProcessValueForDatabase - 时间字段转换: %s -> %s\n", v.String(), formatted)
-			}
-			return formatted
-		case string:
-			// 尝试解析字符串时间并重新格式化
-			if parsedTime, err := time.Parse(time.RFC3339, v); err == nil {
-				formatted := parsedTime.Format("2006-01-02 15:04:05.000")
-				if debug {
-					fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(RFC3339): %s -> %s\n", v, formatted)
-				}
-				return formatted
-			}
-			if parsedTime, err := time.Parse("2006-01-02 15:04:05", v); err == nil {
-				formatted := parsedTime.Format("2006-01-02 15:04:05.000")
-				if debug {
-					fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(标准): %s -> %s\n", v, formatted)
-				}
-				return formatted
-			}
-			if parsedTime, err := time.Parse("2006-01-02T15:04:05Z", v); err == nil {
-				formatted := parsedTime.Format("2006-01-02 15:04:05.000")
-				if debug {
-					fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(ISO): %s -> %s\n", v, formatted)
-				}
-				return formatted
-			}
-			if parsedTime, err := time.Parse("2006-01-02T15:04:05.000Z", v); err == nil {
-				formatted := parsedTime.Format("2006-01-02 15:04:05.000")
-				if debug {
-					fmt.Printf("[DEBUG] ProcessValueForDatabase - 字符串时间转换(ISO毫秒): %s -> %s\n", v, formatted)
-				}
-				return formatted
-			}
-			// 如果无法解析，返回原值
-			fmt.Printf("[DEBUG] ProcessValueForDatabase - 无法解析时间字符串，返回原值: %s\n", v)
-			return v
-		default:
-			// 尝试转换为字符串再解析
-			if timeStr := cast.ToString(v); timeStr != "" {
-				if parsedTime, err := time.Parse(time.RFC3339, timeStr); err == nil {
-					formatted := parsedTime.Format("2006-01-02 15:04:05.000")
-					fmt.Printf("[DEBUG] ProcessValueForDatabase - 其他类型时间转换: %v -> %s\n", v, formatted)
-					return formatted
-				}
-			}
-			fmt.Printf("[DEBUG] ProcessValueForDatabase - 无法处理的时间类型，返回原值: %v\n", v)
-			return v
-		}
+	// 获取字段的数据类型
+	dataType := fm.getFieldDataType(columnName, interfaceInfo)
+	if debug {
+		fmt.Printf("[DEBUG] ProcessValueForDatabase - 字段 %s 的数据类型: %s\n", columnName, dataType)
 	}
 
-	// 非时间字段，直接返回原值
-	fmt.Printf("[DEBUG] ProcessValueForDatabase - 非时间字段，返回原值: %v\n", value)
-	return value
+	// 根据数据类型进行转换
+	return fm.convertValueByDataType(value, dataType, columnName, debug)
+}
+
+// convertValueByDataType 根据数据类型转换值
+func (fm *FieldMapper) convertValueByDataType(value interface{}, dataType, columnName string, debug bool) interface{} {
+	switch strings.ToLower(dataType) {
+	case "timestamp", "datetime", "timestamptz":
+		return fm.convertToTimestamp(value, debug)
+	case "date":
+		return fm.convertToDate(value, debug)
+	case "time":
+		return fm.convertToTime(value, debug)
+	case "int", "integer", "int4":
+		return fm.convertToInteger(value, debug)
+	case "bigint", "int8":
+		return fm.convertToBigInt(value, debug)
+	case "decimal", "numeric", "float", "double", "float8":
+		return fm.convertToFloat(value, debug)
+	case "boolean", "bool":
+		return fm.convertToBoolean(value, debug)
+	case "varchar", "text", "char", "string":
+		return fm.convertToString(value, debug)
+	case "json", "jsonb":
+		return fm.convertToJSON(value, debug)
+	default:
+		// 未知类型，使用字符串转换
+		if debug {
+			fmt.Printf("[DEBUG] convertValueByDataType - 未知数据类型 %s，使用字符串转换\n", dataType)
+		}
+		return fm.convertToString(value, debug)
+	}
+}
+
+// convertToTimestamp 转换为时间戳格式
+func (fm *FieldMapper) convertToTimestamp(value interface{}, debug bool) interface{} {
+	switch v := value.(type) {
+	case time.Time:
+		formatted := v.Format("2006-01-02 15:04:05.000")
+		if debug {
+			fmt.Printf("[DEBUG] convertToTimestamp - time.Time转换: %s -> %s\n", v.String(), formatted)
+		}
+		return formatted
+	case string:
+		// 尝试多种时间格式解析
+		timeFormats := []string{
+			time.RFC3339,
+			time.RFC3339Nano,
+			"2006-01-02T15:04:05Z",
+			"2006-01-02T15:04:05.000Z",
+			"2006-01-02 15:04:05",
+			"2006-01-02 15:04:05.000",
+			"2006-01-02",
+		}
+
+		for _, format := range timeFormats {
+			if parsedTime, err := time.Parse(format, v); err == nil {
+				formatted := parsedTime.Format("2006-01-02 15:04:05.000")
+				if debug {
+					fmt.Printf("[DEBUG] convertToTimestamp - 字符串时间转换(%s): %s -> %s\n", format, v, formatted)
+				}
+				return formatted
+			}
+		}
+
+		if debug {
+			fmt.Printf("[DEBUG] convertToTimestamp - 无法解析时间字符串，返回原值: %s\n", v)
+		}
+		return v
+	default:
+		// 尝试转换为字符串再解析
+		if timeStr := cast.ToString(v); timeStr != "" {
+			return fm.convertToTimestamp(timeStr, debug)
+		}
+		if debug {
+			fmt.Printf("[DEBUG] convertToTimestamp - 无法处理的时间类型，返回原值: %v\n", v)
+		}
+		return v
+	}
+}
+
+// convertToDate 转换为日期格式
+func (fm *FieldMapper) convertToDate(value interface{}, debug bool) interface{} {
+	switch v := value.(type) {
+	case time.Time:
+		formatted := v.Format("2006-01-02")
+		if debug {
+			fmt.Printf("[DEBUG] convertToDate - time.Time转换: %s -> %s\n", v.String(), formatted)
+		}
+		return formatted
+	case string:
+		// 尝试解析日期
+		dateFormats := []string{
+			"2006-01-02",
+			"2006-01-02T15:04:05Z",
+			"2006-01-02 15:04:05",
+			time.RFC3339,
+		}
+
+		for _, format := range dateFormats {
+			if parsedTime, err := time.Parse(format, v); err == nil {
+				formatted := parsedTime.Format("2006-01-02")
+				if debug {
+					fmt.Printf("[DEBUG] convertToDate - 字符串日期转换(%s): %s -> %s\n", format, v, formatted)
+				}
+				return formatted
+			}
+		}
+
+		if debug {
+			fmt.Printf("[DEBUG] convertToDate - 无法解析日期字符串，返回原值: %s\n", v)
+		}
+		return v
+	default:
+		if timeStr := cast.ToString(v); timeStr != "" {
+			return fm.convertToDate(timeStr, debug)
+		}
+		return v
+	}
+}
+
+// convertToTime 转换为时间格式
+func (fm *FieldMapper) convertToTime(value interface{}, debug bool) interface{} {
+	switch v := value.(type) {
+	case time.Time:
+		formatted := v.Format("15:04:05")
+		if debug {
+			fmt.Printf("[DEBUG] convertToTime - time.Time转换: %s -> %s\n", v.String(), formatted)
+		}
+		return formatted
+	case string:
+		// 尝试解析时间
+		if _, err := time.Parse("15:04:05", v); err == nil {
+			return v
+		}
+		if parsedTime, err := time.Parse("2006-01-02T15:04:05Z", v); err == nil {
+			formatted := parsedTime.Format("15:04:05")
+			if debug {
+				fmt.Printf("[DEBUG] convertToTime - 字符串时间转换: %s -> %s\n", v, formatted)
+			}
+			return formatted
+		}
+		return v
+	default:
+		return cast.ToString(v)
+	}
+}
+
+// convertToInteger 转换为整数
+func (fm *FieldMapper) convertToInteger(value interface{}, debug bool) interface{} {
+	switch v := value.(type) {
+	case int, int32, int64:
+		return v
+	case float32, float64:
+		intVal := int(cast.ToFloat64(v))
+		if debug {
+			fmt.Printf("[DEBUG] convertToInteger - 浮点数转整数: %v -> %d\n", v, intVal)
+		}
+		return intVal
+	case string:
+		if intVal, err := strconv.Atoi(v); err == nil {
+			if debug {
+				fmt.Printf("[DEBUG] convertToInteger - 字符串转整数: %s -> %d\n", v, intVal)
+			}
+			return intVal
+		}
+		// 尝试先转换为浮点数再转整数
+		if floatVal, err := strconv.ParseFloat(v, 64); err == nil {
+			intVal := int(floatVal)
+			if debug {
+				fmt.Printf("[DEBUG] convertToInteger - 字符串(浮点)转整数: %s -> %d\n", v, intVal)
+			}
+			return intVal
+		}
+		if debug {
+			fmt.Printf("[DEBUG] convertToInteger - 无法转换字符串为整数，返回原值: %s\n", v)
+		}
+		return v
+	default:
+		intVal := cast.ToInt(v)
+		if debug {
+			fmt.Printf("[DEBUG] convertToInteger - 其他类型转整数: %v -> %d\n", v, intVal)
+		}
+		return intVal
+	}
+}
+
+// convertToBigInt 转换为大整数
+func (fm *FieldMapper) convertToBigInt(value interface{}, debug bool) interface{} {
+	switch v := value.(type) {
+	case int64:
+		return v
+	case int, int32:
+		return int64(cast.ToInt64(v))
+	case float32, float64:
+		bigIntVal := int64(cast.ToFloat64(v))
+		if debug {
+			fmt.Printf("[DEBUG] convertToBigInt - 浮点数转大整数: %v -> %d\n", v, bigIntVal)
+		}
+		return bigIntVal
+	case string:
+		if bigIntVal, err := strconv.ParseInt(v, 10, 64); err == nil {
+			if debug {
+				fmt.Printf("[DEBUG] convertToBigInt - 字符串转大整数: %s -> %d\n", v, bigIntVal)
+			}
+			return bigIntVal
+		}
+		return v
+	default:
+		bigIntVal := cast.ToInt64(v)
+		if debug {
+			fmt.Printf("[DEBUG] convertToBigInt - 其他类型转大整数: %v -> %d\n", v, bigIntVal)
+		}
+		return bigIntVal
+	}
+}
+
+// convertToFloat 转换为浮点数
+func (fm *FieldMapper) convertToFloat(value interface{}, debug bool) interface{} {
+	switch v := value.(type) {
+	case float32, float64:
+		return v
+	case int, int32, int64:
+		floatVal := cast.ToFloat64(v)
+		if debug {
+			fmt.Printf("[DEBUG] convertToFloat - 整数转浮点数: %v -> %f\n", v, floatVal)
+		}
+		return floatVal
+	case string:
+		if floatVal, err := strconv.ParseFloat(v, 64); err == nil {
+			if debug {
+				fmt.Printf("[DEBUG] convertToFloat - 字符串转浮点数: %s -> %f\n", v, floatVal)
+			}
+			return floatVal
+		}
+		return v
+	default:
+		floatVal := cast.ToFloat64(v)
+		if debug {
+			fmt.Printf("[DEBUG] convertToFloat - 其他类型转浮点数: %v -> %f\n", v, floatVal)
+		}
+		return floatVal
+	}
+}
+
+// convertToBoolean 转换为布尔值
+func (fm *FieldMapper) convertToBoolean(value interface{}, debug bool) interface{} {
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		lowerV := strings.ToLower(v)
+		switch lowerV {
+		case "true", "1", "yes", "y", "on":
+			if debug {
+				fmt.Printf("[DEBUG] convertToBoolean - 字符串转布尔值: %s -> true\n", v)
+			}
+			return true
+		case "false", "0", "no", "n", "off":
+			if debug {
+				fmt.Printf("[DEBUG] convertToBoolean - 字符串转布尔值: %s -> false\n", v)
+			}
+			return false
+		default:
+			return v
+		}
+	case int, int32, int64:
+		boolVal := cast.ToInt64(v) != 0
+		if debug {
+			fmt.Printf("[DEBUG] convertToBoolean - 整数转布尔值: %v -> %t\n", v, boolVal)
+		}
+		return boolVal
+	default:
+		boolVal := cast.ToBool(v)
+		if debug {
+			fmt.Printf("[DEBUG] convertToBoolean - 其他类型转布尔值: %v -> %t\n", v, boolVal)
+		}
+		return boolVal
+	}
+}
+
+// convertToString 转换为字符串
+func (fm *FieldMapper) convertToString(value interface{}, debug bool) interface{} {
+	strVal := cast.ToString(value)
+	if debug && fmt.Sprintf("%v", value) != strVal {
+		fmt.Printf("[DEBUG] convertToString - 类型转字符串: %v -> %s\n", value, strVal)
+	}
+	return strVal
+}
+
+// convertToJSON 转换为JSON格式
+func (fm *FieldMapper) convertToJSON(value interface{}, debug bool) interface{} {
+	switch v := value.(type) {
+	case string:
+		// 如果已经是字符串，检查是否是有效的JSON
+		return v
+	case map[string]interface{}, []interface{}:
+		// 如果是map或slice，直接返回
+		return v
+	default:
+		// 其他类型转换为字符串
+		return cast.ToString(v)
+	}
 }
 
 // UpsertDataToTable 执行数据的UPSERT操作（增量同步）
@@ -623,8 +953,8 @@ func (fm *FieldMapper) ReplaceTableData(ctx context.Context, db *gorm.DB, interf
 		for col, val := range mappedRow {
 			columns = append(columns, fmt.Sprintf(`"%s"`, col))
 			placeholders = append(placeholders, "?")
-			// 处理数据类型转换，特别是时间字段
-			processedVal := fm.ProcessValueForDatabase(col, val)
+			// 处理数据类型转换，基于字段配置
+			processedVal := fm.ProcessValueForDatabase(col, val, interfaceInfo)
 			values = append(values, processedVal)
 		}
 
@@ -689,8 +1019,8 @@ func (fm *FieldMapper) UpsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 		for col, val := range mappedRow {
 			columns = append(columns, fmt.Sprintf(`"%s"`, col))
 			placeholders = append(placeholders, "?")
-			// 处理数据类型转换，特别是时间字段
-			processedVal := fm.ProcessValueForDatabase(col, val)
+			// 处理数据类型转换，基于字段配置
+			processedVal := fm.ProcessValueForDatabase(col, val, interfaceInfo)
 			values = append(values, processedVal)
 		}
 
