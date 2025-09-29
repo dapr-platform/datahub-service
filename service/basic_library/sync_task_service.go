@@ -606,9 +606,9 @@ func (s *SyncTaskService) StartSyncTask(ctx context.Context, taskID string) erro
 	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 找到任务: %s, 当前状态: %s, 类型: %s\n", task.ID, task.Status, task.TaskType)
 
 	// 检查任务状态
-	if task.Status != meta.SyncTaskStatusPending && task.Status != meta.SyncTaskStatusFailed && task.Status != meta.SyncTaskStatusCancelled {
+	if task.Status == meta.SyncTaskStatusRunning {
 		fmt.Printf("[ERROR] SyncTaskService.StartSyncTask - 任务状态不允许启动: %s, 当前状态: %s\n", taskID, task.Status)
-		return fmt.Errorf("只有待执行状态或失败状态的任务可以启动，当前状态: %s", task.Status)
+		return fmt.Errorf("任务状态不允许启动: %s, 当前状态: %s", taskID, task.Status)
 	}
 
 	// 更新任务状态为运行中
