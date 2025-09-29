@@ -272,6 +272,7 @@ func GetDeletableTaskStatuses() []string {
 		SyncTaskStatusSuccess,
 		SyncTaskStatusFailed,
 		SyncTaskStatusCancelled,
+		SyncTaskStatusPending,
 	}
 }
 
@@ -294,6 +295,7 @@ func GetRetryableTaskStatuses() []string {
 func GetUpdatableTaskStatuses() []string {
 	return []string{
 		SyncTaskStatusPending,
+		SyncTaskStatusFailed,
 	}
 }
 

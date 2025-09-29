@@ -40,7 +40,7 @@ type SyncTaskInterface struct {
 	UpdatedAt     time.Time  `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
 
 	// 关联关系
-	SyncTask      SyncTask      `json:"sync_task,omitempty" gorm:"foreignKey:TaskID"`
+	SyncTask      SyncTask      `json:"sync_task,omitempty" gorm:"foreignKey:TaskID;constraint:OnDelete:CASCADE"`
 	DataInterface DataInterface `json:"data_interface,omitempty" gorm:"foreignKey:InterfaceID"`
 }
 
@@ -98,7 +98,7 @@ type SyncTask struct {
 	LibraryType  string `json:"library_type" gorm:"not null;size:20;index" example:"basic_library"`                               // basic_library, thematic_library
 	LibraryID    string `json:"library_id" gorm:"not null;type:varchar(36);index" example:"550e8400-e29b-41d4-a716-446655440000"` // 基础库ID或主题库ID
 	DataSourceID string `json:"data_source_id" gorm:"not null;type:varchar(36);index" example:"550e8400-e29b-41d4-a716-446655440000"`
-	TaskType     string `json:"task_type" gorm:"not null;size:20" example:"full_sync"`              // full_sync, incremental_sync, realtime_sync
+	TaskType     string `json:"task_type" gorm:"not null;size:20" example:"batch_sync"`             // batch_sync, realtime_sync
 	Status       string `json:"status" gorm:"not null;size:20;default:'pending'" example:"pending"` // pending, running, success, failed, cancelled
 
 	// 执行时机相关字段
@@ -126,6 +126,7 @@ type SyncTask struct {
 	CreatedAt time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
 	CreatedBy string    `json:"created_by" gorm:"not null;default:'system';size:100" example:"system"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
+	UpdatedBy string    `json:"updated_by" gorm:"not null;default:'system';size:100" example:"system"`
 
 	// 动态关联 - 这些字段不存储在数据库中，在运行时根据LibraryType动态加载
 	BasicLibrary    *BasicLibrary    `json:"basic_library,omitempty" gorm:"-"`
@@ -133,11 +134,11 @@ type SyncTask struct {
 	DataSource      DataSource       `json:"data_source,omitempty" gorm:"foreignKey:DataSourceID"`
 
 	// 多接口关联
-	TaskInterfaces []SyncTaskInterface `json:"task_interfaces,omitempty" gorm:"foreignKey:TaskID"`
+	TaskInterfaces []SyncTaskInterface `json:"task_interfaces,omitempty" gorm:"foreignKey:TaskID;constraint:OnDelete:CASCADE"`
 	DataInterfaces []DataInterface     `json:"data_interfaces,omitempty" gorm:"many2many:sync_task_interfaces;joinForeignKey:task_id;joinReferences:interface_id"`
 
 	// 执行记录关联
-	Executions []SyncTaskExecution `json:"executions,omitempty" gorm:"foreignKey:TaskID"`
+	Executions []SyncTaskExecution `json:"executions,omitempty" gorm:"foreignKey:TaskID;constraint:OnDelete:CASCADE"`
 }
 
 // BeforeCreate GORM钩子，创建前生成UUID并验证
@@ -147,6 +148,9 @@ func (st *SyncTask) BeforeCreate(tx *gorm.DB) error {
 	}
 	if st.CreatedBy == "" {
 		st.CreatedBy = "system"
+	}
+	if st.UpdatedBy == "" {
+		st.UpdatedBy = "system"
 	}
 
 	// 验证库类型
@@ -398,7 +402,7 @@ type SyncTaskExecution struct {
 	UpdatedAt     time.Time  `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
 
 	// 关联关系
-	Task SyncTask `json:"task,omitempty" gorm:"foreignKey:TaskID"`
+	Task SyncTask `json:"task,omitempty" gorm:"foreignKey:TaskID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName 指定表名

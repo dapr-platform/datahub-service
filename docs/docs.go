@@ -7610,7 +7610,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "创建新的基础库数据同步任务，专门处理基础库数据同步\n\n**支持的任务类型:**\n- full_sync: 全量同步\n- incremental_sync: 增量同步\n- realtime_sync: 实时同步\n\n**任务状态流转:**\npending → running → success/failed/cancelled\n\n**注意:** 此接口仅支持基础库同步任务，不支持主题库同步",
+                "description": "创建新的基础库数据同步任务，专门处理基础库数据同步\n\n**支持的任务类型:**\n- batch_sync: 批量同步（根据接口配置自动判断全量/增量）\n- realtime_sync: 实时同步\n\n**任务状态流转:**\npending → running → success/failed/cancelled\n\n**注意:** 此接口仅支持基础库同步任务，不支持主题库同步",
                 "consumes": [
                     "application/json"
                 ],
@@ -11031,7 +11031,7 @@ const docTemplate = `{
                 },
                 "task_type": {
                     "type": "string",
-                    "example": "full_sync"
+                    "example": "batch_sync"
                 },
                 "trigger_type": {
                     "type": "string",
@@ -11107,6 +11107,10 @@ const docTemplate = `{
                 "scheduled_time": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
+                },
+                "task_type": {
+                    "type": "string",
+                    "example": "batch_sync"
                 },
                 "trigger_type": {
                     "type": "string",
@@ -15782,9 +15786,9 @@ const docTemplate = `{
                     }
                 },
                 "task_type": {
-                    "description": "full_sync, incremental_sync, realtime_sync",
+                    "description": "batch_sync, realtime_sync",
                     "type": "string",
-                    "example": "full_sync"
+                    "example": "batch_sync"
                 },
                 "thematic_library": {
                     "$ref": "#/definitions/models.ThematicLibrary"
@@ -15800,6 +15804,10 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                },
+                "updated_by": {
+                    "type": "string",
+                    "example": "system"
                 }
             }
         },

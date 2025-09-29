@@ -48,7 +48,7 @@ func NewInterfaceExecutor(db *gorm.DB, datasourceManager datasource.DataSourceMa
 type ExecuteRequest struct {
 	InterfaceID    string                 `json:"interface_id"`
 	InterfaceType  string                 `json:"interface_type"`          // basic_library, thematic_library
-	ExecuteType    string                 `json:"execute_type"`            // preview, test, sync, incremental_sync
+	ExecuteType    string                 `json:"execute_type"`            // preview, test, sync (支持batch_sync和realtime_sync)
 	SyncStrategy   string                 `json:"sync_strategy,omitempty"` // full, incremental, realtime
 	Parameters     map[string]interface{} `json:"parameters,omitempty"`
 	Options        map[string]interface{} `json:"options,omitempty"`

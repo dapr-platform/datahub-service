@@ -82,7 +82,7 @@ type DataFlowGraph struct {
 	Status              string                 `json:"status" gorm:"not null;default:'active';size:20"` // draft, active, inactive
 
 	// 关联关系
-	Nodes []FlowNode `json:"nodes,omitempty" gorm:"foreignKey:FlowGraphID"`
+	Nodes []FlowNode `json:"nodes,omitempty" gorm:"foreignKey:FlowGraphID;constraint:OnDelete:CASCADE"`
 }
 
 // FlowNode 流程图节点模型
@@ -98,7 +98,7 @@ type FlowNode struct {
 	CreatedBy   string                 `json:"created_by" gorm:"not null;default:'system';size:100"`
 
 	// 关联关系
-	DataFlowGraph DataFlowGraph `json:"data_flow_graph,omitempty" gorm:"foreignKey:FlowGraphID"`
+	DataFlowGraph DataFlowGraph `json:"data_flow_graph,omitempty" gorm:"foreignKey:FlowGraphID;constraint:OnDelete:CASCADE"`
 }
 
 // BeforeCreate GORM钩子，创建前生成UUID

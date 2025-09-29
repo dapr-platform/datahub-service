@@ -17,6 +17,7 @@ import (
 	"datahub-service/service/models"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -153,9 +154,43 @@ func (s *SharingService) UpdateApiApplication(id string, updates map[string]inte
 	return s.db.Model(&models.ApiApplication{}).Where("id = ?", id).Updates(updates).Error
 }
 
-// DeleteApiApplication 删除API应用
+// DeleteApiApplication 删除API应用（级联删除关联数据）
 func (s *SharingService) DeleteApiApplication(id string) error {
-	return s.db.Delete(&models.ApiApplication{}, "id = ?", id).Error
+	// 检查应用是否存在
+	var existing models.ApiApplication
+	if err := s.db.First(&existing, "id = ?", id).Error; err != nil {
+		return errors.New("API应用不存在")
+	}
+
+	// 开启事务删除应用和相关记录
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 1. 删除关联的API接口
+		if err := tx.Where("api_application_id = ?", id).Delete(&models.ApiInterface{}).Error; err != nil {
+			return fmt.Errorf("删除关联的API接口失败: %w", err)
+		}
+
+		// 2. 删除关联的API限流规则
+		if err := tx.Where("application_id = ?", id).Delete(&models.ApiRateLimit{}).Error; err != nil {
+			return fmt.Errorf("删除关联的API限流规则失败: %w", err)
+		}
+
+		// 3. 删除关联的API Key关联关系
+		if err := tx.Where("api_application_id = ?", id).Delete(&models.ApiKeyApplication{}).Error; err != nil {
+			return fmt.Errorf("删除关联的API密钥关系失败: %w", err)
+		}
+
+		// 4. 删除关联的API使用日志
+		if err := tx.Model(&models.ApiUsageLog{}).Where("application_id = ?", id).Delete(&models.ApiUsageLog{}).Error; err != nil {
+			return fmt.Errorf("删除关联的API使用日志失败: %w", err)
+		}
+
+		// 5. 删除API应用
+		if err := tx.Delete(&models.ApiApplication{}, "id = ?", id).Error; err != nil {
+			return fmt.Errorf("删除API应用失败: %w", err)
+		}
+
+		return nil
+	})
 }
 
 // === ApiKey管理 ===
@@ -659,7 +694,7 @@ func (s *SharingService) GetDataAccessRequests(page, pageSize int, requesterID, 
 	var requests []models.DataAccessRequest
 	var total int64
 
-	query := s.db.Model(&models.DataAccessRequest{}).Preload("Requester").Preload("Approver")
+	query := s.db.Model(&models.DataAccessRequest{})
 
 	if requesterID != "" {
 		query = query.Where("requester_id = ?", requesterID)
@@ -686,7 +721,7 @@ func (s *SharingService) GetDataAccessRequests(page, pageSize int, requesterID, 
 // GetDataAccessRequestByID 根据ID获取数据使用申请
 func (s *SharingService) GetDataAccessRequestByID(id string) (*models.DataAccessRequest, error) {
 	var request models.DataAccessRequest
-	if err := s.db.Preload("Requester").Preload("Approver").First(&request, "id = ?", id).Error; err != nil {
+	if err := s.db.First(&request, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &request, nil
@@ -721,7 +756,7 @@ func (s *SharingService) GetApiUsageLogs(page, pageSize int, applicationID, user
 	var logs []models.ApiUsageLog
 	var total int64
 
-	query := s.db.Model(&models.ApiUsageLog{}).Preload("Application").Preload("User")
+	query := s.db.Model(&models.ApiUsageLog{}).Preload("Application")
 
 	if applicationID != "" {
 		query = query.Where("application_id = ?", applicationID)

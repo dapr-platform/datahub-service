@@ -68,8 +68,8 @@ type ThematicSyncTask struct {
 
 	// 关联关系
 	ThematicLibrary   *ThematicLibrary        `json:"thematic_library,omitempty" gorm:"foreignKey:ThematicLibraryID"`
-	ThematicInterface *ThematicInterface      `json:"thematic_interface,omitempty" gorm:"foreignKey:ThematicInterfaceID"`
-	SyncExecutions    []ThematicSyncExecution `json:"sync_executions,omitempty" gorm:"foreignKey:TaskID"`
+	ThematicInterface *ThematicInterface      `json:"thematic_interface,omitempty" gorm:"foreignKey:ThematicInterfaceID;constraint:OnDelete:RESTRICT"`
+	SyncExecutions    []ThematicSyncExecution `json:"sync_executions,omitempty" gorm:"foreignKey:TaskID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName 指定表名
@@ -114,7 +114,7 @@ type ThematicSyncExecution struct {
 	CreatedBy string    `json:"created_by" gorm:"size:100"`
 
 	// 关联关系
-	Task *ThematicSyncTask `json:"task,omitempty" gorm:"foreignKey:TaskID"`
+	Task *ThematicSyncTask `json:"task,omitempty" gorm:"foreignKey:TaskID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName 指定表名

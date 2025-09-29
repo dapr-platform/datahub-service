@@ -395,13 +395,36 @@ func (s *Service) DeleteThematicInterface(id string) error {
 		return errors.New("主题接口不存在")
 	}
 
-	// 检查是否有关联的数据流程图
-	var flowGraphCount int64
-	s.db.Model(&models.DataFlowGraph{}).Where("thematic_interface_id = ? AND status != 'inactive'", id).Count(&flowGraphCount)
-	if flowGraphCount > 0 {
-		return errors.New("存在关联的数据流程图，无法删除接口")
-	}
-	return s.db.Delete(&models.ThematicInterface{}, "id = ?", id).Error
+	// 开启事务删除接口和相关记录
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 检查是否有关联的数据流程图
+		var flowGraphCount int64
+		tx.Model(&models.DataFlowGraph{}).Where("thematic_interface_id = ? AND status != 'inactive'", id).Count(&flowGraphCount)
+		if flowGraphCount > 0 {
+			return errors.New("存在关联的数据流程图，无法删除接口")
+		}
+
+		// 检查是否有关联的API接口
+		var apiInterfaceCount int64
+		tx.Model(&models.ApiInterface{}).Where("thematic_interface_id = ?", id).Count(&apiInterfaceCount)
+		if apiInterfaceCount > 0 {
+			return errors.New("存在关联的API接口，无法删除主题接口")
+		}
+
+		// 检查是否有关联的主题同步任务
+		var syncTaskCount int64
+		tx.Model(&models.ThematicSyncTask{}).Where("thematic_interface_id = ?", id).Count(&syncTaskCount)
+		if syncTaskCount > 0 {
+			return errors.New("存在关联的主题同步任务，无法删除接口")
+		}
+
+		// 删除主题接口
+		if err := tx.Delete(&models.ThematicInterface{}, "id = ?", id).Error; err != nil {
+			return fmt.Errorf("删除主题接口失败: %w", err)
+		}
+
+		return nil
+	})
 }
 
 // contains 检查字符串切片是否包含指定值

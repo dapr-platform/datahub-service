@@ -311,6 +311,7 @@ type UpdateSyncTaskRequest struct {
 	InterfaceIDs     []string                  `json:"interface_ids,omitempty"`
 	InterfaceConfigs []SyncTaskInterfaceConfig `json:"interface_configs,omitempty"`
 	UpdatedBy        string                    `json:"updated_by"`
+	TaskType         string                    `json:"task_type,omitempty"`
 }
 
 // GetSyncTaskListRequest 获取基础库同步任务列表请求
@@ -449,11 +450,6 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 		return nil, fmt.Errorf("任务不存在: %w", err)
 	}
 
-	// 检查任务状态是否允许更新
-	if !contains(meta.GetUpdatableTaskStatuses(), task.Status) {
-		return nil, fmt.Errorf("任务状态 %s 不允许更新", task.Status)
-	}
-
 	// 开启事务
 	tx := s.db.Begin()
 	defer func() {
@@ -481,6 +477,9 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 	}
 	if req.UpdatedBy != "" {
 		updates["updated_by"] = req.UpdatedBy
+	}
+	if req.TaskType != "" {
+		updates["task_type"] = req.TaskType
 	}
 
 	// 更新任务基本信息
@@ -572,12 +571,25 @@ func (s *SyncTaskService) DeleteSyncTask(ctx context.Context, taskID string) err
 		return fmt.Errorf("任务状态 %s 不允许删除", task.Status)
 	}
 
-	// 删除任务
-	if err := s.db.Delete(&task).Error; err != nil {
-		return fmt.Errorf("删除任务失败: %w", err)
-	}
+	// 开启事务删除任务和相关记录
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 删除任务接口关联记录
+		if err := tx.Where("task_id = ?", taskID).Delete(&models.SyncTaskInterface{}).Error; err != nil {
+			return fmt.Errorf("删除任务接口关联记录失败: %w", err)
+		}
 
-	return nil
+		// 删除执行记录
+		if err := tx.Where("task_id = ?", taskID).Delete(&models.SyncTaskExecution{}).Error; err != nil {
+			return fmt.Errorf("删除执行记录失败: %w", err)
+		}
+
+		// 删除任务
+		if err := tx.Delete(&task).Error; err != nil {
+			return fmt.Errorf("删除任务失败: %w", err)
+		}
+
+		return nil
+	})
 }
 
 // StartSyncTask 启动基础库同步任务

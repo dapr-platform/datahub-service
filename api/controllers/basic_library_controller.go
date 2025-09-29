@@ -813,7 +813,7 @@ func (c *BasicLibraryController) UpdateInterfaceFields(w http.ResponseWriter, r 
 		return
 	}
 
-	err := c.service.UpdateInterfaceFields(req.InterfaceID, req.Fields, req.UpdateTable)
+	err := c.service.UpdateInterfaceFields(req.InterfaceID, req.Fields, true)
 	if err != nil {
 		// 根据错误类型提供更具体的错误信息
 		if strings.Contains(err.Error(), "primary key") {

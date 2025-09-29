@@ -36,7 +36,7 @@ type ApiApplication struct {
 	// 关联关系
 	ThematicLibrary ThematicLibrary `gorm:"foreignKey:ThematicLibraryID" json:"thematic_library,omitempty"`
 	ApiKeys         []ApiKey        `gorm:"many2many:api_key_applications;" json:"api_keys,omitempty"`
-	ApiInterfaces   []ApiInterface  `gorm:"foreignKey:ApiApplicationID" json:"api_interfaces,omitempty"`
+	ApiInterfaces   []ApiInterface  `gorm:"foreignKey:ApiApplicationID;constraint:OnDelete:RESTRICT" json:"api_interfaces,omitempty"`
 }
 
 // BeforeCreate 创建前钩子
@@ -134,7 +134,7 @@ type ApiInterface struct {
 	CreatedAt           time.Time         `json:"created_at"`
 	CreatedBy           string            `gorm:"size:100" json:"created_by"`
 	ApiApplication      ApiApplication    `gorm:"foreignKey:ApiApplicationID" json:"api_application,omitempty"`
-	ThematicInterface   ThematicInterface `gorm:"foreignKey:ThematicInterfaceID" json:"thematic_interface,omitempty"`
+	ThematicInterface   ThematicInterface `gorm:"foreignKey:ThematicInterfaceID;constraint:OnDelete:RESTRICT" json:"thematic_interface,omitempty"`
 }
 
 // BeforeCreate 创建前钩子
@@ -152,7 +152,7 @@ func (ai *ApiInterface) BeforeCreate(tx *gorm.DB) error {
 type ApiRateLimit struct {
 	ID            string          `gorm:"type:uuid;primary_key" json:"id"`
 	ApplicationID string          `gorm:"not null" json:"application_id"`
-	Application   *ApiApplication `gorm:"foreignKey:ApplicationID" json:"application,omitempty"`
+	Application   *ApiApplication `gorm:"foreignKey:ApplicationID;constraint:OnDelete:RESTRICT" json:"application,omitempty"`
 	ApiPath       string          `gorm:"not null" json:"api_path"`
 	TimeWindow    int             `gorm:"not null" json:"time_window"`  // 时间窗口，单位秒
 	MaxRequests   int             `gorm:"not null" json:"max_requests"` // 最大请求数
@@ -245,7 +245,7 @@ func (d *DataAccessRequest) BeforeCreate(tx *gorm.DB) error {
 type ApiUsageLog struct {
 	ID            string          `gorm:"type:uuid;primary_key" json:"id"`
 	ApplicationID *string         `json:"application_id"`
-	Application   *ApiApplication `gorm:"foreignKey:ApplicationID" json:"application,omitempty"`
+	Application   *ApiApplication `gorm:"foreignKey:ApplicationID;constraint:OnDelete:RESTRICT" json:"application,omitempty"`
 	UserID        *string         `json:"user_id"`
 	UserName      *string         `json:"user_name"`
 	ApiPath       string          `gorm:"not null" json:"api_path"`

@@ -143,7 +143,7 @@ var SyncTasksViews = map[string]string{
 				"library_id": {"type": "string", "source": "sync_tasks.library_id", "description": "库ID：基础库ID或专题库ID"},
 				"data_source_id": {"type": "string", "source": "sync_tasks.data_source_id", "description": "数据源ID"},
 				"interface_id": {"type": "string | null", "source": "sync_tasks.interface_id", "description": "接口ID（可选）"},
-				"task_type": {"type": "string", "source": "sync_tasks.task_type", "description": "任务类型：full_sync, incremental_sync, realtime_sync"},
+				"task_type": {"type": "string", "source": "sync_tasks.task_type", "description": "任务类型：batch_sync, realtime_sync"},
 				"status": {"type": "string", "source": "sync_tasks.status", "description": "任务状态：pending, running, success, failed, cancelled"},
 				"start_time": {"type": "Date | null", "source": "sync_tasks.start_time", "description": "开始时间"},
 				"end_time": {"type": "Date | null", "source": "sync_tasks.end_time", "description": "结束时间"},

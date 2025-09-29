@@ -48,7 +48,7 @@ type SyncTaskCreateRequest struct {
 	DataSourceID     string                    `json:"data_source_id" binding:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
 	InterfaceIDs     []string                  `json:"interface_ids" binding:"required,min=1" example:"[\"550e8400-e29b-41d4-a716-446655440000\"]"`
 	InterfaceConfigs []SyncTaskInterfaceConfig `json:"interface_configs,omitempty"` // 接口级别的配置，可选
-	TaskType         string                    `json:"task_type" binding:"required" example:"full_sync"`
+	TaskType         string                    `json:"task_type" binding:"required" example:"batch_sync"`
 	TriggerType      string                    `json:"trigger_type" binding:"required" example:"manual"`
 	CronExpression   string                    `json:"cron_expression,omitempty" example:"0 0 * * *"`
 	IntervalSeconds  int                       `json:"interval_seconds,omitempty" example:"3600"`
@@ -70,6 +70,7 @@ type SyncTaskUpdateRequest struct {
 	InterfaceIDs     []string                  `json:"interface_ids,omitempty"`     // 更新接口列表
 	InterfaceConfigs []SyncTaskInterfaceConfig `json:"interface_configs,omitempty"` // 更新接口级别的配置
 	UpdatedBy        string                    `json:"updated_by" example:"admin"`
+	TaskType         string                    `json:"task_type,omitempty" example:"batch_sync"`
 }
 
 // SyncTaskListRequest 基础库同步任务列表请求
@@ -79,7 +80,7 @@ type SyncTaskListRequest struct {
 	LibraryID    string `json:"library_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 	DataSourceID string `json:"data_source_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Status       string `json:"status,omitempty" example:"pending"`
-	TaskType     string `json:"task_type,omitempty" example:"full_sync"`
+	TaskType     string `json:"task_type,omitempty" example:"batch_sync"`
 }
 
 // BatchDeleteRequest 批量删除请求
@@ -101,8 +102,7 @@ type SyncTaskExecutionListRequest struct {
 // @Description 创建新的基础库数据同步任务，专门处理基础库数据同步
 // @Description
 // @Description **支持的任务类型:**
-// @Description - full_sync: 全量同步
-// @Description - incremental_sync: 增量同步
+// @Description - batch_sync: 批量同步（根据接口配置自动判断全量/增量）
 // @Description - realtime_sync: 实时同步
 // @Description
 // @Description **任务状态流转:**
@@ -334,6 +334,7 @@ func (c *SyncTaskController) UpdateSyncTask(w http.ResponseWriter, r *http.Reque
 		InterfaceIDs:     req.InterfaceIDs,
 		InterfaceConfigs: interfaceConfigs,
 		UpdatedBy:        req.UpdatedBy,
+		TaskType:         req.TaskType,
 	}
 
 	task, err := c.syncTaskService.UpdateSyncTask(r.Context(), taskID, updateReq)

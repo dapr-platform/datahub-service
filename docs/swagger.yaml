@@ -671,7 +671,7 @@ definitions:
         example: "2024-01-01T00:00:00Z"
         type: string
       task_type:
-        example: full_sync
+        example: batch_sync
         type: string
       trigger_type:
         example: manual
@@ -731,6 +731,9 @@ definitions:
         type: integer
       scheduled_time:
         example: "2024-01-01T00:00:00Z"
+        type: string
+      task_type:
+        example: batch_sync
         type: string
       trigger_type:
         example: manual
@@ -3977,8 +3980,8 @@ definitions:
           $ref: '#/definitions/models.SyncTaskInterface'
         type: array
       task_type:
-        description: full_sync, incremental_sync, realtime_sync
-        example: full_sync
+        description: batch_sync, realtime_sync
+        example: batch_sync
         type: string
       thematic_library:
         $ref: '#/definitions/models.ThematicLibrary'
@@ -3990,6 +3993,9 @@ definitions:
         example: manual
         type: string
       updated_at:
+        type: string
+      updated_by:
+        example: system
         type: string
     type: object
   models.SyncTaskExecution:
@@ -9863,8 +9869,7 @@ paths:
         创建新的基础库数据同步任务，专门处理基础库数据同步
 
         **支持的任务类型:**
-        - full_sync: 全量同步
-        - incremental_sync: 增量同步
+        - batch_sync: 批量同步（根据接口配置自动判断全量/增量）
         - realtime_sync: 实时同步
 
         **任务状态流转:**

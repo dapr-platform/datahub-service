@@ -26,6 +26,7 @@ import (
 type DataProcessor struct {
 	db                    *gorm.DB
 	governanceIntegration GovernanceIntegrationServiceInterface
+	fieldMapper           *FieldMapper
 }
 
 // NewDataProcessor 创建数据处理器
@@ -33,6 +34,7 @@ func NewDataProcessor(db *gorm.DB, governanceIntegration GovernanceIntegrationSe
 	return &DataProcessor{
 		db:                    db,
 		governanceIntegration: governanceIntegration,
+		fieldMapper:           NewFieldMapper(db),
 	}
 }
 
@@ -44,19 +46,61 @@ func (dp *DataProcessor) ProcessData(sourceRecords []SourceRecordInfo, request *
 		return nil, nil, fmt.Errorf("数据合并失败: %w", err)
 	}
 
-	// 2. 数据治理处理
-	governedRecords, governanceResult, err := dp.performGovernanceProcessing(mergedRecords, request, result)
+	// 2. 字段映射处理
+	mappedRecords, err := dp.applyFieldMapping(mergedRecords, request)
+	if err != nil {
+		return nil, nil, fmt.Errorf("字段映射失败: %w", err)
+	}
+
+	// 3. 数据治理处理
+	governedRecords, governanceResult, err := dp.performGovernanceProcessing(mappedRecords, request, result)
 	if err != nil {
 		return nil, governanceResult, err
 	}
 
-	// 3. 更新增量同步值（如果启用了增量同步）
+	// 4. 更新增量同步值（如果启用了增量同步）
 	err = dp.updateIncrementalValues(sourceRecords, request)
 	if err != nil {
 		fmt.Printf("[WARNING] 更新增量同步值失败: %v\n", err)
 	}
 
 	return governedRecords, governanceResult, nil
+}
+
+// applyFieldMapping 应用字段映射
+func (dp *DataProcessor) applyFieldMapping(mergedRecords []map[string]interface{}, request *SyncRequest) ([]map[string]interface{}, error) {
+	// 从请求配置中获取字段映射规则
+	var fieldMappingRules interface{}
+	if rules, exists := request.Config["field_mapping_rules"]; exists {
+		fieldMappingRules = rules
+	}
+
+	// 应用字段映射
+	mappedRecords, err := dp.fieldMapper.ApplyFieldMapping(
+		mergedRecords,
+		request.TargetInterfaceID,
+		fieldMappingRules,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("应用字段映射失败: %w", err)
+	}
+
+	// 记录处理步骤信息（暂时注释，后续可以添加到result中）
+	// stepInfo := ProcessingStepInfo{
+	// 	Phase:       PhaseAggregation, // 使用聚合阶段表示字段映射
+	// 	StartTime:   time.Now().Add(-time.Millisecond * 100), // 简化时间处理
+	// 	EndTime:     time.Now(),
+	// 	Duration:    time.Millisecond * 100,
+	// 	RecordCount: int64(len(mappedRecords)),
+	// 	ErrorCount:  int64(len(mergedRecords) - len(mappedRecords)),
+	// 	Status:      "success",
+	// 	Message:     fmt.Sprintf("字段映射完成，处理记录数: %d", len(mappedRecords)),
+	// }
+
+	fmt.Printf("[DEBUG] 字段映射完成，原记录数: %d，映射后记录数: %d\n",
+		len(mergedRecords), len(mappedRecords))
+
+	return mappedRecords, nil
 }
 
 // MergeData 执行简单的数据合并（基于主键ID）
