@@ -60,3 +60,4 @@ e2e_tests/
 *.md
 .cursor/
 .codelf/
+.specify/
