@@ -1,553 +1,340 @@
 /*
  * @module api/controllers/monitoring_controller
- * @description 监控告警控制器，提供系统监控、告警管理和健康检查功能
+ * @description 监控控制器（简化版），基于 VictoriaMetrics 和 Loki 提供监控查询功能
  * @architecture MVC架构 - 控制器层
- * @documentReference ai_docs/basic_library_process_impl.md, ai_docs/patch_basic_library_process.md
- * @stateFlow 请求接收 -> 业务逻辑处理 -> 响应返回
- * @rules 确保监控告警系统的实时性和准确性，提供全面的系统状态监控
- * @dependencies net/http, strconv, time
- * @refs service/monitoring/, service/models/
+ * @documentReference ai_docs/basic_library_process_impl.md
+ * @stateFlow 请求接收 -> 查询执行 -> 响应返回
+ * @rules 简化监控功能，直接使用 VictoriaMetrics 和 Loki 客户端
+ * @dependencies datahub-service/monitor_client, net/http
  */
 
 package controllers
 
 import (
+	"datahub-service/monitor_client"
+	"datahub-service/service/meta"
+	"encoding/json"
+	"fmt"
 	"net/http"
-	"strconv"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
-// MonitoringController 监控告警控制器
-type MonitoringController struct {
-	// TODO: 注入监控服务
-	// monitorService *monitoring.MonitorService
-}
+// MonitoringController 监控控制器（简化版）
+type MonitoringController struct{}
 
 // NewMonitoringController 创建监控控制器实例
 func NewMonitoringController() *MonitoringController {
 	return &MonitoringController{}
 }
 
-// GetSystemMetrics 获取系统指标
-// @Summary 获取系统监控指标
-// @Description 获取系统性能指标，包括CPU、内存、磁盘等使用情况
-// @Tags 系统监控
+// QueryMetrics 通用指标查询接口
+// @Summary 通用指标查询
+// @Description 执行自定义的 PromQL 查询，支持即时查询和区间查询
+// @Tags 监控查询
 // @Accept json
 // @Produce json
-// @Param start_time query string false "开始时间" format(datetime)
-// @Param end_time query string false "结束时间" format(datetime)
-// @Param metric_type query string false "指标类型" Enums(cpu,memory,disk,network)
-// @Success 200 {object} APIResponse{data=[]models.SystemMetrics}
-// @Failure 400 {object} APIResponse
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/system/metrics [get]
-func (c *MonitoringController) GetSystemMetrics(w http.ResponseWriter, r *http.Request) {
-	startTime := r.URL.Query().Get("start_time")
-	endTime := r.URL.Query().Get("end_time")
-	metricType := r.URL.Query().Get("metric_type")
-
-	// 默认查询最近1小时的指标
-	if startTime == "" {
-		startTime = time.Now().Add(-time.Hour).Format(time.RFC3339)
-	}
-	if endTime == "" {
-		endTime = time.Now().Format(time.RFC3339)
-	}
-
-	// TODO: 实现获取系统指标逻辑
-	_ = startTime
-	_ = endTime
-	_ = metricType
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "获取系统指标成功",
-		Data:   []interface{}{},
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// GetPerformanceMetrics 获取性能指标
-// @Summary 获取性能监控指标
-// @Description 获取应用程序性能指标，包括响应时间、吞吐量等
-// @Tags 性能监控
-// @Accept json
-// @Produce json
-// @Param start_time query string false "开始时间" format(datetime)
-// @Param end_time query string false "结束时间" format(datetime)
-// @Param service_name query string false "服务名称"
-// @Success 200 {object} APIResponse{data=[]models.PerformanceSnapshot}
-// @Failure 400 {object} APIResponse
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/performance/metrics [get]
-func (c *MonitoringController) GetPerformanceMetrics(w http.ResponseWriter, r *http.Request) {
-	startTime := r.URL.Query().Get("start_time")
-	endTime := r.URL.Query().Get("end_time")
-	serviceName := r.URL.Query().Get("service_name")
-
-	// 默认查询最近1小时的指标
-	if startTime == "" {
-		startTime = time.Now().Add(-time.Hour).Format(time.RFC3339)
-	}
-	if endTime == "" {
-		endTime = time.Now().Format(time.RFC3339)
-	}
-
-	// TODO: 实现获取性能指标逻辑
-	_ = startTime
-	_ = endTime
-	_ = serviceName
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "获取性能指标成功",
-		Data:   []interface{}{},
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// GetHealthStatus 获取健康状态
-// @Summary 获取系统健康状态
-// @Description 获取系统整体健康状态和各组件状态
-// @Tags 健康检查
-// @Accept json
-// @Produce json
-// @Success 200 {object} APIResponse{data=models.HealthCheck}
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/health [get]
-func (c *MonitoringController) GetHealthStatus(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现获取健康状态逻辑
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "获取健康状态成功",
-		Data:   nil,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// GetHealthChecks 获取健康检查记录
-// @Summary 获取健康检查记录列表
-// @Description 分页获取健康检查历史记录
-// @Tags 健康检查
-// @Accept json
-// @Produce json
-// @Param page query int false "页码" default(1)
-// @Param size query int false "每页大小" default(10)
-// @Param component query string false "组件名称"
-// @Param status query string false "状态筛选" Enums(healthy,warning,error)
-// @Param start_time query string false "开始时间" format(datetime)
-// @Param end_time query string false "结束时间" format(datetime)
-// @Success 200 {object} APIResponse{data=[]models.HealthCheck}
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/health/checks [get]
-func (c *MonitoringController) GetHealthChecks(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page <= 0 {
-		page = 1
-	}
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	if size <= 0 {
-		size = 10
-	}
-	component := r.URL.Query().Get("component")
-	status := r.URL.Query().Get("status")
-	startTime := r.URL.Query().Get("start_time")
-	endTime := r.URL.Query().Get("end_time")
-
-	// TODO: 实现获取健康检查记录逻辑
-	_ = page
-	_ = size
-	_ = component
-	_ = status
-	_ = startTime
-	_ = endTime
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "获取健康检查记录成功",
-		Data:   []interface{}{},
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// CreateAlertRule 创建告警规则
-// @Summary 创建告警规则
-// @Description 创建新的监控告警规则
-// @Tags 告警管理
-// @Accept json
-// @Produce json
-// @Param rule body models.AlertRule true "告警规则信息"
-// @Success 200 {object} APIResponse{data=models.AlertRule}
-// @Failure 400 {object} APIResponse
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/alerts/rules [post]
-func (c *MonitoringController) CreateAlertRule(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现创建告警规则逻辑
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "告警规则创建成功",
-		Data:   nil,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// GetAlertRules 获取告警规则列表
-// @Summary 获取告警规则列表
-// @Description 分页获取告警规则列表，支持按状态、类型等条件筛选
-// @Tags 告警管理
-// @Accept json
-// @Produce json
-// @Param page query int false "页码" default(1)
-// @Param size query int false "每页大小" default(10)
-// @Param rule_type query string false "规则类型" Enums(threshold,anomaly,custom)
-// @Param is_enabled query bool false "是否启用"
-// @Success 200 {object} APIResponse{data=[]models.AlertRule}
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/alerts/rules [get]
-func (c *MonitoringController) GetAlertRules(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page <= 0 {
-		page = 1
-	}
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	if size <= 0 {
-		size = 10
-	}
-	ruleType := r.URL.Query().Get("rule_type")
-	isEnabled := r.URL.Query().Get("is_enabled")
-
-	// TODO: 实现获取告警规则列表逻辑
-	_ = page
-	_ = size
-	_ = ruleType
-	_ = isEnabled
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "获取告警规则列表成功",
-		Data:   []interface{}{},
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// UpdateAlertRule 更新告警规则
-// @Summary 更新告警规则
-// @Description 更新指定的告警规则信息
-// @Tags 告警管理
-// @Accept json
-// @Produce json
-// @Param id path string true "规则ID"
-// @Param rule body models.AlertRule true "告警规则信息"
-// @Success 200 {object} APIResponse{data=models.AlertRule}
-// @Failure 400 {object} APIResponse
-// @Failure 404 {object} APIResponse
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/alerts/rules/{id} [put]
-func (c *MonitoringController) UpdateAlertRule(w http.ResponseWriter, r *http.Request) {
-	// TODO: 从URL路径中提取规则ID
-	// ruleID := chi.URLParam(r, "id")
-
-	// TODO: 实现更新告警规则逻辑
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "告警规则更新成功",
-		Data:   nil,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// DeleteAlertRule 删除告警规则
-// @Summary 删除告警规则
-// @Description 删除指定的告警规则（软删除）
-// @Tags 告警管理
-// @Accept json
-// @Produce json
-// @Param id path string true "规则ID"
-// @Success 200 {object} APIResponse
-// @Failure 404 {object} APIResponse
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/alerts/rules/{id} [delete]
-func (c *MonitoringController) DeleteAlertRule(w http.ResponseWriter, r *http.Request) {
-	// TODO: 从URL路径中提取规则ID
-	// ruleID := chi.URLParam(r, "id")
-
-	// TODO: 实现删除告警规则逻辑
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "告警规则删除成功",
-		Data:   nil,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// GetAlerts 获取告警记录
-// @Summary 获取告警记录列表
-// @Description 分页获取告警记录，支持按严重级别、状态等条件筛选
-// @Tags 告警管理
-// @Accept json
-// @Produce json
-// @Param page query int false "页码" default(1)
-// @Param size query int false "每页大小" default(10)
-// @Param severity query string false "严重级别" Enums(info,warning,error,critical)
-// @Param status query string false "告警状态" Enums(active,resolved,suppressed)
-// @Param start_time query string false "开始时间" format(datetime)
-// @Param end_time query string false "结束时间" format(datetime)
-// @Success 200 {object} APIResponse{data=[]models.Alert}
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/alerts [get]
-func (c *MonitoringController) GetAlerts(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page <= 0 {
-		page = 1
-	}
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	if size <= 0 {
-		size = 10
-	}
-	severity := r.URL.Query().Get("severity")
-	status := r.URL.Query().Get("status")
-	startTime := r.URL.Query().Get("start_time")
-	endTime := r.URL.Query().Get("end_time")
-
-	// TODO: 实现获取告警记录逻辑
-	_ = page
-	_ = size
-	_ = severity
-	_ = status
-	_ = startTime
-	_ = endTime
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "获取告警记录成功",
-		Data:   []interface{}{},
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// GetAlert 获取告警详情
-// @Summary 获取告警详情
-// @Description 获取指定告警ID的详细信息
-// @Tags 告警管理
-// @Accept json
-// @Produce json
-// @Param id path string true "告警ID"
-// @Success 200 {object} APIResponse{data=models.Alert}
-// @Failure 404 {object} APIResponse
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/alerts/{id} [get]
-func (c *MonitoringController) GetAlert(w http.ResponseWriter, r *http.Request) {
-	// TODO: 从URL路径中提取告警ID
-	// alertID := chi.URLParam(r, "id")
-
-	// TODO: 实现获取告警详情逻辑
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "获取告警详情成功",
-		Data:   nil,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// AcknowledgeAlert 确认告警
-// @Summary 确认告警
-// @Description 确认告警并记录处理信息
-// @Tags 告警管理
-// @Accept json
-// @Produce json
-// @Param id path string true "告警ID"
-// @Param acknowledgment body object true "确认信息"
-// @Success 200 {object} APIResponse
-// @Failure 400 {object} APIResponse
-// @Failure 404 {object} APIResponse
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/alerts/{id}/acknowledge [post]
-func (c *MonitoringController) AcknowledgeAlert(w http.ResponseWriter, r *http.Request) {
-	// TODO: 从URL路径中提取告警ID
-	// alertID := chi.URLParam(r, "id")
-
-	// TODO: 实现确认告警逻辑
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "告警确认成功",
-		Data:   nil,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// ResolveAlert 解决告警
-// @Summary 解决告警
-// @Description 标记告警为已解决
-// @Tags 告警管理
-// @Accept json
-// @Produce json
-// @Param id path string true "告警ID"
-// @Param resolution body object true "解决方案信息"
-// @Success 200 {object} APIResponse
-// @Failure 400 {object} APIResponse
-// @Failure 404 {object} APIResponse
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/alerts/{id}/resolve [post]
-func (c *MonitoringController) ResolveAlert(w http.ResponseWriter, r *http.Request) {
-	// TODO: 从URL路径中提取告警ID
-	// alertID := chi.URLParam(r, "id")
-
-	// TODO: 实现解决告警逻辑
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "告警解决成功",
-		Data:   nil,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// GetMonitoringDashboard 获取监控仪表板
-// @Summary 获取监控仪表板数据
-// @Description 获取监控仪表板的综合数据，包括关键指标和图表数据
-// @Tags 监控仪表板
-// @Accept json
-// @Produce json
-// @Param time_range query string false "时间范围" Enums(1h,6h,24h,7d,30d) default(24h)
-// @Success 200 {object} APIResponse{data=object}
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/dashboard [get]
-func (c *MonitoringController) GetMonitoringDashboard(w http.ResponseWriter, r *http.Request) {
-	timeRange := r.URL.Query().Get("time_range")
-	if timeRange == "" {
-		timeRange = "24h"
-	}
-
-	// TODO: 实现获取监控仪表板数据逻辑
-	_ = timeRange
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "获取监控仪表板数据成功",
-		Data: map[string]interface{}{
-			"system_overview": map[string]interface{}{
-				"cpu_usage":    "45.2%",
-				"memory_usage": "62.8%",
-				"disk_usage":   "38.5%",
-			},
-			"alert_summary": map[string]interface{}{
-				"total_alerts":    15,
-				"critical_alerts": 2,
-				"warning_alerts":  8,
-				"info_alerts":     5,
-			},
-			"sync_summary": map[string]interface{}{
-				"total_syncs":   120,
-				"success_syncs": 115,
-				"failed_syncs":  5,
-				"success_rate":  "95.8%",
-			},
-		},
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// GeneratePerformanceReport 生成性能报告
-// @Summary 生成性能分析报告
-// @Description 生成指定时间范围的系统性能分析报告
-// @Tags 性能报告
-// @Accept json
-// @Produce json
-// @Param report_type query string true "报告类型" Enums(hourly,daily,weekly,monthly)
-// @Param start_date query string true "开始日期" format(date)
-// @Param end_date query string true "结束日期" format(date)
+// @Param query body meta.MonitorQueryRequest true "查询请求"
 // @Success 200 {object} APIResponse{data=object}
 // @Failure 400 {object} APIResponse
 // @Failure 500 {object} APIResponse
-// @Router /api/monitoring/reports/performance [post]
-func (c *MonitoringController) GeneratePerformanceReport(w http.ResponseWriter, r *http.Request) {
-	reportType := r.URL.Query().Get("report_type")
-	startDate := r.URL.Query().Get("start_date")
-	endDate := r.URL.Query().Get("end_date")
+// @Router /monitoring/query/metrics [post]
+func (c *MonitoringController) QueryMetrics(w http.ResponseWriter, r *http.Request) {
+	var req meta.MonitorQueryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.writeErrorResponse(w, http.StatusBadRequest, "解析请求失败", err)
+		return
+	}
 
-	// TODO: 实现生成性能报告逻辑
-	_ = reportType
-	_ = startDate
-	_ = endDate
+	if req.Query == "" {
+		c.writeErrorResponse(w, http.StatusBadRequest, "查询语句不能为空", nil)
+		return
+	}
 
+	ctx := r.Context()
+
+	// 判断是即时查询还是区间查询
+	if req.StartTime > 0 && req.EndTime > 0 {
+		// 区间查询
+		start := time.Unix(req.StartTime, 0)
+		end := time.Unix(req.EndTime, 0)
+		step := time.Duration(req.Step) * time.Second
+		if step == 0 {
+			step = 15 * time.Second
+		}
+
+		result, err := monitor_client.QueryRange(ctx, req.Query, start, end, step)
+		if err != nil {
+			c.writeErrorResponse(w, http.StatusInternalServerError, "查询指标失败", err)
+			return
+		}
+
+		c.writeSuccessResponse(w, "查询指标成功", result)
+	} else {
+		// 即时查询
+		queryTime := time.Now()
+		if req.EndTime > 0 {
+			queryTime = time.Unix(req.EndTime, 0)
+		}
+
+		result, err := monitor_client.Query(ctx, req.Query, queryTime)
+		if err != nil {
+			c.writeErrorResponse(w, http.StatusInternalServerError, "查询指标失败", err)
+			return
+		}
+
+		c.writeSuccessResponse(w, "查询指标成功", result)
+	}
+}
+
+// QueryLogs 通用日志查询接口
+// @Summary 通用日志查询
+// @Description 执行自定义的 LogQL 查询
+// @Tags 监控查询
+// @Accept json
+// @Produce json
+// @Param query body meta.MonitorQueryRequest true "查询请求"
+// @Success 200 {object} APIResponse{data=object}
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /monitoring/query/logs [post]
+func (c *MonitoringController) QueryLogs(w http.ResponseWriter, r *http.Request) {
+	var req meta.MonitorQueryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.writeErrorResponse(w, http.StatusBadRequest, "解析请求失败", err)
+		return
+	}
+
+	if req.Query == "" {
+		c.writeErrorResponse(w, http.StatusBadRequest, "查询语句不能为空", nil)
+		return
+	}
+
+	ctx := r.Context()
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 1000
+	}
+
+	// 判断是即时查询还是流查询
+	if req.StartTime > 0 || req.EndTime > 0 {
+		// 使用流查询（区间查询）
+		preHours := 1 // 默认1小时
+		if req.StartTime > 0 && req.EndTime > 0 {
+			duration := req.EndTime - req.StartTime
+			preHours = int(duration / 3600)
+			if preHours <= 0 {
+				preHours = 1
+			}
+		}
+
+		result, err := monitor_client.LokiStreamQuery(ctx, req.Query, limit, preHours)
+		if err != nil {
+			c.writeErrorResponse(w, http.StatusInternalServerError, "查询日志失败", err)
+			return
+		}
+
+		c.writeSuccessResponse(w, "查询日志成功", result)
+	} else {
+		// 即时查询
+		result, err := monitor_client.LokiQuery(ctx, req.Query, limit)
+		if err != nil {
+			c.writeErrorResponse(w, http.StatusInternalServerError, "查询日志失败", err)
+			return
+		}
+
+		c.writeSuccessResponse(w, "查询日志成功", result)
+	}
+}
+
+// GetMetricTemplates 获取指标查询模板
+// @Summary 获取指标查询模板
+// @Description 获取常用的指标查询模板列表
+// @Tags 监控模板
+// @Accept json
+// @Produce json
+// @Success 200 {object} APIResponse{data=map[string]string}
+// @Failure 500 {object} APIResponse
+// @Router /monitoring/templates/metrics [get]
+func (c *MonitoringController) GetMetricTemplates(w http.ResponseWriter, r *http.Request) {
+	c.writeSuccessResponse(w, "获取指标模板成功", meta.CommonMetricTemplates)
+}
+
+// GetLogTemplates 获取日志查询模板
+// @Summary 获取日志查询模板
+// @Description 获取常用的日志查询模板列表
+// @Tags 监控模板
+// @Accept json
+// @Produce json
+// @Success 200 {object} APIResponse{data=map[string]string}
+// @Failure 500 {object} APIResponse
+// @Router /monitoring/templates/logs [get]
+func (c *MonitoringController) GetLogTemplates(w http.ResponseWriter, r *http.Request) {
+	c.writeSuccessResponse(w, "获取日志模板成功", meta.CommonLogTemplates)
+}
+
+// GetLokiLabels 获取 Loki 标签值
+// @Summary 获取日志标签值
+// @Description 获取指定标签的所有可能值
+// @Tags 监控查询
+// @Accept json
+// @Produce json
+// @Param label path string true "标签名称"
+// @Success 200 {object} APIResponse{data=[]string}
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /monitoring/loki/labels/{label}/values [get]
+func (c *MonitoringController) GetLokiLabels(w http.ResponseWriter, r *http.Request) {
+	label := chi.URLParam(r, "label")
+	if label == "" {
+		c.writeErrorResponse(w, http.StatusBadRequest, "标签名称不能为空", nil)
+		return
+	}
+
+	ctx := r.Context()
+	values, err := monitor_client.LokiLabelValues(ctx, label)
+	if err != nil {
+		c.writeErrorResponse(w, http.StatusInternalServerError, "获取标签值失败", err)
+		return
+	}
+
+	c.writeSuccessResponse(w, "获取标签值成功", values)
+}
+
+// ExecuteCustomQuery 执行自定义查询（统一入口）
+// @Summary 执行自定义查询
+// @Description 根据查询类型自动选择 Metrics 或 Logs 查询
+// @Tags 监控查询
+// @Accept json
+// @Produce json
+// @Param query body meta.MonitorQueryRequest true "查询请求"
+// @Success 200 {object} APIResponse{data=object}
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /monitoring/query [post]
+func (c *MonitoringController) ExecuteCustomQuery(w http.ResponseWriter, r *http.Request) {
+	var req meta.MonitorQueryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.writeErrorResponse(w, http.StatusBadRequest, "解析请求失败", err)
+		return
+	}
+
+	if req.QueryType == "" {
+		c.writeErrorResponse(w, http.StatusBadRequest, "查询类型不能为空", nil)
+		return
+	}
+
+	// 根据查询类型分发到对应的处理方法
+	switch req.QueryType {
+	case "metrics":
+		c.QueryMetrics(w, r)
+	case "logs":
+		c.QueryLogs(w, r)
+	default:
+		c.writeErrorResponse(w, http.StatusBadRequest, "不支持的查询类型: "+req.QueryType, nil)
+	}
+}
+
+// GetMonitoringConfig 获取监控配置
+// @Summary 获取监控配置
+// @Description 获取VictoriaMetrics和Loki的连接配置
+// @Tags 监控配置
+// @Accept json
+// @Produce json
+// @Success 200 {object} APIResponse{data=object}
+// @Router /monitoring/config [get]
+func (c *MonitoringController) GetMonitoringConfig(w http.ResponseWriter, r *http.Request) {
+	config := map[string]interface{}{
+		"victoria_metrics": map[string]string{
+			"url":    monitor_client.GetVictoriaMetricsUrl(),
+			"status": "connected",
+		},
+		"loki": map[string]string{
+			"url":    monitor_client.GetLokiUrl(),
+			"status": "connected",
+		},
+		"description": "基于 VictoriaMetrics 和 Loki 的监控系统",
+		"version":     "1.0.0",
+	}
+
+	c.writeSuccessResponse(w, "获取监控配置成功", config)
+}
+
+// ValidateQuery 验证查询语法
+// @Summary 验证查询语法
+// @Description 验证 PromQL 或 LogQL 查询语法是否正确
+// @Tags 监控查询
+// @Accept json
+// @Produce json
+// @Param query body meta.MonitorQueryRequest true "查询请求"
+// @Success 200 {object} APIResponse{data=object}
+// @Failure 400 {object} APIResponse
+// @Router /monitoring/query/validate [post]
+func (c *MonitoringController) ValidateQuery(w http.ResponseWriter, r *http.Request) {
+	var req meta.MonitorQueryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.writeErrorResponse(w, http.StatusBadRequest, "解析请求失败", err)
+		return
+	}
+
+	if req.Query == "" {
+		c.writeErrorResponse(w, http.StatusBadRequest, "查询语句不能为空", nil)
+		return
+	}
+
+	ctx := r.Context()
+	validation := map[string]interface{}{
+		"valid":      true,
+		"query":      req.Query,
+		"query_type": req.QueryType,
+	}
+
+	// 简单的验证：尝试执行查询
+	if req.QueryType == "metrics" {
+		_, err := monitor_client.Query(ctx, req.Query, time.Now())
+		if err != nil {
+			validation["valid"] = false
+			validation["error"] = err.Error()
+		}
+	} else if req.QueryType == "logs" {
+		_, err := monitor_client.LokiQuery(ctx, req.Query, 1)
+		if err != nil {
+			validation["valid"] = false
+			validation["error"] = err.Error()
+		}
+	}
+
+	c.writeSuccessResponse(w, "查询验证完成", validation)
+}
+
+// 辅助方法
+
+// writeSuccessResponse 写入成功响应
+func (c *MonitoringController) writeSuccessResponse(w http.ResponseWriter, message string, data interface{}) {
 	response := &APIResponse{
 		Status: 0,
-		Msg:    "性能报告生成成功",
+		Msg:    message,
+		Data:   data,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+// writeErrorResponse 写入错误响应
+func (c *MonitoringController) writeErrorResponse(w http.ResponseWriter, statusCode int, message string, err error) {
+	errorMsg := message
+	if err != nil {
+		errorMsg = fmt.Sprintf("%s: %v", message, err)
+	}
+
+	response := &APIResponse{
+		Status: -1,
+		Msg:    errorMsg,
 		Data:   nil,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
-}
-
-// GetServiceStatus 获取服务状态
-// @Summary 获取服务运行状态
-// @Description 获取各个服务组件的运行状态和依赖关系
-// @Tags 服务监控
-// @Accept json
-// @Produce json
-// @Success 200 {object} APIResponse{data=[]object}
-// @Failure 500 {object} APIResponse
-// @Router /api/monitoring/services/status [get]
-func (c *MonitoringController) GetServiceStatus(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现获取服务状态逻辑
-
-	response := &APIResponse{
-		Status: 0,
-		Msg:    "获取服务状态成功",
-		Data: []interface{}{
-			map[string]interface{}{
-				"service_name": "sync-engine",
-				"status":       "running",
-				"uptime":       "72h15m",
-				"version":      "v1.0.0",
-			},
-			map[string]interface{}{
-				"service_name": "quality-engine",
-				"status":       "running",
-				"uptime":       "72h15m",
-				"version":      "v1.0.0",
-			},
-			map[string]interface{}{
-				"service_name": "scheduler",
-				"status":       "running",
-				"uptime":       "72h15m",
-				"version":      "v1.0.0",
-			},
-		},
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = response
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(response)
 }

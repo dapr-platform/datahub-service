@@ -476,14 +476,19 @@ func (s *TemplateService) initQualityRuleTemplates() {
 			Category:    "basic_quality",
 			Description: "检查数据的时效性",
 			RuleLogic: map[string]interface{}{
-				"check_type": "age",
-				"time_unit":  "days",
-				"max_age":    30,
+				"check_type":   "age",
+				"time_unit":    "days",
+				"max_age_days": 30,
 			},
 			Parameters: map[string]interface{}{
 				"time_field": map[string]interface{}{
 					"type":        "string",
 					"description": "时间字段名",
+				},
+				"max_age_days": map[string]interface{}{
+					"type":        "number",
+					"default":     30,
+					"description": "最大天数",
 				},
 			},
 			DefaultConfig: map[string]interface{}{
@@ -505,19 +510,21 @@ func (s *TemplateService) initQualityRuleTemplates() {
 			Category:    "data_cleansing",
 			Description: "检查数据格式是否符合标准化要求",
 			RuleLogic: map[string]interface{}{
-				"format_type":   "string",
-				"case_standard": "lower",
-				"trim_spaces":   true,
+				"format_type":     "string",
+				"standard_format": "lowercase",
+				"trim_spaces":     true,
 			},
 			Parameters: map[string]interface{}{
-				"target_format": map[string]interface{}{
+				"standard_format": map[string]interface{}{
 					"type":        "string",
-					"description": "目标格式",
+					"description": "标准格式",
+					"enum":        []string{"uppercase", "lowercase", "title_case"},
+					"default":     "lowercase",
 				},
 			},
 			DefaultConfig: map[string]interface{}{
-				"case_standard": "lower",
-				"trim_spaces":   true,
+				"standard_format": "lowercase",
+				"trim_spaces":     true,
 			},
 			IsBuiltIn: true,
 			IsEnabled: true,
@@ -571,16 +578,25 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 			Description:     "对手机号进行掩码处理，保留前3位和后4位",
 			ApplicableTypes: pq.StringArray{"varchar", "char", "text"},
 			MaskingLogic: map[string]interface{}{
-				"mask_pattern":    "***-****-****",
-				"preserve_prefix": 3,
-				"preserve_suffix": 4,
-				"mask_char":       "*",
+				"keep_start": 3,
+				"keep_end":   4,
+				"mask_char":  "*",
 			},
 			Parameters: map[string]interface{}{
 				"mask_char": map[string]interface{}{
 					"type":        "string",
 					"default":     "*",
 					"description": "掩码字符",
+				},
+				"keep_start": map[string]interface{}{
+					"type":        "number",
+					"default":     3,
+					"description": "保留开头字符数",
+				},
+				"keep_end": map[string]interface{}{
+					"type":        "number",
+					"default":     4,
+					"description": "保留结尾字符数",
 				},
 			},
 			DefaultConfig: map[string]interface{}{
@@ -604,18 +620,17 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 			Description:     "将身份证号完全替换为固定字符串",
 			ApplicableTypes: pq.StringArray{"varchar", "char"},
 			MaskingLogic: map[string]interface{}{
-				"replacement_value": "***************",
-				"replacement_type":  "fixed",
+				"replacement": "***************",
 			},
 			Parameters: map[string]interface{}{
-				"replacement_value": map[string]interface{}{
+				"replacement": map[string]interface{}{
 					"type":        "string",
 					"default":     "***************",
 					"description": "替换值",
 				},
 			},
 			DefaultConfig: map[string]interface{}{
-				"replacement_value": "***************",
+				"replacement": "***************",
 			},
 			SecurityLevel: "high",
 			IsBuiltIn:     true,

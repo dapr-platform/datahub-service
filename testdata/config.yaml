@@ -1,0 +1,32 @@
+# DataHub Service 测试配置文件
+
+database:
+  driver: "sqlite"
+  dsn: ":memory:"
+  max_open_conns: 10
+  max_idle_conns: 5
+  conn_max_lifetime: 300s
+
+logging:
+  level: "error"
+  format: "json"
+  output: "stdout"
+
+test:
+  timeout: 30s
+  cleanup: true
+  parallel: true
+  race_detection: true
+
+coverage:
+  threshold: 80
+  exclude_patterns:
+    - "*.pb.go"
+    - "*_mock.go"
+    - "testutil/*"
+    - "testdata/*"
+
+performance:
+  benchmark_timeout: 60s
+  memory_profile: false
+  cpu_profile: false

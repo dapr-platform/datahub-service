@@ -959,15 +959,43 @@ func (re *RuleEngine) ApplyCleansingRulesWithTemplates(data map[string]interface
 
 // checkCompletenessWithConfig 检查完整性（带配置）
 func (re *RuleEngine) checkCompletenessWithConfig(fieldName string, fieldValue interface{}, config map[string]interface{}, threshold map[string]interface{}) (bool, string) {
+	// 检查是否启用null检查 (默认启用)
+	checkNull := true
+	if val, exists := config["check_null"]; exists {
+		if b, ok := val.(bool); ok {
+			checkNull = b
+		}
+	}
+
 	// 检查字段是否为空或nil
-	if fieldValue == nil {
+	if checkNull && fieldValue == nil {
 		return false, fmt.Sprintf("字段 %s 完整性检查失败: 字段为空值", fieldName)
+	}
+
+	// 检查是否启用空字符串检查 (默认启用)
+	checkEmptyString := true
+	if val, exists := config["check_empty_string"]; exists {
+		if b, ok := val.(bool); ok {
+			checkEmptyString = b
+		}
+	}
+
+	// 检查是否启用空白字符检查 (默认启用)
+	checkWhitespaceOnly := true
+	if val, exists := config["check_whitespace_only"]; exists {
+		if b, ok := val.(bool); ok {
+			checkWhitespaceOnly = b
+		}
 	}
 
 	// 检查字符串是否为空
 	if str, ok := fieldValue.(string); ok {
-		if strings.TrimSpace(str) == "" {
+		if checkEmptyString && str == "" {
 			return false, fmt.Sprintf("字段 %s 完整性检查失败: 字段为空字符串", fieldName)
+		}
+
+		if checkWhitespaceOnly && strings.TrimSpace(str) == "" {
+			return false, fmt.Sprintf("字段 %s 完整性检查失败: 字段仅包含空白字符", fieldName)
 		}
 
 		// 检查最小长度要求
@@ -977,6 +1005,24 @@ func (re *RuleEngine) checkCompletenessWithConfig(fieldName string, fieldValue i
 					return false, fmt.Sprintf("字段 %s 完整性检查失败: 长度不足，要求至少 %d 个字符", fieldName, int(minLen))
 				}
 			}
+		}
+	}
+
+	// 检查是否允许数值0
+	allowZero := true
+	if val, exists := config["allow_zero"]; exists {
+		if b, ok := val.(bool); ok {
+			allowZero = b
+		}
+	}
+
+	if !allowZero {
+		// 检查数值类型
+		if num, ok := fieldValue.(float64); ok && num == 0 {
+			return false, fmt.Sprintf("字段 %s 完整性检查失败: 不允许数值0", fieldName)
+		}
+		if num, ok := fieldValue.(int); ok && num == 0 {
+			return false, fmt.Sprintf("字段 %s 完整性检查失败: 不允许数值0", fieldName)
 		}
 	}
 

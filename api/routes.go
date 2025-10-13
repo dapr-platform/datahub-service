@@ -397,46 +397,25 @@ func InitRoute(r *chi.Mux) {
 		})
 	})
 
-	// 监控管理
+	// 监控管理（简化版 - 仅基于 VictoriaMetrics 和 Loki）
 	r.Route("/monitoring", func(r chi.Router) {
 		monitoringController := controllers.NewMonitoringController()
 
-		// 监控指标
-		r.Route("/metrics", func(r chi.Router) {
-			r.Get("/system", monitoringController.GetSystemMetrics)
-			r.Get("/performance", monitoringController.GetPerformanceMetrics)
-		})
+		// 通用查询接口
+		r.Post("/query", monitoringController.ExecuteCustomQuery)
+		r.Post("/query/metrics", monitoringController.QueryMetrics)
+		r.Post("/query/logs", monitoringController.QueryLogs)
+		r.Post("/query/validate", monitoringController.ValidateQuery)
 
-		// 告警管理
-		r.Route("/alerts", func(r chi.Router) {
-			r.Get("/", monitoringController.GetAlerts)
-			r.Get("/{id}", monitoringController.GetAlert)
-			r.Post("/{id}/acknowledge", monitoringController.AcknowledgeAlert)
-			r.Post("/{id}/resolve", monitoringController.ResolveAlert)
-		})
+		// 查询模板
+		r.Get("/templates/metrics", monitoringController.GetMetricTemplates)
+		r.Get("/templates/logs", monitoringController.GetLogTemplates)
 
-		// 告警规则
-		r.Route("/alert-rules", func(r chi.Router) {
-			r.Post("/", monitoringController.CreateAlertRule)
-			r.Get("/", monitoringController.GetAlertRules)
-			r.Put("/{id}", monitoringController.UpdateAlertRule)
-			r.Delete("/{id}", monitoringController.DeleteAlertRule)
-		})
+		// Loki 标签值查询
+		r.Get("/loki/labels/{label}/values", monitoringController.GetLokiLabels)
 
-		// 健康检查
-		r.Route("/health", func(r chi.Router) {
-			r.Get("/", monitoringController.GetHealthStatus)
-			r.Get("/checks", monitoringController.GetHealthChecks)
-		})
-
-		// 服务状态
-		r.Get("/services", monitoringController.GetServiceStatus)
-
-		// 监控仪表板
-		r.Get("/dashboard", monitoringController.GetMonitoringDashboard)
-
-		// 性能报告
-		r.Get("/performance-report", monitoringController.GeneratePerformanceReport)
+		// 监控配置
+		r.Get("/config", monitoringController.GetMonitoringConfig)
 	})
 
 	// 主题同步管理

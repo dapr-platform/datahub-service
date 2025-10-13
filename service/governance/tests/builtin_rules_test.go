@@ -164,19 +164,23 @@ func createBuiltinQualityTemplates() map[string]*models.QualityRuleTemplate {
 		Category:    "basic_quality",
 		Description: "检查数据的时效性",
 		RuleLogic: map[string]interface{}{
-			"check_type":    "freshness",
-			"max_age_hours": 24,
-			"date_field":    "updated_at",
+			"check_type":   "age",
+			"time_unit":    "days",
+			"max_age_days": 30,
 		},
 		Parameters: map[string]interface{}{
-			"max_age_hours": map[string]interface{}{
+			"time_field": map[string]interface{}{
+				"type":        "string",
+				"description": "时间字段名",
+			},
+			"max_age_days": map[string]interface{}{
 				"type":        "number",
-				"default":     24,
-				"description": "最大允许的数据年龄（小时）",
+				"default":     30,
+				"description": "最大天数",
 			},
 		},
 		DefaultConfig: map[string]interface{}{
-			"max_age_hours": 24,
+			"max_age_days": 30,
 		},
 		IsBuiltIn: true,
 		IsEnabled: true,
@@ -191,18 +195,21 @@ func createBuiltinQualityTemplates() map[string]*models.QualityRuleTemplate {
 		Category:    "data_cleansing",
 		Description: "检查数据是否符合标准化格式",
 		RuleLogic: map[string]interface{}{
-			"check_type":      "format",
-			"standard_format": "uppercase",
+			"format_type":     "string",
+			"standard_format": "lowercase",
+			"trim_spaces":     true,
 		},
 		Parameters: map[string]interface{}{
-			"format_type": map[string]interface{}{
+			"standard_format": map[string]interface{}{
 				"type":        "string",
-				"default":     "uppercase",
-				"description": "标准化格式类型",
+				"description": "标准格式",
+				"enum":        []string{"uppercase", "lowercase", "title_case"},
+				"default":     "lowercase",
 			},
 		},
 		DefaultConfig: map[string]interface{}{
-			"format_type": "uppercase",
+			"standard_format": "lowercase",
+			"trim_spaces":     true,
 		},
 		IsBuiltIn: true,
 		IsEnabled: true,
@@ -848,7 +855,7 @@ func TestAllBuiltinQualityRuleTypes(t *testing.T) {
 		{
 			name:       "标准化检查-通过",
 			templateID: "standardization_template_001",
-			data:       map[string]interface{}{"code": "ABC123"},
+			data:       map[string]interface{}{"code": "abc123"},
 			field:      "code",
 			expectPass: true,
 		},

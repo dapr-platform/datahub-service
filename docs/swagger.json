@@ -8,984 +8,6 @@
     },
     "basePath": "/swagger/datahub-service",
     "paths": {
-        "/api/monitoring/alerts": {
-            "get": {
-                "description": "分页获取告警记录，支持按严重级别、状态等条件筛选",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "告警管理"
-                ],
-                "summary": "获取告警记录列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页大小",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "info",
-                            "warning",
-                            "error",
-                            "critical"
-                        ],
-                        "type": "string",
-                        "description": "严重级别",
-                        "name": "severity",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "active",
-                            "resolved",
-                            "suppressed"
-                        ],
-                        "type": "string",
-                        "description": "告警状态",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "开始时间",
-                        "name": "start_time",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "结束时间",
-                        "name": "end_time",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.Alert"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/alerts/rules": {
-            "get": {
-                "description": "分页获取告警规则列表，支持按状态、类型等条件筛选",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "告警管理"
-                ],
-                "summary": "获取告警规则列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页大小",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "threshold",
-                            "anomaly",
-                            "custom"
-                        ],
-                        "type": "string",
-                        "description": "规则类型",
-                        "name": "rule_type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "是否启用",
-                        "name": "is_enabled",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.AlertRule"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "创建新的监控告警规则",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "告警管理"
-                ],
-                "summary": "创建告警规则",
-                "parameters": [
-                    {
-                        "description": "告警规则信息",
-                        "name": "rule",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.AlertRule"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.AlertRule"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/alerts/rules/{id}": {
-            "put": {
-                "description": "更新指定的告警规则信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "告警管理"
-                ],
-                "summary": "更新告警规则",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "告警规则信息",
-                        "name": "rule",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.AlertRule"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.AlertRule"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "删除指定的告警规则（软删除）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "告警管理"
-                ],
-                "summary": "删除告警规则",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "规则ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/alerts/{id}": {
-            "get": {
-                "description": "获取指定告警ID的详细信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "告警管理"
-                ],
-                "summary": "获取告警详情",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "告警ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.Alert"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/alerts/{id}/acknowledge": {
-            "post": {
-                "description": "确认告警并记录处理信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "告警管理"
-                ],
-                "summary": "确认告警",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "告警ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "确认信息",
-                        "name": "acknowledgment",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/alerts/{id}/resolve": {
-            "post": {
-                "description": "标记告警为已解决",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "告警管理"
-                ],
-                "summary": "解决告警",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "告警ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "解决方案信息",
-                        "name": "resolution",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/dashboard": {
-            "get": {
-                "description": "获取监控仪表板的综合数据，包括关键指标和图表数据",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "监控仪表板"
-                ],
-                "summary": "获取监控仪表板数据",
-                "parameters": [
-                    {
-                        "enum": [
-                            "1h",
-                            "6h",
-                            "24h",
-                            "7d",
-                            "30d"
-                        ],
-                        "type": "string",
-                        "default": "24h",
-                        "description": "时间范围",
-                        "name": "time_range",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/health": {
-            "get": {
-                "description": "获取系统整体健康状态和各组件状态",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "健康检查"
-                ],
-                "summary": "获取系统健康状态",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.HealthCheck"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/health/checks": {
-            "get": {
-                "description": "分页获取健康检查历史记录",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "健康检查"
-                ],
-                "summary": "获取健康检查记录列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页大小",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "组件名称",
-                        "name": "component",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "healthy",
-                            "warning",
-                            "error"
-                        ],
-                        "type": "string",
-                        "description": "状态筛选",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "开始时间",
-                        "name": "start_time",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "结束时间",
-                        "name": "end_time",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.HealthCheck"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/performance/metrics": {
-            "get": {
-                "description": "获取应用程序性能指标，包括响应时间、吞吐量等",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "性能监控"
-                ],
-                "summary": "获取性能监控指标",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "开始时间",
-                        "name": "start_time",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "结束时间",
-                        "name": "end_time",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "服务名称",
-                        "name": "service_name",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.PerformanceSnapshot"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/reports/performance": {
-            "post": {
-                "description": "生成指定时间范围的系统性能分析报告",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "性能报告"
-                ],
-                "summary": "生成性能分析报告",
-                "parameters": [
-                    {
-                        "enum": [
-                            "hourly",
-                            "daily",
-                            "weekly",
-                            "monthly"
-                        ],
-                        "type": "string",
-                        "description": "报告类型",
-                        "name": "report_type",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "date",
-                        "description": "开始日期",
-                        "name": "start_date",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "date",
-                        "description": "结束日期",
-                        "name": "end_date",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/services/status": {
-            "get": {
-                "description": "获取各个服务组件的运行状态和依赖关系",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务监控"
-                ],
-                "summary": "获取服务运行状态",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/monitoring/system/metrics": {
-            "get": {
-                "description": "获取系统性能指标，包括CPU、内存、磁盘等使用情况",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "系统监控"
-                ],
-                "summary": "获取系统监控指标",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "开始时间",
-                        "name": "start_time",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "datetime",
-                        "description": "结束时间",
-                        "name": "end_time",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "cpu",
-                            "memory",
-                            "disk",
-                            "network"
-                        ],
-                        "type": "string",
-                        "description": "指标类型",
-                        "name": "metric_type",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/controllers.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/models.SystemMetrics"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/share/": {
             "get": {
                 "description": "根据API Key获取该Key所属的API应用详细信息以及该应用下的所有接口信息，包括主题接口的字段定义",
@@ -5894,6 +4916,414 @@
                                         "data": {
                                             "type": "object",
                                             "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/monitoring/config": {
+            "get": {
+                "description": "获取VictoriaMetrics和Loki的连接配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "监控配置"
+                ],
+                "summary": "获取监控配置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/monitoring/loki/labels/{label}/values": {
+            "get": {
+                "description": "获取指定标签的所有可能值",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "监控查询"
+                ],
+                "summary": "获取日志标签值",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "标签名称",
+                        "name": "label",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/monitoring/query": {
+            "post": {
+                "description": "根据查询类型自动选择 Metrics 或 Logs 查询",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "监控查询"
+                ],
+                "summary": "执行自定义查询",
+                "parameters": [
+                    {
+                        "description": "查询请求",
+                        "name": "query",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/meta.MonitorQueryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/monitoring/query/logs": {
+            "post": {
+                "description": "执行自定义的 LogQL 查询",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "监控查询"
+                ],
+                "summary": "通用日志查询",
+                "parameters": [
+                    {
+                        "description": "查询请求",
+                        "name": "query",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/meta.MonitorQueryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/monitoring/query/metrics": {
+            "post": {
+                "description": "执行自定义的 PromQL 查询，支持即时查询和区间查询",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "监控查询"
+                ],
+                "summary": "通用指标查询",
+                "parameters": [
+                    {
+                        "description": "查询请求",
+                        "name": "query",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/meta.MonitorQueryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/monitoring/query/validate": {
+            "post": {
+                "description": "验证 PromQL 或 LogQL 查询语法是否正确",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "监控查询"
+                ],
+                "summary": "验证查询语法",
+                "parameters": [
+                    {
+                        "description": "查询请求",
+                        "name": "query",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/meta.MonitorQueryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/monitoring/templates/logs": {
+            "get": {
+                "description": "获取常用的日志查询模板列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "监控模板"
+                ],
+                "summary": "获取日志查询模板",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/monitoring/templates/metrics": {
+            "get": {
+                "description": "获取常用的指标查询模板列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "监控模板"
+                ],
+                "summary": "获取指标查询模板",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "string"
+                                            }
                                         }
                                     }
                                 }
@@ -13890,6 +13320,35 @@
                 }
             }
         },
+        "meta.MonitorQueryRequest": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "description": "Unix 时间戳（秒），可选",
+                    "type": "integer"
+                },
+                "limit": {
+                    "description": "限制结果数量，主要用于日志查询",
+                    "type": "integer"
+                },
+                "query": {
+                    "description": "PromQL 或 LogQL 查询语句",
+                    "type": "string"
+                },
+                "query_type": {
+                    "description": "metrics 或 logs",
+                    "type": "string"
+                },
+                "start_time": {
+                    "description": "Unix 时间戳（秒），可选",
+                    "type": "integer"
+                },
+                "step": {
+                    "description": "步长（秒），仅用于区间查询",
+                    "type": "integer"
+                }
+            }
+        },
         "meta.QualityCheckStatus": {
             "type": "object",
             "properties": {
@@ -14221,290 +13680,6 @@
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.Alert": {
-            "type": "object",
-            "properties": {
-                "annotations": {
-                    "description": "注解",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "condition": {
-                    "description": "触发条件",
-                    "type": "string"
-                },
-                "description": {
-                    "description": "告警描述",
-                    "type": "string"
-                },
-                "ends_at": {
-                    "description": "结束时间",
-                    "type": "string"
-                },
-                "evaluation_info": {
-                    "description": "评估信息",
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "id": {
-                    "type": "string"
-                },
-                "labels": {
-                    "description": "标签",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "last_evaluated": {
-                    "description": "最后评估时间",
-                    "type": "string"
-                },
-                "metric_name": {
-                    "description": "指标名称",
-                    "type": "string"
-                },
-                "notifications_sent": {
-                    "description": "已发送通知数",
-                    "type": "integer"
-                },
-                "rule_name": {
-                    "description": "告警规则名称",
-                    "type": "string"
-                },
-                "severity": {
-                    "description": "info, warning, error, critical",
-                    "type": "string"
-                },
-                "starts_at": {
-                    "description": "开始时间",
-                    "type": "string"
-                },
-                "status": {
-                    "description": "firing, resolved",
-                    "type": "string"
-                },
-                "threshold": {
-                    "description": "阈值",
-                    "type": "number"
-                },
-                "value": {
-                    "description": "触发值",
-                    "type": "number"
-                }
-            }
-        },
-        "models.AlertInstance": {
-            "type": "object",
-            "properties": {
-                "alert_rule": {
-                    "description": "关联关系",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.AlertRule"
-                        }
-                    ]
-                },
-                "annotations": {
-                    "description": "注解",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "ends_at": {
-                    "description": "告警结束时间",
-                    "type": "string"
-                },
-                "fingerprint": {
-                    "description": "指纹（用于去重）",
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "labels": {
-                    "description": "标签",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "notifications": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.AlertNotification"
-                    }
-                },
-                "rule_id": {
-                    "description": "告警规则ID",
-                    "type": "string"
-                },
-                "starts_at": {
-                    "description": "告警开始时间",
-                    "type": "string"
-                },
-                "status": {
-                    "description": "状态：firing, resolved, suppressed",
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "value": {
-                    "description": "触发值",
-                    "type": "number"
-                }
-            }
-        },
-        "models.AlertNotification": {
-            "type": "object",
-            "properties": {
-                "alert_instance": {
-                    "description": "关联关系",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.AlertInstance"
-                        }
-                    ]
-                },
-                "alert_instance_id": {
-                    "description": "告警实例ID",
-                    "type": "string"
-                },
-                "channel": {
-                    "description": "通知渠道：email, sms, webhook, slack, dingtalk",
-                    "type": "string"
-                },
-                "content": {
-                    "description": "内容",
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "error_message": {
-                    "description": "错误信息",
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "recipient": {
-                    "description": "接收者",
-                    "type": "string"
-                },
-                "retry_count": {
-                    "description": "重试次数",
-                    "type": "integer"
-                },
-                "sent_at": {
-                    "description": "发送时间",
-                    "type": "string"
-                },
-                "status": {
-                    "description": "状态：pending, sent, failed, retrying",
-                    "type": "string"
-                },
-                "subject": {
-                    "description": "主题",
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.AlertRule": {
-            "type": "object",
-            "properties": {
-                "alert_instances": {
-                    "description": "关联关系",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.AlertInstance"
-                    }
-                },
-                "condition": {
-                    "description": "告警条件",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "description": {
-                    "description": "规则描述",
-                    "type": "string"
-                },
-                "evaluation_window": {
-                    "description": "评估窗口（秒）",
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_enabled": {
-                    "description": "是否启用",
-                    "type": "boolean"
-                },
-                "last_triggered": {
-                    "description": "最后触发时间",
-                    "type": "string"
-                },
-                "metric_name": {
-                    "description": "监控指标名称",
-                    "type": "string"
-                },
-                "name": {
-                    "description": "规则名称",
-                    "type": "string"
-                },
-                "notification_channels": {
-                    "description": "通知渠道",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "operator": {
-                    "description": "操作符：\u003e, \u003c, \u003e=, \u003c=, ==, !=",
-                    "type": "string"
-                },
-                "severity": {
-                    "description": "严重级别：info, warning, error, critical",
-                    "type": "string"
-                },
-                "threshold": {
-                    "description": "阈值",
-                    "type": "number"
-                },
-                "trigger_count": {
-                    "description": "触发次数",
-                    "type": "integer"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
                     "type": "string"
                 }
             }
@@ -15158,139 +14333,6 @@
                 }
             }
         },
-        "models.HealthCheck": {
-            "type": "object",
-            "properties": {
-                "config": {
-                    "description": "检查配置",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "failure_count": {
-                    "description": "连续失败次数",
-                    "type": "integer"
-                },
-                "health_check_results": {
-                    "description": "关联关系",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.HealthCheckResult"
-                    }
-                },
-                "id": {
-                    "type": "string"
-                },
-                "interval": {
-                    "description": "检查间隔（秒）",
-                    "type": "integer"
-                },
-                "is_enabled": {
-                    "description": "是否启用",
-                    "type": "boolean"
-                },
-                "last_check_time": {
-                    "description": "最后检查时间",
-                    "type": "string"
-                },
-                "last_status": {
-                    "description": "最后状态：healthy, unhealthy, unknown",
-                    "type": "string"
-                },
-                "name": {
-                    "description": "检查名称",
-                    "type": "string"
-                },
-                "target": {
-                    "description": "检查目标",
-                    "type": "string"
-                },
-                "timeout": {
-                    "description": "超时时间（秒）",
-                    "type": "integer"
-                },
-                "type": {
-                    "description": "检查类型：http, tcp, database, service",
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.HealthCheckResult": {
-            "type": "object",
-            "properties": {
-                "checked_at": {
-                    "description": "检查时间",
-                    "type": "string"
-                },
-                "checker_name": {
-                    "description": "检查器名称",
-                    "type": "string"
-                },
-                "consecutive_failures": {
-                    "description": "连续失败次数",
-                    "type": "integer"
-                },
-                "consecutive_successes": {
-                    "description": "连续成功次数",
-                    "type": "integer"
-                },
-                "details": {
-                    "description": "详细信息",
-                    "type": "string"
-                },
-                "error": {
-                    "description": "错误信息",
-                    "type": "string"
-                },
-                "last_failure": {
-                    "description": "最后失败时间",
-                    "type": "string"
-                },
-                "last_success": {
-                    "description": "最后成功时间",
-                    "type": "string"
-                },
-                "message": {
-                    "description": "状态消息",
-                    "type": "string"
-                },
-                "metadata": {
-                    "description": "元数据",
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "response_time": {
-                    "description": "响应时间",
-                    "type": "integer"
-                },
-                "status": {
-                    "description": "状态: healthy, unhealthy, unknown",
-                    "type": "string"
-                },
-                "status_code": {
-                    "description": "状态码",
-                    "type": "integer"
-                },
-                "target": {
-                    "description": "检查目标",
-                    "type": "string"
-                }
-            }
-        },
         "models.InterfaceField": {
             "type": "object",
             "properties": {
@@ -15351,77 +14393,6 @@
         "models.JSONB": {
             "type": "object",
             "additionalProperties": true
-        },
-        "models.PerformanceSnapshot": {
-            "type": "object",
-            "properties": {
-                "alerts_summary": {
-                    "description": "告警摘要",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "end_time": {
-                    "description": "结束时间",
-                    "type": "string"
-                },
-                "health_summary": {
-                    "description": "健康状况摘要",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "id": {
-                    "type": "string"
-                },
-                "metrics_summary": {
-                    "description": "指标摘要",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "recommendations": {
-                    "description": "建议",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "snapshot_type": {
-                    "description": "快照类型：hourly, daily, weekly",
-                    "type": "string"
-                },
-                "start_time": {
-                    "description": "开始时间",
-                    "type": "string"
-                },
-                "top_issues": {
-                    "description": "主要问题",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                },
-                "trend_data": {
-                    "description": "趋势数据",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/models.JSONB"
-                        }
-                    ]
-                }
-            }
         },
         "models.QualityRuleConfig": {
             "type": "object",
@@ -15949,77 +14920,6 @@
                     "example": 0
                 },
                 "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.SystemMetrics": {
-            "type": "object",
-            "properties": {
-                "active_sessions": {
-                    "description": "活跃会话数",
-                    "type": "integer"
-                },
-                "connection_count": {
-                    "description": "连接数",
-                    "type": "integer"
-                },
-                "cpu_usage": {
-                    "description": "CPU使用率",
-                    "type": "number"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "database_connections": {
-                    "description": "数据库连接数",
-                    "type": "integer"
-                },
-                "disk_usage": {
-                    "description": "磁盘使用率",
-                    "type": "number"
-                },
-                "error_rate": {
-                    "description": "错误率",
-                    "type": "number"
-                },
-                "host_name": {
-                    "description": "主机名",
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "load_average": {
-                    "description": "负载平均值",
-                    "type": "number"
-                },
-                "memory_usage": {
-                    "description": "内存使用率",
-                    "type": "number"
-                },
-                "network_in": {
-                    "description": "网络入流量（字节）",
-                    "type": "integer"
-                },
-                "network_out": {
-                    "description": "网络出流量（字节）",
-                    "type": "integer"
-                },
-                "process_count": {
-                    "description": "进程数",
-                    "type": "integer"
-                },
-                "queue_length": {
-                    "description": "队列长度",
-                    "type": "integer"
-                },
-                "response_time": {
-                    "description": "平均响应时间",
-                    "type": "number"
-                },
-                "timestamp": {
-                    "description": "时间戳",
                     "type": "string"
                 }
             }
