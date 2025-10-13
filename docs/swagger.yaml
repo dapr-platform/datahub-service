@@ -7821,6 +7821,28 @@ paths:
       summary: 获取监控配置
       tags:
       - 监控配置
+  /monitoring/logs/descriptions:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有日志查询模板的中文描述信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+      summary: 获取日志模板描述
+      tags:
+      - 监控模板
   /monitoring/loki/labels/{label}/values:
     get:
       consumes:
@@ -7857,6 +7879,28 @@ paths:
       summary: 获取日志标签值
       tags:
       - 监控查询
+  /monitoring/metrics/descriptions:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有指标的中文描述信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+      summary: 获取指标描述
+      tags:
+      - 监控模板
   /monitoring/query:
     post:
       consumes:

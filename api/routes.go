@@ -411,6 +411,10 @@ func InitRoute(r *chi.Mux) {
 		r.Get("/templates/metrics", monitoringController.GetMetricTemplates)
 		r.Get("/templates/logs", monitoringController.GetLogTemplates)
 
+		// 指标和日志描述
+		r.Get("/metrics/descriptions", monitoringController.GetMetricDescriptions)
+		r.Get("/logs/descriptions", monitoringController.GetLogTemplateDescriptions)
+
 		// Loki 标签值查询
 		r.Get("/loki/labels/{label}/values", monitoringController.GetLokiLabels)
 

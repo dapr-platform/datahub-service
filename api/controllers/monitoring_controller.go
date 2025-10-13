@@ -117,19 +117,13 @@ func (c *MonitoringController) QueryLogs(w http.ResponseWriter, r *http.Request)
 		limit = 1000
 	}
 
-	// 判断是即时查询还是流查询
-	if req.StartTime > 0 || req.EndTime > 0 {
-		// 使用流查询（区间查询）
-		preHours := 1 // 默认1小时
-		if req.StartTime > 0 && req.EndTime > 0 {
-			duration := req.EndTime - req.StartTime
-			preHours = int(duration / 3600)
-			if preHours <= 0 {
-				preHours = 1
-			}
-		}
+	// 判断是即时查询还是区间查询
+	if req.StartTime > 0 && req.EndTime > 0 {
+		// 区间查询 - 使用指定的时间范围
+		start := time.Unix(req.StartTime, 0)
+		end := time.Unix(req.EndTime, 0)
 
-		result, err := monitor_client.LokiStreamQuery(ctx, req.Query, limit, preHours)
+		result, err := monitor_client.LokiRangeQuery(ctx, req.Query, limit, start, end)
 		if err != nil {
 			c.writeErrorResponse(w, http.StatusInternalServerError, "查询日志失败", err)
 			return
@@ -172,6 +166,30 @@ func (c *MonitoringController) GetMetricTemplates(w http.ResponseWriter, r *http
 // @Router /monitoring/templates/logs [get]
 func (c *MonitoringController) GetLogTemplates(w http.ResponseWriter, r *http.Request) {
 	c.writeSuccessResponse(w, "获取日志模板成功", meta.CommonLogTemplates)
+}
+
+// GetMetricDescriptions 获取指标描述信息
+// @Summary 获取指标描述
+// @Description 获取所有指标的中文描述信息
+// @Tags 监控模板
+// @Accept json
+// @Produce json
+// @Success 200 {object} APIResponse{data=map[string]string}
+// @Router /monitoring/metrics/descriptions [get]
+func (c *MonitoringController) GetMetricDescriptions(w http.ResponseWriter, r *http.Request) {
+	c.writeSuccessResponse(w, "获取指标描述成功", meta.MetricDescriptions)
+}
+
+// GetLogTemplateDescriptions 获取日志模板描述信息
+// @Summary 获取日志模板描述
+// @Description 获取所有日志查询模板的中文描述信息
+// @Tags 监控模板
+// @Accept json
+// @Produce json
+// @Success 200 {object} APIResponse{data=map[string]string}
+// @Router /monitoring/logs/descriptions [get]
+func (c *MonitoringController) GetLogTemplateDescriptions(w http.ResponseWriter, r *http.Request) {
+	c.writeSuccessResponse(w, "获取日志模板描述成功", meta.LogTemplateDescriptions)
 }
 
 // GetLokiLabels 获取 Loki 标签值
@@ -225,12 +243,66 @@ func (c *MonitoringController) ExecuteCustomQuery(w http.ResponseWriter, r *http
 		return
 	}
 
-	// 根据查询类型分发到对应的处理方法
+	if req.Query == "" {
+		c.writeErrorResponse(w, http.StatusBadRequest, "查询语句不能为空", nil)
+		return
+	}
+
+	ctx := r.Context()
+
+	// 根据查询类型执行对应的查询
 	switch req.QueryType {
 	case "metrics":
-		c.QueryMetrics(w, r)
+		// 判断是即时查询还是区间查询
+		if req.StartTime > 0 && req.EndTime > 0 {
+			start := time.Unix(req.StartTime, 0)
+			end := time.Unix(req.EndTime, 0)
+			step := time.Duration(req.Step) * time.Second
+			if step == 0 {
+				step = 15 * time.Second
+			}
+			result, err := monitor_client.QueryRange(ctx, req.Query, start, end, step)
+			if err != nil {
+				c.writeErrorResponse(w, http.StatusInternalServerError, "查询指标失败", err)
+				return
+			}
+			c.writeSuccessResponse(w, "查询指标成功", result)
+		} else {
+			queryTime := time.Now()
+			if req.EndTime > 0 {
+				queryTime = time.Unix(req.EndTime, 0)
+			}
+			result, err := monitor_client.Query(ctx, req.Query, queryTime)
+			if err != nil {
+				c.writeErrorResponse(w, http.StatusInternalServerError, "查询指标失败", err)
+				return
+			}
+			c.writeSuccessResponse(w, "查询指标成功", result)
+		}
 	case "logs":
-		c.QueryLogs(w, r)
+		limit := req.Limit
+		if limit <= 0 {
+			limit = 1000
+		}
+		if req.StartTime > 0 && req.EndTime > 0 {
+			// 区间查询 - 使用指定的时间范围
+			start := time.Unix(req.StartTime, 0)
+			end := time.Unix(req.EndTime, 0)
+			result, err := monitor_client.LokiRangeQuery(ctx, req.Query, limit, start, end)
+			if err != nil {
+				c.writeErrorResponse(w, http.StatusInternalServerError, "查询日志失败", err)
+				return
+			}
+			c.writeSuccessResponse(w, "查询日志成功", result)
+		} else {
+			// 即时查询
+			result, err := monitor_client.LokiQuery(ctx, req.Query, limit)
+			if err != nil {
+				c.writeErrorResponse(w, http.StatusInternalServerError, "查询日志失败", err)
+				return
+			}
+			c.writeSuccessResponse(w, "查询日志成功", result)
+		}
 	default:
 		c.writeErrorResponse(w, http.StatusBadRequest, "不支持的查询类型: "+req.QueryType, nil)
 	}

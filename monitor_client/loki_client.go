@@ -108,6 +108,56 @@ func LokiStreamQuery(ctx context.Context, query string, limit int, preHours int)
 	}
 	defer resp.Body.Close()
 
+	// 先读取响应体用于调试
+	var lokiResp LokiQueryResultResp
+	if err = json.NewDecoder(resp.Body).Decode(&lokiResp); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	if lokiResp.Status != "success" {
+		return nil, fmt.Errorf("查询失败: %s", lokiResp.Status)
+	}
+
+	return &lokiResp.Data, nil
+}
+
+// LokiRangeQuery 执行 Loki 区间查询（支持指定时间范围）
+func LokiRangeQuery(ctx context.Context, query string, limit int, start, end time.Time) (result *LokiQueryResult, err error) {
+	if query == "" {
+		return nil, errors.New("query cannot be empty")
+	}
+
+	if limit <= 0 {
+		limit = 1000 // 默认限制1000条
+	}
+
+	values := url.Values{}
+	values.Add("query", query)
+	values.Add("limit", cast.ToString(limit))
+	values.Add("start", cast.ToString(start.UnixNano()))
+	values.Add("end", cast.ToString(end.UnixNano()))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, LokiUrl+"/loki/api/v1/query_range", nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建HTTP请求失败: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.URL.RawQuery = values.Encode()
+
+	resp, err := lokiClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("发送HTTP请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查HTTP状态码
+	if resp.StatusCode != http.StatusOK {
+		// 读取错误消息
+		bodyBytes := make([]byte, 500)
+		n, _ := resp.Body.Read(bodyBytes)
+		return nil, fmt.Errorf("HTTP请求失败: 状态码=%d, 响应=%s", resp.StatusCode, string(bodyBytes[:n]))
+	}
+
 	var lokiResp LokiQueryResultResp
 	if err = json.NewDecoder(resp.Body).Decode(&lokiResp); err != nil {
 		return nil, fmt.Errorf("解析响应失败: %w", err)
