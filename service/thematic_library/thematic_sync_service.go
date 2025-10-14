@@ -18,9 +18,11 @@ import (
 	"datahub-service/service/thematic_library/thematic_sync"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
 
@@ -76,6 +78,17 @@ type ThematicSyncService struct {
 	syncEngine                   *thematic_sync.ThematicSyncEngine
 	governanceService            *governance.GovernanceService
 	governanceIntegrationService *GovernanceIntegrationService
+	// 调度器相关字段
+	cron             *cron.Cron
+	intervalTicker   *time.Ticker
+	ctx              context.Context
+	cancel           context.CancelFunc
+	schedulerStarted bool
+	// 分布式锁
+	distributedLock interface {
+		TryLock(ctx context.Context, key string, ttl time.Duration) (bool, error)
+		Unlock(ctx context.Context, key string) error
+	}
 }
 
 // NewThematicSyncService 创建主题同步服务 - 简化版本
@@ -87,11 +100,21 @@ func NewThematicSyncService(db *gorm.DB,
 	governanceAdapter := &GovernanceIntegrationAdapter{service: governanceIntegrationService}
 	syncEngine := thematic_sync.NewThematicSyncEngine(db, governanceAdapter)
 
+	// 创建上下文
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// 创建带秒级的cron调度器
+	c := cron.New(cron.WithSeconds())
+
 	return &ThematicSyncService{
 		db:                           db,
 		syncEngine:                   syncEngine,
 		governanceService:            governanceService,
 		governanceIntegrationService: governanceIntegrationService,
+		cron:                         c,
+		ctx:                          ctx,
+		cancel:                       cancel,
+		schedulerStarted:             false,
 	}
 }
 
@@ -866,4 +889,260 @@ func getIntFromMap(m map[string]interface{}, key string) int {
 		}
 	}
 	return 0
+}
+
+// ======================== 调度器功能实现 ========================
+
+// SetDistributedLock 设置分布式锁
+func (tss *ThematicSyncService) SetDistributedLock(lock interface {
+	TryLock(ctx context.Context, key string, ttl time.Duration) (bool, error)
+	Unlock(ctx context.Context, key string) error
+}) {
+	tss.distributedLock = lock
+	if lock != nil {
+		log.Println("主题同步任务服务已启用分布式锁")
+	}
+}
+
+// StartScheduler 启动主题同步任务调度器
+func (tss *ThematicSyncService) StartScheduler() error {
+	if tss.schedulerStarted {
+		return fmt.Errorf("调度器已经启动")
+	}
+
+	log.Println("启动主题库同步任务调度器")
+
+	// 启动cron调度器
+	tss.cron.Start()
+
+	// 启动间隔任务检查器（每分钟检查一次）
+	tss.intervalTicker = time.NewTicker(1 * time.Minute)
+	go tss.runIntervalChecker()
+
+	// 加载现有的调度任务
+	if err := tss.loadScheduledTasks(); err != nil {
+		log.Printf("加载主题调度任务失败: %v", err)
+		return err
+	}
+
+	tss.schedulerStarted = true
+	log.Println("主题库同步任务调度器启动完成")
+	return nil
+}
+
+// StopScheduler 停止调度器
+func (tss *ThematicSyncService) StopScheduler() {
+	if !tss.schedulerStarted {
+		return
+	}
+
+	log.Println("停止主题库同步任务调度器")
+
+	tss.cancel()
+
+	if tss.cron != nil {
+		tss.cron.Stop()
+	}
+
+	if tss.intervalTicker != nil {
+		tss.intervalTicker.Stop()
+	}
+
+	tss.schedulerStarted = false
+	log.Println("主题库同步任务调度器已停止")
+}
+
+// loadScheduledTasks 加载调度任务
+func (tss *ThematicSyncService) loadScheduledTasks() error {
+	// 获取所有待执行的调度任务
+	tasks, err := tss.getScheduledTasks(tss.ctx)
+	if err != nil {
+		return fmt.Errorf("获取调度任务失败: %w", err)
+	}
+
+	for _, task := range tasks {
+		if err := tss.addTaskToScheduler(&task); err != nil {
+			log.Printf("添加任务到调度器失败 [%s]: %v", task.ID, err)
+		}
+	}
+
+	log.Printf("加载了 %d 个主题同步调度任务", len(tasks))
+	return nil
+}
+
+// getScheduledTasks 获取需要执行的调度任务
+func (tss *ThematicSyncService) getScheduledTasks(ctx context.Context) ([]models.ThematicSyncTask, error) {
+	var tasks []models.ThematicSyncTask
+	now := time.Now()
+
+	// 查找状态为active且下次执行时间已到的主题任务
+	err := tss.db.Where("status = ? AND next_run_time IS NOT NULL AND next_run_time <= ?",
+		"active", now).Find(&tasks).Error
+	if err != nil {
+		return nil, fmt.Errorf("获取调度任务失败: %w", err)
+	}
+
+	return tasks, nil
+}
+
+// addTaskToScheduler 添加任务到调度器
+func (tss *ThematicSyncService) addTaskToScheduler(task *models.ThematicSyncTask) error {
+	switch task.TriggerType {
+	case "cron":
+		if task.CronExpression == "" {
+			return fmt.Errorf("Cron任务缺少表达式")
+		}
+
+		_, err := tss.cron.AddFunc(task.CronExpression, func() {
+			tss.executeScheduledTask(task.ID)
+		})
+		if err != nil {
+			return fmt.Errorf("添加Cron任务失败: %w", err)
+		}
+
+		log.Printf("添加主题Cron任务: %s [%s]", task.ID, task.CronExpression)
+
+	case "once":
+		if task.ScheduledTime != nil && task.ScheduledTime.After(time.Now()) {
+			go func() {
+				timer := time.NewTimer(time.Until(*task.ScheduledTime))
+				defer timer.Stop()
+
+				select {
+				case <-timer.C:
+					tss.executeScheduledTask(task.ID)
+				case <-tss.ctx.Done():
+					return
+				}
+			}()
+
+			log.Printf("添加主题单次任务: %s [%s]", task.ID, task.ScheduledTime.Format("2006-01-02 15:04:05"))
+		}
+
+	case "interval":
+		// 间隔任务由intervalChecker处理
+		log.Printf("添加主题间隔任务: %s [%d秒]", task.ID, task.IntervalSeconds)
+	}
+
+	return nil
+}
+
+// runIntervalChecker 运行间隔任务检查器
+func (tss *ThematicSyncService) runIntervalChecker() {
+	for {
+		select {
+		case <-tss.intervalTicker.C:
+			tss.checkIntervalTasks()
+		case <-tss.ctx.Done():
+			return
+		}
+	}
+}
+
+// checkIntervalTasks 检查间隔任务
+func (tss *ThematicSyncService) checkIntervalTasks() {
+	tasks, err := tss.getScheduledTasks(tss.ctx)
+	if err != nil {
+		log.Printf("获取间隔任务失败: %v", err)
+		return
+	}
+
+	for _, task := range tasks {
+		if task.TriggerType == "interval" && task.ShouldExecuteNow() {
+			go tss.executeScheduledTask(task.ID)
+		}
+	}
+}
+
+// executeScheduledTask 执行调度任务（带分布式锁）
+func (tss *ThematicSyncService) executeScheduledTask(taskID string) {
+	log.Printf("执行主题调度任务: %s", taskID)
+
+	// 如果有分布式锁，使用锁保护执行
+	if tss.distributedLock != nil {
+		lockKey := fmt.Sprintf("thematic_library:%s", taskID)
+		lockTTL := 30 * time.Minute // 主题同步可能耗时较长，设置30分钟
+
+		// 尝试获取锁
+		locked, err := tss.distributedLock.TryLock(tss.ctx, lockKey, lockTTL)
+		if err != nil {
+			log.Printf("获取分布式锁失败 [%s]: %v", taskID, err)
+			return
+		}
+
+		if !locked {
+			log.Printf("任务正在其他实例执行，跳过 [%s]", taskID)
+			return
+		}
+
+		// 确保执行完毕后释放锁
+		defer func() {
+			if unlockErr := tss.distributedLock.Unlock(tss.ctx, lockKey); unlockErr != nil {
+				log.Printf("释放分布式锁失败 [%s]: %v", taskID, unlockErr)
+			}
+		}()
+	}
+
+	// 获取任务详情
+	task, err := tss.GetSyncTask(tss.ctx, taskID)
+	if err != nil {
+		log.Printf("获取任务失败 [%s]: %v", taskID, err)
+		return
+	}
+
+	// 检查任务是否可以执行
+	if !task.CanStart() {
+		log.Printf("任务不能执行 [%s]: 状态=%s", taskID, task.Status)
+		return
+	}
+
+	// 构建执行请求
+	req := &ExecuteSyncTaskRequest{
+		ExecutionType: "scheduled",
+		Options:       nil,
+	}
+
+	// 执行同步任务
+	_, err = tss.ExecuteSyncTask(tss.ctx, taskID, req)
+	if err != nil {
+		log.Printf("执行调度任务失败 [%s]: %v", taskID, err)
+		return
+	}
+
+	// 更新下次执行时间
+	task.UpdateNextRunTime()
+	if err := tss.db.Model(&models.ThematicSyncTask{}).Where("id = ?", taskID).
+		Updates(map[string]interface{}{
+			"next_run_time":  task.NextRunTime,
+			"last_sync_time": time.Now(),
+			"updated_at":     time.Now(),
+		}).Error; err != nil {
+		log.Printf("更新任务执行时间失败 [%s]: %v", taskID, err)
+	}
+
+	log.Printf("主题调度任务执行完成 [%s]", taskID)
+}
+
+// AddScheduledTask 添加调度任务
+func (tss *ThematicSyncService) AddScheduledTask(task *models.ThematicSyncTask) error {
+	return tss.addTaskToScheduler(task)
+}
+
+// RemoveScheduledTask 移除调度任务
+func (tss *ThematicSyncService) RemoveScheduledTask(taskID string) error {
+	// 由于cron库不支持按ID移除任务，这里我们重新加载所有任务
+	tss.cron.Stop()
+	tss.cron = cron.New(cron.WithSeconds())
+	tss.cron.Start()
+
+	return tss.loadScheduledTasks()
+}
+
+// ReloadScheduledTasks 重新加载调度任务
+func (tss *ThematicSyncService) ReloadScheduledTasks() error {
+	tss.cron.Stop()
+	tss.cron = cron.New(cron.WithSeconds())
+	tss.cron.Start()
+
+	return tss.loadScheduledTasks()
 }

@@ -15,6 +15,7 @@ import (
 	"context"
 	"datahub-service/service/basic_library"
 	"datahub-service/service/database"
+	"datahub-service/service/distributed_lock"
 	"datahub-service/service/event"
 	"datahub-service/service/governance"
 	"datahub-service/service/sharing"
@@ -38,6 +39,7 @@ var (
 	GlobalSyncTaskService        *basic_library.SyncTaskService // 现在包含调度功能
 	GlobalGovernanceService      *governance.GovernanceService
 	GlobalSharingService         *sharing.SharingService
+	GlobalDistributedLock        *distributed_lock.RedisLock // Redis分布式锁
 )
 
 func init() {
@@ -116,18 +118,41 @@ func initServices() {
 	GlobalSchemaService = database.NewSchemaService(DB)
 	// 初始化同步任务服务（现在集成了调度功能）
 	GlobalSyncTaskService = basic_library.NewSyncTaskService(DB, GlobalBasicLibraryService)
-	// 初始化主题同步服务
-	// GlobalThematicSyncService = NewThematicSyncService(DB, GlobalBasicLibraryService, GlobalThematicLibraryService)
+	// 初始化数据治理服务
 	GlobalGovernanceService = governance.NewGovernanceService(DB)
+	// 初始化主题同步服务
+	GlobalThematicSyncService = thematic_library.NewThematicSyncService(DB, GlobalGovernanceService)
 	GlobalSharingService = sharing.NewSharingService(DB)
+
+	// 初始化Redis分布式锁
+	if schedulerEnabled := getEnvWithDefault("SCHEDULER_ENABLED", "true"); schedulerEnabled == "true" {
+		lock, err := distributed_lock.NewRedisLock()
+		if err != nil {
+			log.Printf("警告: Redis分布式锁初始化失败，调度器将在单实例模式运行: %v", err)
+			GlobalDistributedLock = nil
+		} else {
+			GlobalDistributedLock = lock
+			log.Println("Redis分布式锁初始化成功")
+
+			// 将分布式锁注入到服务中
+			GlobalSyncTaskService.SetDistributedLock(lock)
+			GlobalThematicSyncService.SetDistributedLock(lock)
+		}
+	}
 
 	// 初始化数据源
 	initializeDataSources()
 
-	// 启动集成的调度器
+	// 启动基础库调度器
 	if err := GlobalSyncTaskService.StartScheduler(); err != nil {
-		log.Printf("启动同步任务调度器失败: %v", err)
+		log.Printf("启动基础库同步任务调度器失败: %v", err)
 	}
+
+	// 启动主题库调度器
+	if err := GlobalThematicSyncService.StartScheduler(); err != nil {
+		log.Printf("启动主题库同步任务调度器失败: %v", err)
+	}
+
 	log.Println("服务初始化完成")
 }
 

@@ -14,6 +14,7 @@ package basic_library
 import (
 	"context"
 	"datahub-service/service/datasource"
+	"datahub-service/service/distributed_lock"
 	"datahub-service/service/interface_executor"
 	"datahub-service/service/meta"
 	"datahub-service/service/models"
@@ -122,6 +123,8 @@ type SyncTaskService struct {
 	ctx              context.Context
 	cancel           context.CancelFunc
 	schedulerStarted bool
+	// 分布式锁
+	distributedLock distributed_lock.DistributedLock
 }
 
 // NewSyncTaskService 创建基础库同步任务服务
@@ -1159,6 +1162,14 @@ func (s *SyncTaskService) UpdateTaskNextRunTime(ctx context.Context, taskID stri
 	return nil
 }
 
+// SetDistributedLock 设置分布式锁
+func (s *SyncTaskService) SetDistributedLock(lock distributed_lock.DistributedLock) {
+	s.distributedLock = lock
+	if lock != nil {
+		log.Println("基础库同步任务服务已启用分布式锁")
+	}
+}
+
 // StartScheduler 启动调度器
 func (s *SyncTaskService) StartScheduler() error {
 	if s.schedulerStarted {
@@ -1294,9 +1305,34 @@ func (s *SyncTaskService) checkIntervalTasks() {
 	}
 }
 
-// executeScheduledTask 执行调度任务
+// executeScheduledTask 执行调度任务（带分布式锁）
 func (s *SyncTaskService) executeScheduledTask(taskID string) {
 	log.Printf("执行调度任务: %s", taskID)
+
+	// 如果有分布式锁，使用锁保护执行
+	if s.distributedLock != nil {
+		lockKey := fmt.Sprintf("basic_library:%s", taskID)
+		lockTTL := 10 * time.Minute // 锁的过期时间
+
+		// 尝试获取锁
+		locked, err := s.distributedLock.TryLock(s.ctx, lockKey, lockTTL)
+		if err != nil {
+			log.Printf("获取分布式锁失败 [%s]: %v", taskID, err)
+			return
+		}
+
+		if !locked {
+			log.Printf("任务正在其他实例执行，跳过 [%s]", taskID)
+			return
+		}
+
+		// 确保执行完毕后释放锁
+		defer func() {
+			if unlockErr := s.distributedLock.Unlock(s.ctx, lockKey); unlockErr != nil {
+				log.Printf("释放分布式锁失败 [%s]: %v", taskID, unlockErr)
+			}
+		}()
+	}
 
 	// 获取任务详情
 	task, err := s.GetSyncTaskByID(s.ctx, taskID)
