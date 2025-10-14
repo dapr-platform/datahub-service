@@ -145,6 +145,22 @@ type DataInterfaceListResponse struct {
 	Size  int                    `json:"size"`
 }
 
+// ImportCSVRequest CSV导入请求结构
+type ImportCSVRequest struct {
+	InterfaceID string `json:"interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	CSVContent  string `json:"csv_content" validate:"required" example:"id,name,age\n1,张三,25\n2,李四,30"`
+}
+
+// ImportCSVResponse CSV导入响应结构
+type ImportCSVResponse struct {
+	Success       bool     `json:"success" example:"true"`
+	Message       string   `json:"message" example:"CSV导入成功"`
+	ImportedRows  int      `json:"imported_rows" example:"100"`
+	TotalRows     int      `json:"total_rows" example:"100"`
+	FailedRows    int      `json:"failed_rows" example:"0"`
+	ErrorMessages []string `json:"error_messages,omitempty"`
+}
+
 // @Summary 添加数据基础库
 // @Description 添加数据基础库
 // @Tags 数据基础库
@@ -938,4 +954,42 @@ func (c *BasicLibraryController) HealthCheckAllDataSources(w http.ResponseWriter
 	results := datasourceInitService.HealthCheckAllDataSources(ctx)
 
 	render.JSON(w, r, SuccessResponse("健康检查完成", results))
+}
+
+// ImportCSV 导入CSV数据到接口表
+// @Summary 导入CSV数据
+// @Description 将CSV数据导入到指定接口的数据表中，CSV第一行为字段名（name_en）
+// @Tags 数据基础库
+// @Accept json
+// @Produce json
+// @Param request body ImportCSVRequest true "CSV导入请求"
+// @Success 200 {object} APIResponse{data=ImportCSVResponse}
+// @Failure 400 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /basic-libraries/import-csv [post]
+func (c *BasicLibraryController) ImportCSV(w http.ResponseWriter, r *http.Request) {
+	var req ImportCSVRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.InterfaceID == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	if req.CSVContent == "" {
+		render.JSON(w, r, BadRequestResponse("CSV内容不能为空", nil))
+		return
+	}
+
+	// 调用服务层方法导入CSV数据
+	result, err := c.service.GetInterfaceService().ImportCSVData(req.InterfaceID, req.CSVContent)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("CSV导入失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("CSV导入完成", result))
 }

@@ -149,6 +149,9 @@ func InitRoute(r *chi.Mux) {
 		// 更新接口字段配置
 		r.Post("/update-interface-fields", basicLibraryController.UpdateInterfaceFields)
 
+		// CSV导入接口
+		r.Post("/import-csv", basicLibraryController.ImportCSV)
+
 		// 数据源管理器相关接口
 		r.Get("/datasource-manager-stats", basicLibraryController.GetDataSourceManagerStats)
 		r.Get("/resident-datasources", basicLibraryController.GetResidentDataSources)

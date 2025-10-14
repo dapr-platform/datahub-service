@@ -478,6 +478,43 @@ definitions:
         example: 1.0.0
         type: string
     type: object
+  controllers.ImportCSVRequest:
+    properties:
+      csv_content:
+        example: |-
+          id,name,age
+          1,张三,25
+          2,李四,30
+        type: string
+      interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    required:
+    - csv_content
+    - interface_id
+    type: object
+  controllers.ImportCSVResponse:
+    properties:
+      error_messages:
+        items:
+          type: string
+        type: array
+      failed_rows:
+        example: 0
+        type: integer
+      imported_rows:
+        example: 100
+        type: integer
+      message:
+        example: CSV导入成功
+        type: string
+      success:
+        example: true
+        type: boolean
+      total_rows:
+        example: 100
+        type: integer
+    type: object
   controllers.InterfaceTestRequest:
     properties:
       interface_id:
@@ -5151,6 +5188,41 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 健康检查所有数据源
+      tags:
+      - 数据基础库
+  /basic-libraries/import-csv:
+    post:
+      consumes:
+      - application/json
+      description: 将CSV数据导入到指定接口的数据表中，CSV第一行为字段名（name_en）
+      parameters:
+      - description: CSV导入请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ImportCSVRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.ImportCSVResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 导入CSV数据
       tags:
       - 数据基础库
   /basic-libraries/interface-preview/{id}:

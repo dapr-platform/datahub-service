@@ -699,6 +699,64 @@
                 }
             }
         },
+        "/basic-libraries/import-csv": {
+            "post": {
+                "description": "将CSV数据导入到指定接口的数据表中，CSV第一行为字段名（name_en）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "导入CSV数据",
+                "parameters": [
+                    {
+                        "description": "CSV导入请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ImportCSVRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.ImportCSVResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/basic-libraries/interface-preview/{id}": {
             "get": {
                 "description": "获取接口的样例数据用于预览",
@@ -10247,6 +10305,54 @@
                 "version": {
                     "type": "string",
                     "example": "1.0.0"
+                }
+            }
+        },
+        "controllers.ImportCSVRequest": {
+            "type": "object",
+            "required": [
+                "csv_content",
+                "interface_id"
+            ],
+            "properties": {
+                "csv_content": {
+                    "type": "string",
+                    "example": "id,name,age\n1,张三,25\n2,李四,30"
+                },
+                "interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                }
+            }
+        },
+        "controllers.ImportCSVResponse": {
+            "type": "object",
+            "properties": {
+                "error_messages": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "failed_rows": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "imported_rows": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "message": {
+                    "type": "string",
+                    "example": "CSV导入成功"
+                },
+                "success": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "total_rows": {
+                    "type": "integer",
+                    "example": 100
                 }
             }
         },

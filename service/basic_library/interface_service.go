@@ -17,11 +17,14 @@ import (
 	"datahub-service/service/datasource"
 	"datahub-service/service/interface_executor"
 	"datahub-service/service/models"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/spf13/cast"
 	"gorm.io/gorm"
 )
 
@@ -90,7 +93,7 @@ func (s *InterfaceService) CreateDataInterface(interfaceData *models.DataInterfa
 	}
 
 	// 如果配置了表字段，自动创建数据表
-	if interfaceData.TableFieldsConfig != nil && len(interfaceData.TableFieldsConfig) > 0 {
+	if len(interfaceData.TableFieldsConfig) > 0 {
 		// 解析字段配置
 		fields, err := s.parseTableFields(interfaceData.TableFieldsConfig)
 		if err != nil {
@@ -697,7 +700,7 @@ func (s *InterfaceService) parseTableFields(tableFieldsConfig models.JSONB) ([]m
 	if tableFieldsConfig == nil {
 		return fields, nil
 	}
-
+	
 	// 检查是否有 fields 字段
 	if fieldsData, exists := tableFieldsConfig["fields"]; exists {
 		// 将 fields 转换为字段列表
@@ -752,43 +755,7 @@ func (s *InterfaceService) parseTableFields(tableFieldsConfig models.JSONB) ([]m
 		}
 	}
 
-	// 如果没有解析到字段，尝试从 auto_create_table 配置创建默认字段
-	if len(fields) == 0 {
-		if autoCreate, exists := tableFieldsConfig["auto_create_table"]; exists {
-			if autoCreateBool, ok := autoCreate.(bool); ok && autoCreateBool {
-				// 创建默认字段结构
-				fields = append(fields, models.TableField{
-					NameZh:       "主键ID",
-					NameEn:       "id",
-					DataType:     "string",
-					IsPrimaryKey: true,
-					IsNullable:   false,
-					Description:  "主键ID",
-					OrderNum:     1,
-				})
-				fields = append(fields, models.TableField{
-					NameZh:       "创建时间",
-					NameEn:       "created_at",
-					DataType:     "timestamp",
-					IsPrimaryKey: false,
-					IsNullable:   false,
-					DefaultValue: "NOW()",
-					Description:  "创建时间",
-					OrderNum:     2,
-				})
-				fields = append(fields, models.TableField{
-					NameZh:       "更新时间",
-					NameEn:       "updated_at",
-					DataType:     "timestamp",
-					IsPrimaryKey: false,
-					IsNullable:   false,
-					DefaultValue: "NOW()",
-					Description:  "更新时间",
-					OrderNum:     3,
-				})
-			}
-		}
-	}
+
 
 	return fields, nil
 }
@@ -840,4 +807,251 @@ func (s *InterfaceService) validateAndFixFields(fields []models.TableField) []mo
 	}
 
 	return validatedFields
+}
+
+// CSVImportResult CSV导入结果
+type CSVImportResult struct {
+	Success       bool     `json:"success"`
+	Message       string   `json:"message"`
+	ImportedRows  int      `json:"imported_rows"`
+	TotalRows     int      `json:"total_rows"`
+	FailedRows    int      `json:"failed_rows"`
+	ErrorMessages []string `json:"error_messages,omitempty"`
+}
+
+// ImportCSVData 导入CSV数据到接口表
+func (s *InterfaceService) ImportCSVData(interfaceID string, csvContent string) (*CSVImportResult, error) {
+	ctx := context.Background()
+
+	// 1. 获取接口信息
+	interfaceData, err := s.GetDataInterface(interfaceID)
+	if err != nil {
+		return nil, fmt.Errorf("获取接口信息失败: %w", err)
+	}
+
+	// 2. 检查表是否已创建
+	if !interfaceData.IsTableCreated {
+		return nil, fmt.Errorf("接口表尚未创建，请先配置字段并创建表")
+	}
+
+	// 3. 获取字段配置
+	fields := interfaceData.Fields
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("接口字段配置为空")
+	}
+
+	// 4. 构建字段名到字段配置的映射
+	fieldMap := make(map[string]models.InterfaceField)
+	for _, field := range fields {
+		fieldMap[field.NameEn] = field
+	}
+
+	// 5. 解析CSV内容
+	reader := csv.NewReader(strings.NewReader(csvContent))
+	reader.TrimLeadingSpace = true
+
+	// 读取所有记录
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("解析CSV内容失败: %w", err)
+	}
+
+	if len(records) < 2 {
+		return nil, fmt.Errorf("CSV内容为空或仅包含表头")
+	}
+
+	// 6. 解析表头（第一行为字段名）
+	headers := records[0]
+	if len(headers) == 0 {
+		return nil, fmt.Errorf("CSV表头为空")
+	}
+
+	// 验证表头字段是否存在于接口配置中
+	var errorMessages []string
+	for _, header := range headers {
+		if _, exists := fieldMap[header]; !exists {
+			errorMessages = append(errorMessages, fmt.Sprintf("字段 '%s' 不存在于接口配置中", header))
+		}
+	}
+
+	// 7. 转换数据行为map格式
+	var dataRows []map[string]interface{}
+	totalRows := len(records) - 1 // 减去表头行
+	failedRows := 0
+
+	for rowIdx, record := range records[1:] {
+		if len(record) != len(headers) {
+			errorMessages = append(errorMessages, fmt.Sprintf("第 %d 行字段数量不匹配，期望 %d 个，实际 %d 个", rowIdx+2, len(headers), len(record)))
+			failedRows++
+			continue
+		}
+
+		rowData := make(map[string]interface{})
+		hasError := false
+
+		for colIdx, value := range record {
+			fieldName := headers[colIdx]
+			field, exists := fieldMap[fieldName]
+
+			if !exists {
+				continue // 跳过不在配置中的字段
+			}
+
+			// 数据类型转换和验证
+			convertedValue, err := s.convertCSVValue(value, field, rowIdx+2)
+			if err != nil {
+				errorMessages = append(errorMessages, err.Error())
+				hasError = true
+				continue
+			}
+
+			rowData[fieldName] = convertedValue
+		}
+
+		if hasError {
+			failedRows++
+			continue
+		}
+
+		// 验证必填字段
+		for fieldName, field := range fieldMap {
+			if !field.IsNullable && rowData[fieldName] == nil {
+				errorMessages = append(errorMessages, fmt.Sprintf("第 %d 行缺少必填字段 '%s'", rowIdx+2, fieldName))
+				hasError = true
+			}
+		}
+
+		if hasError {
+			failedRows++
+			continue
+		}
+
+		dataRows = append(dataRows, rowData)
+	}
+
+	// 8. 使用事务批量插入数据
+	if len(dataRows) == 0 {
+		return &CSVImportResult{
+			Success:       false,
+			Message:       "没有有效的数据行可导入",
+			ImportedRows:  0,
+			TotalRows:     totalRows,
+			FailedRows:    failedRows,
+			ErrorMessages: errorMessages,
+		}, nil
+	}
+
+	// 开启事务
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return nil, fmt.Errorf("开启事务失败: %w", tx.Error)
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[ERROR] ImportCSVData - 发生panic，事务已回滚: %v\n", r)
+		}
+	}()
+
+	// 使用InterfaceExecutor的FieldMapper批量插入数据
+	fieldMapper := interface_executor.NewFieldMapper()
+	interfaceInfo := &interface_executor.BasicLibraryInterfaceInfo{
+		DataInterface: interfaceData,
+	}
+
+	insertedRows, err := fieldMapper.InsertBatchDataWithTx(ctx, tx, interfaceInfo, dataRows)
+	if err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("批量插入数据失败: %w", err)
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	return &CSVImportResult{
+		Success:       true,
+		Message:       fmt.Sprintf("成功导入 %d 行数据", insertedRows),
+		ImportedRows:  int(insertedRows),
+		TotalRows:     totalRows,
+		FailedRows:    failedRows,
+		ErrorMessages: errorMessages,
+	}, nil
+}
+
+// convertCSVValue 转换CSV值为合适的数据类型
+func (s *InterfaceService) convertCSVValue(value string, field models.InterfaceField, rowNum int) (interface{}, error) {
+	// 如果值为空且字段可为空，返回nil
+	if value == "" {
+		if field.IsNullable {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("第 %d 行字段 '%s' 不能为空", rowNum, field.NameEn)
+	}
+
+	// 根据字段类型转换值
+	switch field.DataType {
+	case "integer", "int", "bigint":
+		intVal, err := cast.ToInt64E(value)
+		if err != nil {
+			return nil, fmt.Errorf("第 %d 行字段 '%s' 的值 '%s' 不是有效的整数", rowNum, field.NameEn, value)
+		}
+		return intVal, nil
+
+	case "float", "real", "decimal", "numeric", "double":
+		floatVal, err := cast.ToFloat64E(value)
+		if err != nil {
+			return nil, fmt.Errorf("第 %d 行字段 '%s' 的值 '%s' 不是有效的浮点数", rowNum, field.NameEn, value)
+		}
+		return floatVal, nil
+
+	case "boolean", "bool":
+		boolVal, err := cast.ToBoolE(value)
+		if err != nil {
+			return nil, fmt.Errorf("第 %d 行字段 '%s' 的值 '%s' 不是有效的布尔值", rowNum, field.NameEn, value)
+		}
+		return boolVal, nil
+
+	case "timestamp", "datetime":
+		// 尝试多种时间格式
+		formats := []string{
+			"2006-01-02 15:04:05",
+			"2006-01-02T15:04:05",
+			"2006-01-02T15:04:05Z",
+			"2006-01-02",
+		}
+		var timeVal time.Time
+		var err error
+		for _, format := range formats {
+			timeVal, err = time.Parse(format, value)
+			if err == nil {
+				return timeVal, nil
+			}
+		}
+		return nil, fmt.Errorf("第 %d 行字段 '%s' 的值 '%s' 不是有效的时间格式", rowNum, field.NameEn, value)
+
+	case "date":
+		timeVal, err := time.Parse("2006-01-02", value)
+		if err != nil {
+			return nil, fmt.Errorf("第 %d 行字段 '%s' 的值 '%s' 不是有效的日期格式(YYYY-MM-DD)", rowNum, field.NameEn, value)
+		}
+		return timeVal, nil
+
+	case "json", "jsonb":
+		// 验证JSON格式
+		var jsonData interface{}
+		if err := json.Unmarshal([]byte(value), &jsonData); err != nil {
+			return nil, fmt.Errorf("第 %d 行字段 '%s' 的值不是有效的JSON格式", rowNum, field.NameEn)
+		}
+		return value, nil
+
+	case "varchar", "text", "string", "char":
+		return value, nil
+
+	default:
+		// 默认作为字符串处理
+		return value, nil
+	}
 }
