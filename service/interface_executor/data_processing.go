@@ -86,7 +86,23 @@ func (dp *DataProcessor) FetchDataFromSourceWithSyncStrategy(ctx context.Context
 			fmt.Printf("[ERROR] FetchDataFromSource - 初始化数据源失败: %v\n", err)
 			return nil, nil, nil, fmt.Errorf("初始化数据源失败: %w", err)
 		}
-		fmt.Printf("[DEBUG] FetchDataFromSource - 临时数据源实例创建并初始化成功\n")
+
+		// 启动数据源（对于常驻数据源如数据库，需要建立连接池）
+		if err := dsInstance.Start(ctx); err != nil {
+			fmt.Printf("[ERROR] FetchDataFromSource - 启动数据源失败: %v\n", err)
+			return nil, nil, nil, fmt.Errorf("启动数据源失败: %w", err)
+		}
+
+		fmt.Printf("[DEBUG] FetchDataFromSource - 临时数据源实例创建、初始化并启动成功\n")
+
+		// 确保在函数返回前关闭临时数据源
+		defer func() {
+			if err := dsInstance.Stop(context.Background()); err != nil {
+				fmt.Printf("[WARN] FetchDataFromSource - 关闭临时数据源失败: %v\n", err)
+			} else {
+				fmt.Printf("[DEBUG] FetchDataFromSource - 临时数据源已关闭\n")
+			}
+		}()
 	} else {
 		fmt.Printf("[DEBUG] FetchDataFromSource - 使用已注册的数据源实例\n")
 	}
@@ -228,7 +244,23 @@ func (dp *DataProcessor) FetchBatchDataFromSource(ctx context.Context, interface
 			fmt.Printf("[ERROR] FetchBatchDataFromSource - 初始化数据源失败: %v\n", err)
 			return nil, nil, nil, fmt.Errorf("初始化数据源失败: %w", err)
 		}
-		fmt.Printf("[DEBUG] FetchBatchDataFromSource - 临时数据源实例创建并初始化成功\n")
+
+		// 启动数据源（对于常驻数据源如数据库，需要建立连接池）
+		if err := dsInstance.Start(ctx); err != nil {
+			fmt.Printf("[ERROR] FetchBatchDataFromSource - 启动数据源失败: %v\n", err)
+			return nil, nil, nil, fmt.Errorf("启动数据源失败: %w", err)
+		}
+
+		fmt.Printf("[DEBUG] FetchBatchDataFromSource - 临时数据源实例创建、初始化并启动成功\n")
+
+		// 确保在函数返回前关闭临时数据源
+		defer func() {
+			if err := dsInstance.Stop(context.Background()); err != nil {
+				fmt.Printf("[WARN] FetchBatchDataFromSource - 关闭临时数据源失败: %v\n", err)
+			} else {
+				fmt.Printf("[DEBUG] FetchBatchDataFromSource - 临时数据源已关闭\n")
+			}
+		}()
 	} else {
 		fmt.Printf("[DEBUG] FetchBatchDataFromSource - 使用已注册的数据源实例\n")
 	}
@@ -382,7 +414,23 @@ func (dp *DataProcessor) FetchBatchDataFromSourceWithStrategy(ctx context.Contex
 			fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 初始化数据源失败: %v\n", err)
 			return nil, nil, nil, fmt.Errorf("初始化数据源失败: %w", err)
 		}
-		fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 临时数据源实例创建并初始化成功\n")
+
+		// 启动数据源（对于常驻数据源如数据库，需要建立连接池）
+		if err := dsInstance.Start(ctx); err != nil {
+			fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 启动数据源失败: %v\n", err)
+			return nil, nil, nil, fmt.Errorf("启动数据源失败: %w", err)
+		}
+
+		fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 临时数据源实例创建、初始化并启动成功\n")
+
+		// 确保在函数返回前关闭临时数据源
+		defer func() {
+			if err := dsInstance.Stop(context.Background()); err != nil {
+				fmt.Printf("[WARN] FetchBatchDataFromSourceWithStrategy - 关闭临时数据源失败: %v\n", err)
+			} else {
+				fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 临时数据源已关闭\n")
+			}
+		}()
 	} else {
 		fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 使用已注册的数据源实例\n")
 	}

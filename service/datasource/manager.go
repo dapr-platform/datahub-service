@@ -100,17 +100,18 @@ func (m *DefaultDataSourceManager) Register(ctx context.Context, ds *models.Data
 
 	// 创建数据源状态记录
 	status := &DataSourceStatus{
-		ID:                ds.ID,
-		Type:              ds.Type,
-		Name:              ds.Name,
-		IsResident:        instance.IsResident(),
-		IsInitialized:     true,
-		IsStarted:         false,
-		UsageCount:        0,
-		ReconnectAttempts: 0,
-		MaxReconnects:     m.maxReconnectAttempts,
-		AutoRestart:       instance.IsResident(), // 常驻数据源默认自动重启
-		Metadata:          make(map[string]interface{}),
+		ID:                     ds.ID,
+		Type:                   ds.Type,
+		Name:                   ds.Name,
+		IsResident:             instance.IsResident(),
+		IsInitialized:          true,
+		IsStarted:              false,
+		UsageCount:             0,
+		ReconnectAttempts:      0,
+		MaxReconnects:          m.maxReconnectAttempts,
+		AutoRestart:            instance.IsResident(), // 常驻数据源默认自动重启
+		ReconnectResetInterval: 30 * time.Minute,      // 常驻数据源30分钟后重置重连计数
+		Metadata:               make(map[string]interface{}),
 	}
 
 	// 如果是常驻数据源，立即启动并保持连接
@@ -560,10 +561,43 @@ func (m *DefaultDataSourceManager) attemptReconnect(dsID string) {
 		return
 	}
 
-	// 检查是否达到最大重连次数
-	if status.ReconnectAttempts >= status.MaxReconnects {
-		m.logger.Printf("数据源 %s 已达到最大重连次数 %d，停止重连", dsID, status.MaxReconnects)
-		return
+	// 对于常驻数据源，实现永久重连机制
+	if status.IsResident {
+		// 检查是否需要重置重连计数
+		if status.ReconnectAttempts >= status.MaxReconnects {
+			// 如果距离上次重连尝试已经超过了重置间隔，则重置计数
+			if !status.LastReconnectAttemptAt.IsZero() {
+				timeSinceLastAttempt := time.Since(status.LastReconnectAttemptAt)
+				resetInterval := status.ReconnectResetInterval
+				if resetInterval == 0 {
+					resetInterval = 30 * time.Minute // 默认30分钟
+				}
+
+				if timeSinceLastAttempt >= resetInterval {
+					m.mu.Lock()
+					status.ReconnectAttempts = 0
+					m.mu.Unlock()
+					m.logger.Printf("常驻数据源 %s 已超过重置间隔(%v)，重置重连计数", dsID, resetInterval)
+				} else {
+					m.logger.Printf("常驻数据源 %s 已达到最大重连次数 %d，等待 %v 后重置计数（已等待 %v）",
+						dsID, status.MaxReconnects, resetInterval-timeSinceLastAttempt, timeSinceLastAttempt)
+					return
+				}
+			} else {
+				// 首次达到上限，记录时间但不重连
+				m.mu.Lock()
+				status.LastReconnectAttemptAt = time.Now()
+				m.mu.Unlock()
+				m.logger.Printf("常驻数据源 %s 首次达到最大重连次数 %d，记录时间，等待下次检查", dsID, status.MaxReconnects)
+				return
+			}
+		}
+	} else {
+		// 非常驻数据源，达到上限后不再重连
+		if status.ReconnectAttempts >= status.MaxReconnects {
+			m.logger.Printf("数据源 %s 已达到最大重连次数 %d，停止重连", dsID, status.MaxReconnects)
+			return
+		}
 	}
 
 	m.logger.Printf("尝试重连数据源 %s (第 %d/%d 次)", dsID, status.ReconnectAttempts+1, status.MaxReconnects)
@@ -571,9 +605,10 @@ func (m *DefaultDataSourceManager) attemptReconnect(dsID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// 增加重连尝试次数
+	// 增加重连尝试次数并更新尝试时间
 	m.mu.Lock()
 	status.ReconnectAttempts++
+	status.LastReconnectAttemptAt = time.Now()
 	m.mu.Unlock()
 
 	// 尝试停止然后重新启动
@@ -596,8 +631,9 @@ func (m *DefaultDataSourceManager) attemptReconnect(dsID string) {
 		status.StartedAt = time.Now()
 		status.HealthStatus = "online"
 		status.ErrorMessage = ""
+		status.ReconnectAttempts = 0 // 重连成功，重置计数
 		m.mu.Unlock()
-		m.logger.Printf("数据源 %s 重连成功", dsID)
+		m.logger.Printf("数据源 %s 重连成功，重置重连计数", dsID)
 	}
 }
 

@@ -92,23 +92,25 @@ type ConnectionPoolConfig struct {
 
 // DataSourceStatus 数据源状态
 type DataSourceStatus struct {
-	ID                string                 `json:"id"`
-	Type              string                 `json:"type"`
-	Name              string                 `json:"name"`
-	IsResident        bool                   `json:"is_resident"`
-	IsInitialized     bool                   `json:"is_initialized"`
-	IsStarted         bool                   `json:"is_started"`
-	LastHealthCheck   time.Time              `json:"last_health_check"`
-	HealthStatus      string                 `json:"health_status"`
-	ErrorMessage      string                 `json:"error_message,omitempty"`
-	StartedAt         time.Time              `json:"started_at,omitempty"`
-	LastUsed          time.Time              `json:"last_used,omitempty"`
-	UsageCount        int64                  `json:"usage_count"`
-	ReconnectAttempts int                    `json:"reconnect_attempts"`
-	MaxReconnects     int                    `json:"max_reconnects"`
-	AutoRestart       bool                   `json:"auto_restart"`
-	ConnectionPool    *ConnectionPoolConfig  `json:"connection_pool,omitempty"`
-	Metadata          map[string]interface{} `json:"metadata,omitempty"`
+	ID                     string                 `json:"id"`
+	Type                   string                 `json:"type"`
+	Name                   string                 `json:"name"`
+	IsResident             bool                   `json:"is_resident"`
+	IsInitialized          bool                   `json:"is_initialized"`
+	IsStarted              bool                   `json:"is_started"`
+	LastHealthCheck        time.Time              `json:"last_health_check"`
+	HealthStatus           string                 `json:"health_status"`
+	ErrorMessage           string                 `json:"error_message,omitempty"`
+	StartedAt              time.Time              `json:"started_at,omitempty"`
+	LastUsed               time.Time              `json:"last_used,omitempty"`
+	UsageCount             int64                  `json:"usage_count"`
+	ReconnectAttempts      int                    `json:"reconnect_attempts"`
+	MaxReconnects          int                    `json:"max_reconnects"`
+	AutoRestart            bool                   `json:"auto_restart"`
+	LastReconnectAttemptAt time.Time              `json:"last_reconnect_attempt_at,omitempty"` // 上次重连尝试时间
+	ReconnectResetInterval time.Duration          `json:"-"`                                   // 重连计数重置间隔（不序列化）
+	ConnectionPool         *ConnectionPoolConfig  `json:"connection_pool,omitempty"`
+	Metadata               map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // DataSourceFactory 数据源工厂接口
