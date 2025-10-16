@@ -475,6 +475,22 @@ func InitRoute(r *chi.Mux) {
 		r.Get("/{library_type}/{library_id}/tables/{table_name}/structure", dataViewController.GetTableStructure)
 	})
 
+	// Dashboard统计数据（需要认证）
+	r.Route("/dashboard", func(r chi.Router) {
+		dashboardController := controllers.NewDashboardController()
+
+		// 总览数据
+		r.Get("/overview", dashboardController.GetDashboardOverview)
+
+		// 各模块独立统计接口
+		r.Get("/basic-library-stats", dashboardController.GetBasicLibraryStats)
+		r.Get("/thematic-library-stats", dashboardController.GetThematicLibraryStats)
+		r.Get("/sync-task-stats", dashboardController.GetSyncTaskStats)
+		r.Get("/data-quality-stats", dashboardController.GetDataQualityStats)
+		r.Get("/data-sharing-stats", dashboardController.GetDataSharingStats)
+		r.Get("/system-activity-stats", dashboardController.GetSystemActivityStats)
+	})
+
 	// 认证中间件管理接口（需要管理员权限）
 	r.Route("/admin/auth", func(r chi.Router) {
 		// 需要管理员权限（全局中间件已经处理了基本认证）

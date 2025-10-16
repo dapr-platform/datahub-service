@@ -102,11 +102,9 @@ func (su *SyncUtils) ParseSQLDataSourceConfigs(request *SyncRequest) ([]SQLDataS
 			for _, configRaw := range configSlice {
 				if configMap, ok := configRaw.(map[string]interface{}); ok {
 					config := SQLDataSourceConfig{
-						LibraryID:   su.GetStringFromMap(configMap, "library_id"),
-						InterfaceID: su.GetStringFromMap(configMap, "interface_id"),
-						SQLQuery:    su.GetStringFromMap(configMap, "sql_query"),
-						Timeout:     30,    // 默认30秒
-						MaxRows:     10000, // 默认1万行
+						SQLQuery: su.GetStringFromMap(configMap, "sql_query"),
+						Timeout:  30,    // 默认30秒
+						MaxRows:  10000, // 默认1万行
 					}
 
 					// 解析参数

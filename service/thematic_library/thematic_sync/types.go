@@ -170,15 +170,21 @@ type IncrementalConfig struct {
 
 // ==================== SQL数据源相关类型 ====================
 
-// SQLDataSourceConfig SQL数据源配置
-type SQLDataSourceConfig struct {
-	LibraryID   string                 `json:"library_id"`
-	InterfaceID string                 `json:"interface_id"`
-	SQLQuery    string                 `json:"sql_query"`
-	Parameters  map[string]interface{} `json:"parameters"`
-	Timeout     int                    `json:"timeout"`  // 查询超时时间（秒）
-	MaxRows     int                    `json:"max_rows"` // 最大返回行数
+// SQLQueryConfig SQL查询配置 - 简化版本,直接执行SQL语句
+// 用于执行自定义SQL查询,如统计查询、复杂关联查询等
+// 示例: SELECT id,name FROM basic.user WHERE status='active'
+//
+//	SELECT COUNT(id) as total, DATE_TRUNC('hour', created_at) as hour FROM basic.ticket GROUP BY hour
+type SQLQueryConfig struct {
+	SQLQuery   string                 `json:"sql_query" validate:"required"`      // SQL查询语句
+	Parameters map[string]interface{} `json:"parameters,omitempty"`               // 查询参数(支持参数化查询)
+	Timeout    int                    `json:"timeout,omitempty" default:"30"`     // 查询超时时间（秒）
+	MaxRows    int                    `json:"max_rows,omitempty" default:"10000"` // 最大返回行数
 }
+
+// 注意: 为了向后兼容,保留旧的 SQLDataSourceConfig 类型别名
+// 建议新代码使用 SQLQueryConfig
+type SQLDataSourceConfig = SQLQueryConfig
 
 // ==================== 数据治理相关类型 ====================
 

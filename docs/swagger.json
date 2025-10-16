@@ -1392,6 +1392,272 @@
                 }
             }
         },
+        "/dashboard/basic-library-stats": {
+            "get": {
+                "description": "获取基础库的详细统计信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "获取基础库统计数据",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.BasicLibraryStats"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/data-quality-stats": {
+            "get": {
+                "description": "获取数据质量的详细统计信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "获取数据质量统计数据",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.DataQualityStats"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/data-sharing-stats": {
+            "get": {
+                "description": "获取数据共享的详细统计信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "获取数据共享统计数据",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.DataSharingStats"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/overview": {
+            "get": {
+                "description": "获取系统各模块的统计数据和关键指标",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "获取Dashboard总览数据",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.DashboardOverviewResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/sync-task-stats": {
+            "get": {
+                "description": "获取同步任务的详细统计信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "获取同步任务统计数据",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.SyncTaskStats"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/system-activity-stats": {
+            "get": {
+                "description": "获取系统活动的详细统计信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "获取系统活动统计数据",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.SystemActivityStats"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/thematic-library-stats": {
+            "get": {
+                "description": "获取主题库的详细统计信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "获取主题库统计数据",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.ThematicLibraryStats"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/data-quality/checks": {
             "post": {
                 "description": "对指定对象执行数据质量检查并生成报告",
@@ -9730,6 +9996,17 @@
                 }
             }
         },
+        "controllers.AccessLevelCount": {
+            "type": "object",
+            "properties": {
+                "access_level": {
+                    "type": "string"
+                },
+                "count": {
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.ApiApplicationListResponse": {
             "type": "object",
             "properties": {
@@ -9747,6 +10024,34 @@
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "controllers.ApiApplicationStats": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "application_name": {
+                    "type": "string"
+                },
+                "call_count": {
+                    "type": "integer"
+                },
+                "last_call_time": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.ApiCallTrendData": {
+            "type": "object",
+            "properties": {
+                "call_count": {
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string"
                 }
             }
         },
@@ -9821,6 +10126,60 @@
                 }
             }
         },
+        "controllers.BasicLibraryStats": {
+            "type": "object",
+            "properties": {
+                "active_data_sources": {
+                    "description": "活跃数据源",
+                    "type": "integer"
+                },
+                "active_interfaces": {
+                    "description": "活跃接口",
+                    "type": "integer"
+                },
+                "active_libraries": {
+                    "description": "活跃数",
+                    "type": "integer"
+                },
+                "category_breakdown": {
+                    "description": "分类统计",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.CategoryCount"
+                    }
+                },
+                "inactive_libraries": {
+                    "description": "非活跃数",
+                    "type": "integer"
+                },
+                "recent_libraries": {
+                    "description": "最近创建的库",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.RecentLibraryInfo"
+                    }
+                },
+                "top_data_sources": {
+                    "description": "数据源使用排行",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.DataSourceUsageStats"
+                    }
+                },
+                "total_data_sources": {
+                    "description": "数据源总数",
+                    "type": "integer"
+                },
+                "total_interfaces": {
+                    "description": "接口总数",
+                    "type": "integer"
+                },
+                "total_libraries": {
+                    "description": "总数",
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.BatchDeleteRequest": {
             "type": "object",
             "required": [
@@ -9845,6 +10204,17 @@
                 "event_type": {
                     "type": "string",
                     "example": "system_notification"
+                }
+            }
+        },
+        "controllers.CategoryCount": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "count": {
+                    "type": "integer"
                 }
             }
         },
@@ -9991,6 +10361,63 @@
                 }
             }
         },
+        "controllers.DashboardOverviewResponse": {
+            "type": "object",
+            "properties": {
+                "basic_library_stats": {
+                    "description": "基础库统计",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/controllers.BasicLibraryStats"
+                        }
+                    ]
+                },
+                "data_quality_stats": {
+                    "description": "数据质量统计",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/controllers.DataQualityStats"
+                        }
+                    ]
+                },
+                "data_sharing_stats": {
+                    "description": "数据共享统计",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/controllers.DataSharingStats"
+                        }
+                    ]
+                },
+                "sync_task_stats": {
+                    "description": "同步任务统计",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/controllers.SyncTaskStats"
+                        }
+                    ]
+                },
+                "system_activity_stats": {
+                    "description": "系统活动统计",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/controllers.SystemActivityStats"
+                        }
+                    ]
+                },
+                "thematic_library_stats": {
+                    "description": "主题库统计",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/controllers.ThematicLibraryStats"
+                        }
+                    ]
+                },
+                "updated_at": {
+                    "description": "更新时间",
+                    "type": "string"
+                }
+            }
+        },
         "controllers.DataAccessRequestListResponse": {
             "type": "object",
             "properties": {
@@ -10133,6 +10560,172 @@
                 }
             }
         },
+        "controllers.DataQualityStats": {
+            "type": "object",
+            "properties": {
+                "avg_quality_score": {
+                    "description": "平均质量分数",
+                    "type": "number"
+                },
+                "enabled_quality_rules": {
+                    "description": "启用的规则",
+                    "type": "integer"
+                },
+                "issue_severity_stats": {
+                    "description": "问题严重程度统计",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.IssueSeverityCount"
+                    }
+                },
+                "issue_type_stats": {
+                    "description": "问题类型统计",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.IssueTypeCount"
+                    }
+                },
+                "quality_issue_count": {
+                    "description": "质量问题数量",
+                    "type": "integer"
+                },
+                "quality_trend_data": {
+                    "description": "质量趋势",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.QualityTrendData"
+                    }
+                },
+                "recent_quality_reports": {
+                    "description": "最近质量报告",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.RecentQualityReport"
+                    }
+                },
+                "rule_type_breakdown": {
+                    "description": "规则类型分布",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.RuleTypeCount"
+                    }
+                },
+                "running_quality_tasks": {
+                    "description": "运行中的任务",
+                    "type": "integer"
+                },
+                "total_cleansing_rules": {
+                    "description": "清洗规则总数",
+                    "type": "integer"
+                },
+                "total_masking_rules": {
+                    "description": "脱敏规则总数",
+                    "type": "integer"
+                },
+                "total_quality_reports": {
+                    "description": "质量报告总数",
+                    "type": "integer"
+                },
+                "total_quality_rules": {
+                    "description": "质量规则总数",
+                    "type": "integer"
+                },
+                "total_quality_tasks": {
+                    "description": "质量检测任务总数",
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.DataSharingStats": {
+            "type": "object",
+            "properties": {
+                "active_api_applications": {
+                    "description": "活跃应用",
+                    "type": "integer"
+                },
+                "active_api_keys": {
+                    "description": "活跃密钥",
+                    "type": "integer"
+                },
+                "active_data_subscriptions": {
+                    "description": "活跃订阅",
+                    "type": "integer"
+                },
+                "api_call_trend_data": {
+                    "description": "API调用趋势",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.ApiCallTrendData"
+                    }
+                },
+                "approved_access_requests": {
+                    "description": "已批准申请",
+                    "type": "integer"
+                },
+                "error_rate_stats": {
+                    "description": "错误率统计",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/controllers.ErrorRateStatistics"
+                        }
+                    ]
+                },
+                "pending_access_requests": {
+                    "description": "待审批申请",
+                    "type": "integer"
+                },
+                "recent_api_usage_logs": {
+                    "description": "最近API使用日志",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.RecentApiUsageLog"
+                    }
+                },
+                "response_time_stats": {
+                    "description": "响应时间统计",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/controllers.ResponseTimeStatistics"
+                        }
+                    ]
+                },
+                "today_api_calls": {
+                    "description": "今日调用",
+                    "type": "integer"
+                },
+                "top_api_applications": {
+                    "description": "热门应用",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.ApiApplicationStats"
+                    }
+                },
+                "total_access_requests": {
+                    "description": "访问申请总数",
+                    "type": "integer"
+                },
+                "total_api_applications": {
+                    "description": "API应用总数",
+                    "type": "integer"
+                },
+                "total_api_calls": {
+                    "description": "API调用总数",
+                    "type": "integer"
+                },
+                "total_api_interfaces": {
+                    "description": "API接口总数",
+                    "type": "integer"
+                },
+                "total_api_keys": {
+                    "description": "API密钥总数",
+                    "type": "integer"
+                },
+                "total_data_subscriptions": {
+                    "description": "数据订阅总数",
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.DataSourceListResponse": {
             "type": "object",
             "properties": {
@@ -10222,6 +10815,23 @@
                 }
             }
         },
+        "controllers.DataSourceUsageStats": {
+            "type": "object",
+            "properties": {
+                "data_source_id": {
+                    "type": "string"
+                },
+                "data_source_name": {
+                    "type": "string"
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "usage_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.DataSubscriptionListResponse": {
             "type": "object",
             "properties": {
@@ -10238,6 +10848,32 @@
                     "type": "integer"
                 },
                 "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.DomainCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "domain": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.ErrorRateStatistics": {
+            "type": "object",
+            "properties": {
+                "error_rate": {
+                    "description": "错误率百分比",
+                    "type": "number"
+                },
+                "error_requests": {
+                    "type": "integer"
+                },
+                "total_requests": {
                     "type": "integer"
                 }
             }
@@ -10284,6 +10920,31 @@
                             "$ref": "#/definitions/thematic_library.SyncExecutionOptions"
                         }
                     ]
+                }
+            }
+        },
+        "controllers.ExecutionTrendData": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "failure_count": {
+                    "type": "integer"
+                },
+                "success_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.FailureReasonStats": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "reason": {
+                    "type": "string"
                 }
             }
         },
@@ -10451,6 +11112,53 @@
                 }
             }
         },
+        "controllers.InterfaceTypeCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "interface_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.IssueSeverityCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "severity": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.IssueTypeCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "issue_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.LibraryAccessStats": {
+            "type": "object",
+            "properties": {
+                "access_count": {
+                    "type": "integer"
+                },
+                "library_id": {
+                    "type": "string"
+                },
+                "library_name": {
+                    "type": "string"
+                }
+            }
+        },
         "controllers.LibraryTablesResponse": {
             "type": "object",
             "properties": {
@@ -10478,6 +11186,41 @@
                 }
             }
         },
+        "controllers.LibraryTrendData": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.OperationTypeCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "operation_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.PeakUsageTimeInfo": {
+            "type": "object",
+            "properties": {
+                "avg_operations": {
+                    "description": "该时段平均操作数",
+                    "type": "number"
+                },
+                "hour": {
+                    "description": "小时 (0-23)",
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.PrimaryKey": {
             "type": "object",
             "properties": {
@@ -10491,6 +11234,164 @@
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.QualityTrendData": {
+            "type": "object",
+            "properties": {
+                "avg_score": {
+                    "type": "number"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "issue_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.RecentApiUsageLog": {
+            "type": "object",
+            "properties": {
+                "api_path": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "log_id": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "request_ip": {
+                    "type": "string"
+                },
+                "response_time": {
+                    "type": "integer"
+                },
+                "status_code": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.RecentExecutionInfo": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "type": "string"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "execution_id": {
+                    "type": "string"
+                },
+                "record_count": {
+                    "type": "integer"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "task_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.RecentLibraryInfo": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.RecentQualityReport": {
+            "type": "object",
+            "properties": {
+                "generated_at": {
+                    "type": "string"
+                },
+                "object_type": {
+                    "type": "string"
+                },
+                "quality_score": {
+                    "type": "number"
+                },
+                "report_id": {
+                    "type": "string"
+                },
+                "report_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.RecentSystemLog": {
+            "type": "object",
+            "properties": {
+                "log_id": {
+                    "type": "string"
+                },
+                "object_type": {
+                    "type": "string"
+                },
+                "operation_result": {
+                    "type": "string"
+                },
+                "operation_time": {
+                    "type": "string"
+                },
+                "operation_type": {
+                    "type": "string"
+                },
+                "operator_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.RecentThematicLibraryInfo": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name_en": {
+                    "type": "string"
+                },
+                "name_zh": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -10514,6 +11415,46 @@
                     "type": "string"
                 },
                 "target_table_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.ResponseTimeStatistics": {
+            "type": "object",
+            "properties": {
+                "avg_response_time": {
+                    "description": "平均响应时间(ms)",
+                    "type": "number"
+                },
+                "max_response_time": {
+                    "description": "最大响应时间(ms)",
+                    "type": "integer"
+                },
+                "min_response_time": {
+                    "description": "最小响应时间(ms)",
+                    "type": "integer"
+                },
+                "p50_response_time": {
+                    "description": "P50响应时间(ms)",
+                    "type": "number"
+                },
+                "p95_response_time": {
+                    "description": "P95响应时间(ms)",
+                    "type": "number"
+                },
+                "p99_response_time": {
+                    "description": "P99响应时间(ms)",
+                    "type": "number"
+                }
+            }
+        },
+        "controllers.RuleTypeCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "rule_type": {
                     "type": "string"
                 }
             }
@@ -10679,6 +11620,82 @@
                 }
             }
         },
+        "controllers.SyncTaskStats": {
+            "type": "object",
+            "properties": {
+                "avg_execution_time": {
+                    "description": "平均执行时间(秒)",
+                    "type": "number"
+                },
+                "completed_tasks": {
+                    "description": "已完成",
+                    "type": "integer"
+                },
+                "execution_trend_data": {
+                    "description": "执行趋势数据",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.ExecutionTrendData"
+                    }
+                },
+                "failed_tasks": {
+                    "description": "失败",
+                    "type": "integer"
+                },
+                "failure_reasons": {
+                    "description": "失败原因统计",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.FailureReasonStats"
+                    }
+                },
+                "pending_tasks": {
+                    "description": "等待中",
+                    "type": "integer"
+                },
+                "recent_executions": {
+                    "description": "最近执行记录",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.RecentExecutionInfo"
+                    }
+                },
+                "running_tasks": {
+                    "description": "运行中",
+                    "type": "integer"
+                },
+                "task_type_breakdown": {
+                    "description": "任务类型分布",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.TaskTypeCount"
+                    }
+                },
+                "today_executions": {
+                    "description": "今日执行次数",
+                    "type": "integer"
+                },
+                "today_success_rate": {
+                    "description": "今日成功率",
+                    "type": "number"
+                },
+                "total_data_synced": {
+                    "description": "总同步数据量",
+                    "type": "integer"
+                },
+                "total_tasks": {
+                    "description": "总任务数",
+                    "type": "integer"
+                },
+                "trigger_type_stats": {
+                    "description": "触发类型统计",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.TriggerTypeCount"
+                    }
+                }
+            }
+        },
         "controllers.SyncTaskUpdateRequest": {
             "type": "object",
             "properties": {
@@ -10727,6 +11744,60 @@
                 }
             }
         },
+        "controllers.SystemActivityStats": {
+            "type": "object",
+            "properties": {
+                "active_users": {
+                    "description": "活跃用户",
+                    "type": "integer"
+                },
+                "operation_type_breakdown": {
+                    "description": "操作类型分布",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.OperationTypeCount"
+                    }
+                },
+                "peak_usage_time": {
+                    "description": "高峰使用时段",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/controllers.PeakUsageTimeInfo"
+                        }
+                    ]
+                },
+                "recent_system_logs": {
+                    "description": "最近系统日志",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.RecentSystemLog"
+                    }
+                },
+                "today_active_users": {
+                    "description": "今日活跃",
+                    "type": "integer"
+                },
+                "today_operations": {
+                    "description": "今日操作",
+                    "type": "integer"
+                },
+                "total_operations": {
+                    "description": "总操作数",
+                    "type": "integer"
+                },
+                "total_users": {
+                    "description": "用户总数",
+                    "type": "integer"
+                },
+                "user_activity_trend_data": {
+                    "description": "用户活动趋势",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.UserActivityTrendData"
+                    }
+                }
+            }
+        },
         "controllers.TableInfo": {
             "type": "object",
             "properties": {
@@ -10764,6 +11835,17 @@
                     "type": "string"
                 },
                 "size": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.TaskTypeCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "task_type": {
                     "type": "string"
                 }
             }
@@ -10846,6 +11928,99 @@
                     "items": {
                         "$ref": "#/definitions/meta.ThematicLibraryStatus"
                     }
+                }
+            }
+        },
+        "controllers.ThematicLibraryStats": {
+            "type": "object",
+            "properties": {
+                "access_level_stats": {
+                    "description": "访问级别统计",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.AccessLevelCount"
+                    }
+                },
+                "archived_libraries": {
+                    "description": "已归档",
+                    "type": "integer"
+                },
+                "category_breakdown": {
+                    "description": "分类统计",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.CategoryCount"
+                    }
+                },
+                "domain_breakdown": {
+                    "description": "领域统计",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.DomainCount"
+                    }
+                },
+                "draft_libraries": {
+                    "description": "草稿",
+                    "type": "integer"
+                },
+                "interface_type_stats": {
+                    "description": "接口类型统计",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.InterfaceTypeCount"
+                    }
+                },
+                "published_libraries": {
+                    "description": "已发布",
+                    "type": "integer"
+                },
+                "recent_libraries": {
+                    "description": "最近创建的主题库",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.RecentThematicLibraryInfo"
+                    }
+                },
+                "table_interfaces": {
+                    "description": "表类型接口",
+                    "type": "integer"
+                },
+                "top_access_libraries": {
+                    "description": "访问量排行",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.LibraryAccessStats"
+                    }
+                },
+                "total_interfaces": {
+                    "description": "接口总数",
+                    "type": "integer"
+                },
+                "total_libraries": {
+                    "description": "总数",
+                    "type": "integer"
+                },
+                "trend_data": {
+                    "description": "趋势数据",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.LibraryTrendData"
+                    }
+                },
+                "view_interfaces": {
+                    "description": "视图类型接口",
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.TriggerTypeCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "trigger_type": {
+                    "type": "string"
                 }
             }
         },
@@ -11042,6 +12217,20 @@
                 "view_sql": {
                     "type": "string",
                     "example": "SELECT * FROM users WHERE status = 'active'"
+                }
+            }
+        },
+        "controllers.UserActivityTrendData": {
+            "type": "object",
+            "properties": {
+                "active_users": {
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "operations": {
+                    "type": "integer"
                 }
             }
         },
@@ -15406,12 +16595,6 @@
                 "created_by": {
                     "type": "string"
                 },
-                "data_source_sql": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/thematic_library.SQLDataSourceConfig"
-                    }
-                },
                 "description": {
                     "type": "string"
                 },
@@ -15446,10 +16629,17 @@
                     "$ref": "#/definitions/thematic_library.ScheduleConfig"
                 },
                 "source_libraries": {
-                    "description": "数据源配置 - 使用结构化配置",
+                    "description": "数据源配置 - 两种模式二选一\n模式1: 接口模式 - 从基础库的数据接口获取数据",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/thematic_library.SourceLibraryConfig"
+                    }
+                },
+                "sql_queries": {
+                    "description": "模式2: SQL模式 - 直接执行SQL查询获取数据（优先级更高）",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.SQLQueryConfig"
                     }
                 },
                 "task_name": {
@@ -16044,27 +17234,30 @@
                 }
             }
         },
-        "thematic_library.SQLDataSourceConfig": {
+        "thematic_library.SQLQueryConfig": {
             "type": "object",
+            "required": [
+                "sql_query"
+            ],
             "properties": {
-                "interface_id": {
-                    "type": "string"
-                },
-                "library_id": {
-                    "type": "string"
-                },
                 "max_rows": {
-                    "type": "integer"
+                    "description": "最大返回行数",
+                    "type": "integer",
+                    "default": 10000
                 },
                 "parameters": {
+                    "description": "查询参数(支持参数化查询)",
                     "type": "object",
                     "additionalProperties": true
                 },
                 "sql_query": {
+                    "description": "SQL查询语句",
                     "type": "string"
                 },
                 "timeout": {
-                    "type": "integer"
+                    "description": "查询超时时间（秒）",
+                    "type": "integer",
+                    "default": 30
                 }
             }
         },

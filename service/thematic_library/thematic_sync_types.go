@@ -25,9 +25,12 @@ type CreateThematicSyncTaskRequest struct {
 	TaskName            string `json:"task_name" binding:"required"`
 	Description         string `json:"description"`
 
-	// 数据源配置 - 使用结构化配置
+	// 数据源配置 - 两种模式二选一
+	// 模式1: 接口模式 - 从基础库的数据接口获取数据
 	SourceLibraries []SourceLibraryConfig `json:"source_libraries,omitempty"`
-	DataSourceSQL   []SQLDataSourceConfig `json:"data_source_sql,omitempty"`
+
+	// 模式2: SQL模式 - 直接执行SQL查询获取数据（优先级更高）
+	SQLQueries []SQLQueryConfig `json:"sql_queries,omitempty"`
 
 	// 规则配置
 	KeyMatchingRules  *KeyMatchingRules  `json:"key_matching_rules,omitempty"`
@@ -176,15 +179,17 @@ type IncrementalConfig struct {
 	TimeZone           string `json:"timezone" default:"Asia/Shanghai"` // 时区
 }
 
-// SQLDataSourceConfig SQL数据源配置
-type SQLDataSourceConfig struct {
-	LibraryID   string                 `json:"library_id"`
-	InterfaceID string                 `json:"interface_id"`
-	SQLQuery    string                 `json:"sql_query"`
-	Parameters  map[string]interface{} `json:"parameters,omitempty"`
-	Timeout     int                    `json:"timeout,omitempty"`
-	MaxRows     int                    `json:"max_rows,omitempty"`
+// SQLQueryConfig SQL查询配置 - 简化版本,直接执行SQL语句
+// 用于执行自定义SQL查询,如统计查询、复杂关联查询等
+type SQLQueryConfig struct {
+	SQLQuery   string                 `json:"sql_query" validate:"required"`      // SQL查询语句
+	Parameters map[string]interface{} `json:"parameters,omitempty"`               // 查询参数(支持参数化查询)
+	Timeout    int                    `json:"timeout,omitempty" default:"30"`     // 查询超时时间（秒）
+	MaxRows    int                    `json:"max_rows,omitempty" default:"10000"` // 最大返回行数
 }
+
+// 向后兼容的类型别名
+type SQLDataSourceConfig = SQLQueryConfig
 
 // ScheduleConfig 调度配置
 type ScheduleConfig struct {

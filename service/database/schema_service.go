@@ -509,8 +509,8 @@ func (s *SchemaService) getTableStructure(schemaName, tableName string) (*TableD
 
 // AlterOperation 表结构修改操作
 type AlterOperation struct {
-	Type   string      `json:"type"`   // add_column, drop_column, modify_column
-	Column interface{} `json:"column"` // 列定义或列名
+	Type   string      `json:"type"`   // add_column, drop_column, modify_column, update_primary_key
+	Column interface{} `json:"column"` // 列定义、列名或主键信息
 }
 
 // generateAlterOperations 生成表结构修改操作
@@ -519,8 +519,12 @@ func (s *SchemaService) generateAlterOperations(currentTable *client.Table, newF
 
 	// 构建新字段映射
 	newFieldsMap := make(map[string]models.TableField)
+	newPrimaryKeyColumns := make([]string, 0)
 	for _, field := range newFields {
 		newFieldsMap[field.NameEn] = field
+		if field.IsPrimaryKey {
+			newPrimaryKeyColumns = append(newPrimaryKeyColumns, field.NameEn)
+		}
 	}
 
 	// 构建当前字段映射
@@ -529,10 +533,12 @@ func (s *SchemaService) generateAlterOperations(currentTable *client.Table, newF
 		currentFieldsMap[column.Name] = column
 	}
 
-	// 构建主键列映射
-	primaryKeyColumns := make(map[string]bool)
+	// 构建当前主键列映射
+	currentPrimaryKeyColumns := make(map[string]bool)
+	currentPrimaryKeyNames := make([]string, 0)
 	for _, pk := range currentTable.PrimaryKeys {
-		primaryKeyColumns[pk.Name] = true
+		currentPrimaryKeyColumns[pk.Name] = true
+		currentPrimaryKeyNames = append(currentPrimaryKeyNames, pk.Name)
 	}
 
 	// 检查需要添加的字段
@@ -592,7 +598,7 @@ func (s *SchemaService) generateAlterOperations(currentTable *client.Table, newF
 			}
 
 			// 检查可空性是否需要修改（但跳过主键列）
-			if !primaryKeyColumns[currentColumn.Name] && currentColumn.IsNullable != field.IsNullable {
+			if !currentPrimaryKeyColumns[currentColumn.Name] && currentColumn.IsNullable != field.IsNullable {
 				updateReq.IsNullable = &[]bool{field.IsNullable}[0]
 				needsUpdate = true
 			}
@@ -616,7 +622,45 @@ func (s *SchemaService) generateAlterOperations(currentTable *client.Table, newF
 		}
 	}
 
+	// 检查主键约束是否需要修改
+	primaryKeyChanged := s.isPrimaryKeyChanged(currentPrimaryKeyNames, newPrimaryKeyColumns)
+	if primaryKeyChanged {
+		log.Printf("[DEBUG] SchemaService.generateAlterOperations - 主键配置已变化，当前主键: %v, 新主键: %v", currentPrimaryKeyNames, newPrimaryKeyColumns)
+
+		// 添加主键约束操作
+		operations = append(operations, AlterOperation{
+			Type: "update_primary_key",
+			Column: map[string]interface{}{
+				"table_id":         currentTable.ID,
+				"table_name":       currentTable.Name,
+				"schema_name":      currentTable.Schema,
+				"old_primary_keys": currentPrimaryKeyNames,
+				"new_primary_keys": newPrimaryKeyColumns,
+			},
+		})
+	}
+
 	return operations
+}
+
+// isPrimaryKeyChanged 检查主键是否发生变化
+func (s *SchemaService) isPrimaryKeyChanged(oldKeys, newKeys []string) bool {
+	if len(oldKeys) != len(newKeys) {
+		return true
+	}
+
+	oldKeyMap := make(map[string]bool)
+	for _, key := range oldKeys {
+		oldKeyMap[key] = true
+	}
+
+	for _, key := range newKeys {
+		if !oldKeyMap[key] {
+			return true
+		}
+	}
+
+	return false
 }
 
 // executeAlterOperation 执行表结构修改操作
@@ -675,9 +719,99 @@ func (s *SchemaService) executeAlterOperation(tableID int, operation AlterOperat
 			}
 		}
 		return err
+	case "update_primary_key":
+		data := operation.Column.(map[string]interface{})
+		schemaName := data["schema_name"].(string)
+		tableName := data["table_name"].(string)
+		oldPrimaryKeys := data["old_primary_keys"].([]string)
+		newPrimaryKeys := data["new_primary_keys"].([]string)
+
+		log.Printf("[DEBUG] SchemaService.executeAlterOperation - 更新主键约束，表: %s.%s, 旧主键: %v, 新主键: %v",
+			schemaName, tableName, oldPrimaryKeys, newPrimaryKeys)
+
+		return s.updatePrimaryKeyConstraint(schemaName, tableName, oldPrimaryKeys, newPrimaryKeys)
 	default:
 		return fmt.Errorf("不支持的修改操作类型: %s", operation.Type)
 	}
+}
+
+// updatePrimaryKeyConstraint 更新主键约束
+func (s *SchemaService) updatePrimaryKeyConstraint(schemaName, tableName string, oldKeys, newKeys []string) error {
+	// 如果存在旧主键，先删除
+	if len(oldKeys) > 0 {
+		// 查找主键约束名称
+		var constraintName string
+		findConstraintSQL := `
+			SELECT constraint_name 
+			FROM information_schema.table_constraints 
+			WHERE table_schema = $1 AND table_name = $2 AND constraint_type = 'PRIMARY KEY'
+		`
+		err := s.db.Raw(findConstraintSQL, schemaName, tableName).Scan(&constraintName).Error
+		if err != nil {
+			log.Printf("[ERROR] SchemaService.updatePrimaryKeyConstraint - 查找主键约束名称失败: %v", err)
+			return fmt.Errorf("查找主键约束名称失败: %v", err)
+		}
+
+		if constraintName != "" {
+			// 删除旧主键约束
+			dropConstraintSQL := fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s",
+				s.quoteIdentifier(schemaName),
+				s.quoteIdentifier(tableName),
+				s.quoteIdentifier(constraintName))
+
+			log.Printf("[DEBUG] SchemaService.updatePrimaryKeyConstraint - 删除旧主键约束: %s", dropConstraintSQL)
+			err = s.db.Exec(dropConstraintSQL).Error
+			if err != nil {
+				log.Printf("[ERROR] SchemaService.updatePrimaryKeyConstraint - 删除主键约束失败: %v", err)
+				return fmt.Errorf("删除主键约束失败: %v", err)
+			}
+		}
+	}
+
+	// 如果有新主键，添加主键约束
+	if len(newKeys) > 0 {
+		// 首先确保主键列不为空
+		for _, keyCol := range newKeys {
+			setNotNullSQL := fmt.Sprintf("ALTER TABLE %s.%s ALTER COLUMN %s SET NOT NULL",
+				s.quoteIdentifier(schemaName),
+				s.quoteIdentifier(tableName),
+				s.quoteIdentifier(keyCol))
+
+			log.Printf("[DEBUG] SchemaService.updatePrimaryKeyConstraint - 设置列为非空: %s", setNotNullSQL)
+			err := s.db.Exec(setNotNullSQL).Error
+			if err != nil {
+				log.Printf("[WARN] SchemaService.updatePrimaryKeyConstraint - 设置列为非空失败(可能已经是非空): %v", err)
+				// 继续执行，因为列可能已经是非空的
+			}
+		}
+
+		// 生成主键列名列表
+		quotedKeys := make([]string, len(newKeys))
+		for i, key := range newKeys {
+			quotedKeys[i] = s.quoteIdentifier(key)
+		}
+		keysList := strings.Join(quotedKeys, ", ")
+
+		// 生成约束名称
+		constraintName := fmt.Sprintf("pk_%s", tableName)
+
+		// 添加新主键约束
+		addConstraintSQL := fmt.Sprintf("ALTER TABLE %s.%s ADD CONSTRAINT %s PRIMARY KEY (%s)",
+			s.quoteIdentifier(schemaName),
+			s.quoteIdentifier(tableName),
+			s.quoteIdentifier(constraintName),
+			keysList)
+
+		log.Printf("[DEBUG] SchemaService.updatePrimaryKeyConstraint - 添加新主键约束: %s", addConstraintSQL)
+		err := s.db.Exec(addConstraintSQL).Error
+		if err != nil {
+			log.Printf("[ERROR] SchemaService.updatePrimaryKeyConstraint - 添加主键约束失败: %v", err)
+			return fmt.Errorf("添加主键约束失败: %v", err)
+		}
+	}
+
+	log.Printf("[DEBUG] SchemaService.updatePrimaryKeyConstraint - 主键约束更新成功")
+	return nil
 }
 
 // GetTableInfo 获取表信息

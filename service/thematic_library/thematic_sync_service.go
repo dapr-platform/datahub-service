@@ -177,7 +177,7 @@ func (tss *ThematicSyncService) CreateSyncTask(ctx context.Context, req *CreateT
 		TaskName:            req.TaskName,
 		Description:         req.Description,
 		SourceLibraries:     structToJSONBGenericArray(req.SourceLibraries),
-		DataSourceSQL:       structToJSONBGenericArray(req.DataSourceSQL), // 新增SQL数据源配置
+		SQLQueries:          structToJSONBGenericArray(req.SQLQueries), // SQL查询配置
 		KeyMatchingRules:    structToJSONB(req.KeyMatchingRules),
 		FieldMappingRules:   structToJSONB(req.FieldMappingRules),
 
@@ -500,19 +500,17 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 
 	// 注意：已移除 SourceInterfaces 字段，所有源接口信息现在都在 SourceLibraries 中
 
-	// 解析SQL数据源配置（优先级更高）
-	var sqlDataSourceConfigs []thematic_sync.SQLDataSourceConfig
-	if len(task.DataSourceSQL) > 0 {
-		sqlConfigsRaw := []interface{}(task.DataSourceSQL)
+	// 解析SQL查询配置（优先级更高）
+	var sqlQueryConfigs []*thematic_sync.SQLQueryConfig
+	if len(task.SQLQueries) > 0 {
+		sqlConfigsRaw := []interface{}(task.SQLQueries)
 		if len(sqlConfigsRaw) > 0 {
 			for _, configRaw := range sqlConfigsRaw {
 				if configMap, ok := configRaw.(map[string]interface{}); ok {
-					config := thematic_sync.SQLDataSourceConfig{
-						LibraryID:   getStringFromMap(configMap, "library_id"),
-						InterfaceID: getStringFromMap(configMap, "interface_id"),
-						SQLQuery:    getStringFromMap(configMap, "sql_query"),
-						Timeout:     30,    // 默认30秒
-						MaxRows:     10000, // 默认1万行
+					config := &thematic_sync.SQLQueryConfig{
+						SQLQuery: getStringFromMap(configMap, "sql_query"),
+						Timeout:  30,    // 默认30秒
+						MaxRows:  10000, // 默认1万行
 					}
 
 					// 解析参数
@@ -540,7 +538,10 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 						}
 					}
 
-					sqlDataSourceConfigs = append(sqlDataSourceConfigs, config)
+					// 只添加有效的SQL查询
+					if config.SQLQuery != "" {
+						sqlQueryConfigs = append(sqlQueryConfigs, config)
+					}
 				}
 			}
 		}
@@ -549,12 +550,16 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 	// 构建同步请求配置
 	configMap := make(map[string]interface{})
 
-	// 优先添加SQL数据源配置
-	if len(sqlDataSourceConfigs) > 0 {
-		configMap["data_source_sql"] = sqlDataSourceConfigs
+	// 优先添加SQL查询配置（SQL模式）
+	if len(sqlQueryConfigs) > 0 {
+		configMap["sql_queries"] = sqlQueryConfigs
+		fmt.Printf("[DEBUG] 任务使用SQL查询模式，查询数量: %d\n", len(sqlQueryConfigs))
 	} else if len(sourceLibraryConfigs) > 0 {
-		// 兜底：添加传统源库配置
+		// 使用接口模式
 		configMap["source_libraries"] = sourceLibraryConfigs
+		fmt.Printf("[DEBUG] 任务使用接口模式，源库数量: %d\n", len(sourceLibraryConfigs))
+	} else {
+		return nil, fmt.Errorf("任务必须配置数据源：请配置 SQLQueries(SQL模式) 或 SourceLibraries(接口模式)")
 	}
 
 	// 添加各种规则配置

@@ -12,9 +12,9 @@
 package thematic_sync
 
 import (
-	"log/slog"
 	"datahub-service/service/models"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"gorm.io/gorm"
@@ -22,19 +22,32 @@ import (
 
 // DataFetcher 数据获取器
 type DataFetcher struct {
-	db *gorm.DB
+	db               *gorm.DB
+	sqlQueryExecutor *SQLQueryExecutor
 }
 
 // NewDataFetcher 创建数据获取器
 func NewDataFetcher(db *gorm.DB) *DataFetcher {
-	return &DataFetcher{db: db}
+	return &DataFetcher{
+		db:               db,
+		sqlQueryExecutor: NewSQLQueryExecutor(db),
+	}
 }
 
-// FetchSourceData 获取源数据
+// FetchSourceData 获取源数据 - 支持两种模式
 func (df *DataFetcher) FetchSourceData(request *SyncRequest, result *SyncExecutionResult) ([]SourceRecordInfo, error) {
 	var sourceRecords []SourceRecordInfo
 
-	// 从配置中获取源库配置
+	// 优先检查是否使用SQL查询模式
+	sqlConfigs, hasSQLConfig := df.parseSQLQueryConfigs(request)
+	if hasSQLConfig && len(sqlConfigs) > 0 {
+		// SQL模式：直接执行SQL查询获取数据
+		fmt.Printf("[DEBUG] 使用SQL查询模式，查询数量: %d\n", len(sqlConfigs))
+		return df.fetchDataFromSQLQueries(sqlConfigs, result)
+	}
+
+	// 接口模式：从基础库的数据接口获取数据
+	fmt.Println("[DEBUG] 使用接口查询模式")
 	sourceConfigs, err := df.parseSourceConfigs(request)
 	if err != nil {
 		return nil, fmt.Errorf("解析源库配置失败: %w", err)
@@ -801,4 +814,129 @@ func (df *DataFetcher) getStringFromMap(m map[string]interface{}, key string) st
 		return fmt.Sprintf("%v", value)
 	}
 	return ""
+}
+
+// parseSQLQueryConfigs 解析SQL查询配置
+func (df *DataFetcher) parseSQLQueryConfigs(request *SyncRequest) ([]*SQLQueryConfig, bool) {
+	// 检查请求配置中是否有SQL查询配置
+	sqlConfigsRaw, exists := request.Config["sql_queries"]
+	if !exists {
+		// 兼容旧的字段名 data_source_sql
+		sqlConfigsRaw, exists = request.Config["data_source_sql"]
+		if !exists {
+			return nil, false
+		}
+	}
+
+	var sqlConfigs []*SQLQueryConfig
+
+	// 尝试直接转换
+	if configSlice, ok := sqlConfigsRaw.([]*SQLQueryConfig); ok {
+		return configSlice, true
+	}
+
+	// 尝试从接口数组转换
+	if configSlice, ok := sqlConfigsRaw.([]interface{}); ok {
+		for _, configRaw := range configSlice {
+			if configMap, ok := configRaw.(map[string]interface{}); ok {
+				config := &SQLQueryConfig{
+					SQLQuery: df.getStringFromMap(configMap, "sql_query"),
+					Timeout:  30,
+					MaxRows:  10000,
+				}
+
+				// 解析参数
+				if params, exists := configMap["parameters"]; exists {
+					if paramsMap, ok := params.(map[string]interface{}); ok {
+						config.Parameters = paramsMap
+					}
+				}
+
+				// 解析超时时间
+				if timeout, exists := configMap["timeout"]; exists {
+					if timeoutFloat, ok := timeout.(float64); ok {
+						config.Timeout = int(timeoutFloat)
+					} else if timeoutInt, ok := timeout.(int); ok {
+						config.Timeout = timeoutInt
+					}
+				}
+
+				// 解析最大行数
+				if maxRows, exists := configMap["max_rows"]; exists {
+					if maxRowsFloat, ok := maxRows.(float64); ok {
+						config.MaxRows = int(maxRowsFloat)
+					} else if maxRowsInt, ok := maxRows.(int); ok {
+						config.MaxRows = maxRowsInt
+					}
+				}
+
+				// 验证SQL查询不为空
+				if config.SQLQuery != "" {
+					sqlConfigs = append(sqlConfigs, config)
+				}
+			}
+		}
+
+		if len(sqlConfigs) > 0 {
+			return sqlConfigs, true
+		}
+	}
+
+	return nil, false
+}
+
+// fetchDataFromSQLQueries 从SQL查询获取数据
+func (df *DataFetcher) fetchDataFromSQLQueries(sqlConfigs []*SQLQueryConfig, result *SyncExecutionResult) ([]SourceRecordInfo, error) {
+	var sourceRecords []SourceRecordInfo
+
+	for i, sqlConfig := range sqlConfigs {
+		fmt.Printf("[DEBUG] 执行第 %d/%d 个SQL查询\n", i+1, len(sqlConfigs))
+
+		// 使用SQL执行器执行查询
+		records, err := df.sqlQueryExecutor.ExecuteQuery(nil, sqlConfig)
+		if err != nil {
+			return nil, fmt.Errorf("执行SQL查询失败 [查询%d]: %w", i+1, err)
+		}
+
+		// 转换为源记录信息
+		for j, record := range records {
+			sourceRecord := SourceRecordInfo{
+				LibraryID:   "sql_query",                               // SQL查询模式使用固定的标识
+				InterfaceID: fmt.Sprintf("sql_query_%d", i+1),          // 使用查询索引作为接口ID
+				RecordID:    df.generateRecordIDForSQL(i+1, j, record), // 生成唯一记录ID
+				Record:      record,
+				Quality:     df.calculateInitialQuality(record),
+				LastUpdated: time.Now(),
+				Metadata: map[string]interface{}{
+					"data_source_type": "sql_query",
+					"query_index":      i + 1,
+					"fetch_time":       time.Now(),
+					"sql_query":        sqlConfig.SQLQuery,
+				},
+			}
+			sourceRecords = append(sourceRecords, sourceRecord)
+		}
+
+		fmt.Printf("[DEBUG] SQL查询 %d 返回记录数: %d\n", i+1, len(records))
+	}
+
+	result.SourceRecordCount = int64(len(sourceRecords))
+	fmt.Printf("[DEBUG] SQL查询模式总记录数: %d\n", len(sourceRecords))
+
+	return sourceRecords, nil
+}
+
+// generateRecordIDForSQL 为SQL查询结果生成记录ID
+func (df *DataFetcher) generateRecordIDForSQL(queryIndex, recordIndex int, record map[string]interface{}) string {
+	// 尝试使用记录中的主键字段
+	keyFields := []string{"id", "uuid", "primary_key", "pk"}
+
+	for _, keyField := range keyFields {
+		if value, exists := record[keyField]; exists && value != nil {
+			return fmt.Sprintf("sql_query_%d_%v", queryIndex, value)
+		}
+	}
+
+	// 使用索引生成ID
+	return fmt.Sprintf("sql_query_%d_record_%d", queryIndex, recordIndex)
 }

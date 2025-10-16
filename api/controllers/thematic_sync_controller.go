@@ -104,8 +104,10 @@ func (c *ThematicSyncController) CreateSyncTask(w http.ResponseWriter, r *http.R
 	}
 
 	// 验证数据源配置 - 必须配置其中一种
-	if len(req.DataSourceSQL) == 0 && len(req.SourceLibraries) == 0 {
-		render.JSON(w, r, BadRequestResponse("必须配置SQL数据源或基础库源配置", nil))
+	// 模式1: 接口模式 - 从基础库的数据接口获取数据
+	// 模式2: SQL模式 - 直接执行SQL查询获取数据
+	if len(req.SQLQueries) == 0 && len(req.SourceLibraries) == 0 {
+		render.JSON(w, r, BadRequestResponse("必须配置数据源：请配置 sql_queries(SQL模式) 或 source_libraries(接口模式)", nil))
 		return
 	}
 
@@ -138,19 +140,19 @@ func (c *ThematicSyncController) CreateSyncTask(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	// 验证SQL数据源配置
-	for i, sqlConfig := range req.DataSourceSQL {
+	// 验证SQL查询配置
+	for i, sqlConfig := range req.SQLQueries {
 		if sqlConfig.SQLQuery == "" {
-			render.JSON(w, r, BadRequestResponse(fmt.Sprintf("第%d个SQL配置的查询语句不能为空", i+1), nil))
+			render.JSON(w, r, BadRequestResponse(fmt.Sprintf("第%d个SQL查询的语句不能为空", i+1), nil))
 			return
 		}
-		if sqlConfig.LibraryID == "" {
-			render.JSON(w, r, BadRequestResponse(fmt.Sprintf("第%d个SQL配置的库ID不能为空", i+1), nil))
-			return
+		// SQL查询模式下，不需要LibraryID和InterfaceID
+		// 设置合理的默认值
+		if sqlConfig.Timeout == 0 {
+			sqlConfig.Timeout = 30 // 默认30秒
 		}
-		if sqlConfig.InterfaceID == "" {
-			render.JSON(w, r, BadRequestResponse(fmt.Sprintf("第%d个SQL配置的接口ID不能为空", i+1), nil))
-			return
+		if sqlConfig.MaxRows == 0 {
+			sqlConfig.MaxRows = 10000 // 默认1万行
 		}
 	}
 
@@ -164,24 +166,8 @@ func (c *ThematicSyncController) CreateSyncTask(w http.ResponseWriter, r *http.R
 		req.CreatedBy = "system"
 	}
 
-	// 转换SQL数据源配置到服务层类型
-	var serviceDataSourceSQL []thematic_library.SQLDataSourceConfig
-	for _, sqlConfig := range req.DataSourceSQL {
-		serviceDataSourceSQL = append(serviceDataSourceSQL, thematic_library.SQLDataSourceConfig{
-			LibraryID:   sqlConfig.LibraryID,
-			InterfaceID: sqlConfig.InterfaceID,
-			SQLQuery:    sqlConfig.SQLQuery,
-			Parameters:  sqlConfig.Parameters,
-			Timeout:     sqlConfig.Timeout,
-			MaxRows:     sqlConfig.MaxRows,
-		})
-	}
-
-	// 直接使用请求结构，只需要更新SQL数据源配置
+	// 直接使用请求结构传递给服务层
 	serviceReq := &req
-	if len(serviceDataSourceSQL) > 0 {
-		serviceReq.DataSourceSQL = serviceDataSourceSQL
-	}
 
 	task, err := c.thematicSyncService.CreateSyncTask(r.Context(), serviceReq)
 	if err != nil {

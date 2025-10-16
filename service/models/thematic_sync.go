@@ -24,11 +24,13 @@ type ThematicSyncTask struct {
 	Description         string `json:"description" gorm:"size:1000"`
 
 	// 源数据配置 - 包含库ID和接口ID的完整配置
-	SourceLibraries JSONBGenericArray `json:"source_libraries" gorm:"type:jsonb"` // 源基础库列表
+	SourceLibraries JSONBGenericArray `json:"source_libraries" gorm:"type:jsonb"` // 源基础库列表(从数据接口获取数据)
 
-	// SQL数据源配置 - 如果配置了SQL，则优先使用SQL获取数据
-	DataSourceSQL  JSONBGenericArray `json:"data_source_sql" gorm:"type:jsonb"`  // SQL数据源配置
-	SQLQueryConfig JSONB             `json:"sql_query_config" gorm:"type:jsonb"` // SQL查询配置（参数、超时等）
+	// SQL查询配置 - 如果配置了SQL查询，则优先使用SQL模式获取数据
+	// 支持两种模式:
+	// 1. 接口模式: 使用SourceLibraries配置，从基础库的数据接口获取数据
+	// 2. SQL模式: 使用SQLQueries配置，直接执行SQL查询获取数据
+	SQLQueries JSONBGenericArray `json:"sql_queries" gorm:"type:jsonb"` // SQL查询列表，每个元素是SQLQueryConfig对象
 
 	// 数据处理配置
 	KeyMatchingRules  JSONB `json:"key_matching_rules" gorm:"type:jsonb"`  // 主键匹配规则

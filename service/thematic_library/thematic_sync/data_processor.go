@@ -12,10 +12,10 @@
 package thematic_sync
 
 import (
-	"log/slog"
 	"datahub-service/service/models"
 	"fmt"
 	"hash/fnv"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -158,7 +158,7 @@ func (dp *DataProcessor) MergeData(sourceRecords []SourceRecordInfo, request *Sy
 	// 调试：打印合并结果
 	slog.Debug("合并结果记录数量", "count", len(mergedRecords))
 	for i, record := range mergedRecords {
-		slog.Debug("合并记录 %d", "value", i, record)
+		slog.Debug("合并记录", "index", i, "record", record)
 		if i >= 2 { // 只打印前3条记录，避免日志太长
 			break
 		}
