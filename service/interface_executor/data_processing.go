@@ -18,6 +18,7 @@ import (
 	"datahub-service/service/models"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"time"
 
@@ -52,19 +53,20 @@ func (dp *DataProcessor) FetchDataFromSourceWithExecuteType(ctx context.Context,
 
 // FetchDataFromSourceWithSyncStrategy 从数据源获取数据（支持指定同步策略）
 func (dp *DataProcessor) FetchDataFromSourceWithSyncStrategy(ctx context.Context, interfaceInfo InterfaceInfo, parameters map[string]interface{}, syncStrategy string) ([]map[string]interface{}, map[string]string, []string, error) {
-	fmt.Printf("[DEBUG] DataProcessor.FetchDataFromSourceWithSyncStrategy - 开始从数据源获取数据，策略: %s\n", syncStrategy)
-	fmt.Printf("[DEBUG] FetchDataFromSource - 接口ID: %s\n", interfaceInfo.GetID())
-	fmt.Printf("[DEBUG] FetchDataFromSource - 数据源ID: %s\n", interfaceInfo.GetDataSourceID())
-	fmt.Printf("[DEBUG] FetchDataFromSource - 请求参数: %+v\n", parameters)
+	slog.Debug("DataProcessor.FetchDataFromSourceWithSyncStrategy - 开始从数据源获取数据",
+		"strategy", syncStrategy)
+	slog.Debug("FetchDataFromSource - 接口ID", "interface_id", interfaceInfo.GetID())
+	slog.Debug("FetchDataFromSource - 数据源ID", "datasource_id", interfaceInfo.GetDataSourceID())
+	slog.Debug("FetchDataFromSource - 请求参数", "parameters", parameters)
 
 	// 获取数据源信息
 	var dataSource models.DataSource
 	if err := dp.executor.db.First(&dataSource, "id = ?", interfaceInfo.GetDataSourceID()).Error; err != nil {
-		fmt.Printf("[ERROR] FetchDataFromSource - 获取数据源信息失败: %v\n", err)
+		slog.Error("FetchDataFromSource - 获取数据源信息失败", "error", err)
 		return nil, nil, nil, fmt.Errorf("获取数据源信息失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchDataFromSource - 数据源信息: %+v\n", dataSource)
+	slog.Debug("FetchDataFromSource - 数据源信息", "datasource", dataSource)
 
 	// 获取或创建数据源实例
 	var dsInstance datasource.DataSourceInterface
@@ -73,38 +75,38 @@ func (dp *DataProcessor) FetchDataFromSourceWithSyncStrategy(ctx context.Context
 	// 首先尝试从管理器获取已注册的实例
 	dsInstance, err = dp.executor.datasourceManager.Get(dataSource.ID)
 	if err != nil {
-		fmt.Printf("[DEBUG] FetchDataFromSource - 数据源未注册，创建临时实例，错误: %v\n", err)
+		slog.Debug("FetchDataFromSource - 数据源未注册，创建临时实例", "error", err)
 		// 如果没有注册，创建临时实例
 		dsInstance, err = dp.executor.datasourceManager.CreateInstance(dataSource.Type)
 		if err != nil {
-			fmt.Printf("[ERROR] FetchDataFromSource - 创建数据源实例失败: %v\n", err)
+			slog.Error("FetchDataFromSource - 创建数据源实例失败", "error", err)
 			return nil, nil, nil, fmt.Errorf("创建数据源实例失败: %w", err)
 		}
 
 		// 初始化数据源
 		if err := dsInstance.Init(ctx, &dataSource); err != nil {
-			fmt.Printf("[ERROR] FetchDataFromSource - 初始化数据源失败: %v\n", err)
+			slog.Error("FetchDataFromSource - 初始化数据源失败", "error", err)
 			return nil, nil, nil, fmt.Errorf("初始化数据源失败: %w", err)
 		}
 
 		// 启动数据源（对于常驻数据源如数据库，需要建立连接池）
 		if err := dsInstance.Start(ctx); err != nil {
-			fmt.Printf("[ERROR] FetchDataFromSource - 启动数据源失败: %v\n", err)
+			slog.Error("FetchDataFromSource - 启动数据源失败", "error", err)
 			return nil, nil, nil, fmt.Errorf("启动数据源失败: %w", err)
 		}
 
-		fmt.Printf("[DEBUG] FetchDataFromSource - 临时数据源实例创建、初始化并启动成功\n")
+		slog.Debug("FetchDataFromSource - 临时数据源实例创建、初始化并启动成功")
 
 		// 确保在函数返回前关闭临时数据源
 		defer func() {
 			if err := dsInstance.Stop(context.Background()); err != nil {
-				fmt.Printf("[WARN] FetchDataFromSource - 关闭临时数据源失败: %v\n", err)
+				slog.Warn("FetchDataFromSource - 关闭临时数据源失败", "error", err)
 			} else {
-				fmt.Printf("[DEBUG] FetchDataFromSource - 临时数据源已关闭\n")
+				slog.Debug("FetchDataFromSource - 临时数据源已关闭")
 			}
 		}()
 	} else {
-		fmt.Printf("[DEBUG] FetchDataFromSource - 使用已注册的数据源实例\n")
+		slog.Debug("FetchDataFromSource - 使用已注册的数据源实例")
 	}
 
 	// 创建查询构建器
@@ -114,10 +116,10 @@ func (dp *DataProcessor) FetchDataFromSourceWithSyncStrategy(ctx context.Context
 		tableFieldsConfig[fmt.Sprintf("%d", i)] = v
 	}
 
-	fmt.Printf("[DEBUG] FetchDataFromSource - 接口配置信息:\n")
-	fmt.Printf("[DEBUG] FetchDataFromSource - InterfaceConfig: %+v\n", interfaceInfo.GetInterfaceConfig())
-	fmt.Printf("[DEBUG] FetchDataFromSource - ParseConfig: %+v\n", interfaceInfo.GetParseConfig())
-	fmt.Printf("[DEBUG] FetchDataFromSource - TableFieldsConfig: %+v\n", tableFieldsConfig)
+	slog.Debug("FetchDataFromSource - 接口配置信息:")
+	slog.Debug("FetchDataFromSource - InterfaceConfig", "data", interfaceInfo.GetInterfaceConfig())
+	slog.Debug("FetchDataFromSource - ParseConfig", "data", interfaceInfo.GetParseConfig())
+	slog.Debug("FetchDataFromSource - TableFieldsConfig", "data", tableFieldsConfig)
 
 	queryBuilder, err := datasource.GetQueryBuilder(&dataSource, &models.DataInterface{
 		ID:                interfaceInfo.GetID(),
@@ -126,11 +128,11 @@ func (dp *DataProcessor) FetchDataFromSourceWithSyncStrategy(ctx context.Context
 		TableFieldsConfig: tableFieldsConfig,
 	})
 	if err != nil {
-		fmt.Printf("[ERROR] FetchDataFromSource - 创建查询构建器失败: %v\n", err)
+		slog.Error("FetchDataFromSource - 创建查询构建器失败", "error", err)
 		return nil, nil, nil, fmt.Errorf("创建查询构建器失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchDataFromSource - 查询构建器创建成功\n")
+	slog.Debug("FetchDataFromSource - 查询构建器创建成功")
 
 	// 根据同步策略构建不同的请求
 	var executeRequest *datasource.ExecuteRequest
@@ -162,23 +164,23 @@ func (dp *DataProcessor) FetchDataFromSourceWithSyncStrategy(ctx context.Context
 	}
 
 	if err != nil {
-		fmt.Printf("[ERROR] FetchDataFromSource - 构建查询请求失败: %v\n", err)
+		slog.Error("FetchDataFromSource - 构建查询请求失败", "error", err)
 		return nil, nil, nil, fmt.Errorf("构建查询请求失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchDataFromSource - 执行请求详情:\n")
-	fmt.Printf("[DEBUG] FetchDataFromSource - Operation: %s\n", executeRequest.Operation)
-	fmt.Printf("[DEBUG] FetchDataFromSource - Query: %s\n", executeRequest.Query)
-	fmt.Printf("[DEBUG] FetchDataFromSource - Data: %+v\n", executeRequest.Data)
+	slog.Debug("FetchDataFromSource - 执行请求详情:")
+	slog.Debug("FetchDataFromSource - Operation", "value", executeRequest.Operation)
+	slog.Debug("FetchDataFromSource - Query", "value", executeRequest.Query)
+	slog.Debug("FetchDataFromSource - Data", "data", executeRequest.Data)
 
 	// 执行数据查询
 	response, err := dsInstance.Execute(ctx, executeRequest)
 	if err != nil {
-		fmt.Printf("[ERROR] FetchDataFromSource - 执行接口查询失败: %v\n", err)
+		slog.Error("FetchDataFromSource - 执行接口查询失败", "error", err)
 		return nil, nil, nil, fmt.Errorf("执行接口查询失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchDataFromSource - 查询执行成功，响应: %+v\n", response)
+	slog.Debug("FetchDataFromSource - 查询执行成功，响应", "data", response)
 
 	// 检查响应是否成功
 	if !response.Success {
@@ -190,39 +192,39 @@ func (dp *DataProcessor) FetchDataFromSourceWithSyncStrategy(ctx context.Context
 		if response.Error != "" {
 			errorMsg = fmt.Sprintf("%s: %s", errorMsg, response.Error)
 		}
-		fmt.Printf("[ERROR] FetchDataFromSource - 接口返回错误: %s\n", errorMsg)
+		slog.Error("FetchDataFromSource - 接口返回错误", "message", errorMsg)
 		return nil, nil, nil, fmt.Errorf("接口调用失败: %s", errorMsg)
 	}
 
 	// 处理返回的数据
 	data, dataTypes, warnings := dp.ProcessResponseData(response.Data)
 
-	fmt.Printf("[DEBUG] FetchDataFromSource - 处理后的数据: %d 行\n", len(data))
+	slog.Debug("FetchDataFromSource - 处理后的数据", "row_count", len(data))
 	if len(data) > 0 {
-		fmt.Printf("[DEBUG] FetchDataFromSource - 第一行数据示例: %+v\n", data[0])
+		slog.Debug("FetchDataFromSource - 第一行数据示例", "data", data[0])
 	}
-	fmt.Printf("[DEBUG] FetchDataFromSource - 数据类型: %+v\n", dataTypes)
-	fmt.Printf("[DEBUG] FetchDataFromSource - 警告信息: %+v\n", warnings)
+	slog.Debug("FetchDataFromSource - 数据类型", "types", dataTypes)
+	slog.Debug("FetchDataFromSource - 警告信息", "warnings", warnings)
 
 	return data, dataTypes, warnings, nil
 }
 
 // FetchBatchDataFromSource 从数据源获取批量数据（支持分页）
 func (dp *DataProcessor) FetchBatchDataFromSource(ctx context.Context, interfaceInfo InterfaceInfo, parameters map[string]interface{}, pageParams map[string]interface{}) ([]map[string]interface{}, map[string]string, []string, error) {
-	fmt.Printf("[DEBUG] DataProcessor.FetchBatchDataFromSource - 开始获取批量数据\n")
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 接口ID: %s\n", interfaceInfo.GetID())
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 数据源ID: %s\n", interfaceInfo.GetDataSourceID())
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 请求参数: %+v\n", parameters)
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 分页参数: %+v\n", pageParams)
+	slog.Debug("DataProcessor.FetchBatchDataFromSource - 开始获取批量数据")
+	slog.Debug("FetchBatchDataFromSource - 接口ID", "value", interfaceInfo.GetID())
+	slog.Debug("FetchBatchDataFromSource - 数据源ID", "value", interfaceInfo.GetDataSourceID())
+	slog.Debug("FetchBatchDataFromSource - 请求参数", "data", parameters)
+	slog.Debug("FetchBatchDataFromSource - 分页参数", "data", pageParams)
 
 	// 获取数据源信息
 	var dataSource models.DataSource
 	if err := dp.executor.db.First(&dataSource, "id = ?", interfaceInfo.GetDataSourceID()).Error; err != nil {
-		fmt.Printf("[ERROR] FetchBatchDataFromSource - 获取数据源信息失败: %v\n", err)
+		slog.Error("FetchBatchDataFromSource - 获取数据源信息失败", "error", err)
 		return nil, nil, nil, fmt.Errorf("获取数据源信息失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 数据源信息: %+v\n", dataSource)
+	slog.Debug("FetchBatchDataFromSource - 数据源信息", "data", dataSource)
 
 	// 获取或创建数据源实例
 	var dsInstance datasource.DataSourceInterface
@@ -231,38 +233,38 @@ func (dp *DataProcessor) FetchBatchDataFromSource(ctx context.Context, interface
 	// 首先尝试从管理器获取已注册的实例
 	dsInstance, err = dp.executor.datasourceManager.Get(dataSource.ID)
 	if err != nil {
-		fmt.Printf("[DEBUG] FetchBatchDataFromSource - 数据源未注册，创建临时实例，错误: %v\n", err)
+		slog.Debug("FetchBatchDataFromSource - 数据源未注册，创建临时实例，错误", "value", err)
 		// 如果没有注册，创建临时实例
 		dsInstance, err = dp.executor.datasourceManager.CreateInstance(dataSource.Type)
 		if err != nil {
-			fmt.Printf("[ERROR] FetchBatchDataFromSource - 创建数据源实例失败: %v\n", err)
+			slog.Error("FetchBatchDataFromSource - 创建数据源实例失败", "error", err)
 			return nil, nil, nil, fmt.Errorf("创建数据源实例失败: %w", err)
 		}
 
 		// 初始化数据源
 		if err := dsInstance.Init(ctx, &dataSource); err != nil {
-			fmt.Printf("[ERROR] FetchBatchDataFromSource - 初始化数据源失败: %v\n", err)
+			slog.Error("FetchBatchDataFromSource - 初始化数据源失败", "error", err)
 			return nil, nil, nil, fmt.Errorf("初始化数据源失败: %w", err)
 		}
 
 		// 启动数据源（对于常驻数据源如数据库，需要建立连接池）
 		if err := dsInstance.Start(ctx); err != nil {
-			fmt.Printf("[ERROR] FetchBatchDataFromSource - 启动数据源失败: %v\n", err)
+			slog.Error("FetchBatchDataFromSource - 启动数据源失败", "error", err)
 			return nil, nil, nil, fmt.Errorf("启动数据源失败: %w", err)
 		}
 
-		fmt.Printf("[DEBUG] FetchBatchDataFromSource - 临时数据源实例创建、初始化并启动成功\n")
+		slog.Debug("FetchBatchDataFromSource - 临时数据源实例创建、初始化并启动成功")
 
 		// 确保在函数返回前关闭临时数据源
 		defer func() {
 			if err := dsInstance.Stop(context.Background()); err != nil {
-				fmt.Printf("[WARN] FetchBatchDataFromSource - 关闭临时数据源失败: %v\n", err)
+				slog.Warn("FetchBatchDataFromSource - 关闭临时数据源失败", "error", err)
 			} else {
-				fmt.Printf("[DEBUG] FetchBatchDataFromSource - 临时数据源已关闭\n")
+				slog.Debug("FetchBatchDataFromSource - 临时数据源已关闭")
 			}
 		}()
 	} else {
-		fmt.Printf("[DEBUG] FetchBatchDataFromSource - 使用已注册的数据源实例\n")
+		slog.Debug("FetchBatchDataFromSource - 使用已注册的数据源实例")
 	}
 
 	// 创建查询构建器
@@ -272,10 +274,10 @@ func (dp *DataProcessor) FetchBatchDataFromSource(ctx context.Context, interface
 		tableFieldsConfig[fmt.Sprintf("%d", i)] = v
 	}
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 接口配置信息:\n")
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - InterfaceConfig: %+v\n", interfaceInfo.GetInterfaceConfig())
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - ParseConfig: %+v\n", interfaceInfo.GetParseConfig())
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - TableFieldsConfig: %+v\n", tableFieldsConfig)
+	slog.Debug("FetchBatchDataFromSource - 接口配置信息:")
+	slog.Debug("FetchBatchDataFromSource - InterfaceConfig", "data", interfaceInfo.GetInterfaceConfig())
+	slog.Debug("FetchBatchDataFromSource - ParseConfig", "data", interfaceInfo.GetParseConfig())
+	slog.Debug("FetchBatchDataFromSource - TableFieldsConfig", "data", tableFieldsConfig)
 
 	queryBuilder, err := datasource.GetQueryBuilder(&dataSource, &models.DataInterface{
 		ID:                interfaceInfo.GetID(),
@@ -284,11 +286,11 @@ func (dp *DataProcessor) FetchBatchDataFromSource(ctx context.Context, interface
 		TableFieldsConfig: tableFieldsConfig,
 	})
 	if err != nil {
-		fmt.Printf("[ERROR] FetchBatchDataFromSource - 创建查询构建器失败: %v\n", err)
+		slog.Error("FetchBatchDataFromSource - 创建查询构建器失败", "error", err)
 		return nil, nil, nil, fmt.Errorf("创建查询构建器失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 查询构建器创建成功\n")
+	slog.Debug("FetchBatchDataFromSource - 查询构建器创建成功")
 
 	// 根据数据源类型构建不同的请求
 	var executeRequest *datasource.ExecuteRequest
@@ -307,7 +309,7 @@ func (dp *DataProcessor) FetchBatchDataFromSource(ctx context.Context, interface
 		// 数据库类型：使用带分页的同步请求
 		executeRequest, err = queryBuilder.BuildSyncRequestWithPagination("full", allParams, pageParams)
 		if err != nil {
-			fmt.Printf("[ERROR] FetchBatchDataFromSource - 构建数据库分页同步请求失败: %v\n", err)
+			slog.Error("FetchBatchDataFromSource - 构建数据库分页同步请求失败", "error", err)
 			return nil, nil, nil, fmt.Errorf("构建数据库分页同步请求失败: %w", err)
 		}
 
@@ -318,14 +320,14 @@ func (dp *DataProcessor) FetchBatchDataFromSource(ctx context.Context, interface
 			// 使用带分页的API同步请求
 			executeRequest, err = queryBuilder.BuildSyncRequestWithPagination("full", allParams, pageParams)
 			if err != nil {
-				fmt.Printf("[ERROR] FetchBatchDataFromSource - 构建API分页同步请求失败: %v\n", err)
+				slog.Error("FetchBatchDataFromSource - 构建API分页同步请求失败", "error", err)
 				return nil, nil, nil, fmt.Errorf("构建API分页同步请求失败: %w", err)
 			}
 		} else {
 			// 没有分页配置，使用普通同步请求
 			executeRequest, err = queryBuilder.BuildSyncRequest("full", allParams)
 			if err != nil {
-				fmt.Printf("[ERROR] FetchBatchDataFromSource - 构建API同步请求失败: %v\n", err)
+				slog.Error("FetchBatchDataFromSource - 构建API同步请求失败", "error", err)
 				return nil, nil, nil, fmt.Errorf("构建API同步请求失败: %w", err)
 			}
 		}
@@ -334,21 +336,21 @@ func (dp *DataProcessor) FetchBatchDataFromSource(ctx context.Context, interface
 		// 其他类型：使用普通测试请求
 		executeRequest, err = queryBuilder.BuildTestRequest(parameters)
 		if err != nil {
-			fmt.Printf("[ERROR] FetchBatchDataFromSource - 构建查询请求失败: %v\n", err)
+			slog.Error("FetchBatchDataFromSource - 构建查询请求失败", "error", err)
 			return nil, nil, nil, fmt.Errorf("构建查询请求失败: %w", err)
 		}
 	}
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 执行请求: %+v\n", executeRequest)
+	slog.Debug("FetchBatchDataFromSource - 执行请求", "data", executeRequest)
 
 	// 执行数据查询
 	response, err := dsInstance.Execute(ctx, executeRequest)
 	if err != nil {
-		fmt.Printf("[ERROR] FetchBatchDataFromSource - 执行接口查询失败: %v\n", err)
+		slog.Error("FetchBatchDataFromSource - 执行接口查询失败", "error", err)
 		return nil, nil, nil, fmt.Errorf("执行接口查询失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 查询执行成功，响应: %+v\n", response)
+	slog.Debug("FetchBatchDataFromSource - 查询执行成功，响应", "data", response)
 
 	// 检查响应是否成功
 	if !response.Success {
@@ -360,39 +362,39 @@ func (dp *DataProcessor) FetchBatchDataFromSource(ctx context.Context, interface
 		if response.Error != "" {
 			errorMsg = fmt.Sprintf("%s: %s", errorMsg, response.Error)
 		}
-		fmt.Printf("[ERROR] FetchBatchDataFromSource - 接口返回错误: %s\n", errorMsg)
+		slog.Error("FetchBatchDataFromSource - 接口返回错误", "message", errorMsg)
 		return nil, nil, nil, fmt.Errorf("接口调用失败: %s", errorMsg)
 	}
 
 	// 处理返回的数据
 	data, dataTypes, warnings := dp.ProcessResponseData(response.Data)
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 处理后的数据: %d 行\n", len(data))
+	slog.Debug("FetchBatchDataFromSource - 处理后的数据", "row_count", len(data))
 	if len(data) > 0 {
-		fmt.Printf("[DEBUG] FetchBatchDataFromSource - 第一行数据示例: %+v\n", data[0])
+		slog.Debug("FetchBatchDataFromSource - 第一行数据示例", "data", data[0])
 	}
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 数据类型: %+v\n", dataTypes)
-	fmt.Printf("[DEBUG] FetchBatchDataFromSource - 警告信息: %+v\n", warnings)
+	slog.Debug("FetchBatchDataFromSource - 数据类型", "types", dataTypes)
+	slog.Debug("FetchBatchDataFromSource - 警告信息", "warnings", warnings)
 
 	return data, dataTypes, warnings, nil
 }
 
 // FetchBatchDataFromSourceWithStrategy 从数据源获取批量数据（支持指定同步策略）
 func (dp *DataProcessor) FetchBatchDataFromSourceWithStrategy(ctx context.Context, interfaceInfo InterfaceInfo, parameters map[string]interface{}, pageParams map[string]interface{}, syncStrategy string) ([]map[string]interface{}, map[string]string, []string, error) {
-	fmt.Printf("[DEBUG] DataProcessor.FetchBatchDataFromSourceWithStrategy - 开始获取批量数据，策略: %s\n", syncStrategy)
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 接口ID: %s\n", interfaceInfo.GetID())
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 数据源ID: %s\n", interfaceInfo.GetDataSourceID())
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 请求参数: %+v\n", parameters)
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 分页参数: %+v\n", pageParams)
+	slog.Debug("DataProcessor.FetchBatchDataFromSourceWithStrategy - 开始获取批量数据，策略", "value", syncStrategy)
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 接口ID", "value", interfaceInfo.GetID())
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 数据源ID", "value", interfaceInfo.GetDataSourceID())
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 请求参数", "data", parameters)
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 分页参数", "data", pageParams)
 
 	// 获取数据源信息
 	var dataSource models.DataSource
 	if err := dp.executor.db.First(&dataSource, "id = ?", interfaceInfo.GetDataSourceID()).Error; err != nil {
-		fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 获取数据源信息失败: %v\n", err)
+		slog.Error("FetchBatchDataFromSourceWithStrategy - 获取数据源信息失败", "error", err)
 		return nil, nil, nil, fmt.Errorf("获取数据源信息失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 数据源信息: %+v\n", dataSource)
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 数据源信息", "data", dataSource)
 
 	// 获取或创建数据源实例
 	var dsInstance datasource.DataSourceInterface
@@ -401,38 +403,38 @@ func (dp *DataProcessor) FetchBatchDataFromSourceWithStrategy(ctx context.Contex
 	// 首先尝试从管理器获取已注册的实例
 	dsInstance, err = dp.executor.datasourceManager.Get(dataSource.ID)
 	if err != nil {
-		fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 数据源未注册，创建临时实例，错误: %v\n", err)
+		slog.Debug("FetchBatchDataFromSourceWithStrategy - 数据源未注册，创建临时实例，错误", "value", err)
 		// 如果没有注册，创建临时实例
 		dsInstance, err = dp.executor.datasourceManager.CreateInstance(dataSource.Type)
 		if err != nil {
-			fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 创建数据源实例失败: %v\n", err)
+			slog.Error("FetchBatchDataFromSourceWithStrategy - 创建数据源实例失败", "error", err)
 			return nil, nil, nil, fmt.Errorf("创建数据源实例失败: %w", err)
 		}
 
 		// 初始化数据源
 		if err := dsInstance.Init(ctx, &dataSource); err != nil {
-			fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 初始化数据源失败: %v\n", err)
+			slog.Error("FetchBatchDataFromSourceWithStrategy - 初始化数据源失败", "error", err)
 			return nil, nil, nil, fmt.Errorf("初始化数据源失败: %w", err)
 		}
 
 		// 启动数据源（对于常驻数据源如数据库，需要建立连接池）
 		if err := dsInstance.Start(ctx); err != nil {
-			fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 启动数据源失败: %v\n", err)
+			slog.Error("FetchBatchDataFromSourceWithStrategy - 启动数据源失败", "error", err)
 			return nil, nil, nil, fmt.Errorf("启动数据源失败: %w", err)
 		}
 
-		fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 临时数据源实例创建、初始化并启动成功\n")
+		slog.Debug("FetchBatchDataFromSourceWithStrategy - 临时数据源实例创建、初始化并启动成功")
 
 		// 确保在函数返回前关闭临时数据源
 		defer func() {
 			if err := dsInstance.Stop(context.Background()); err != nil {
-				fmt.Printf("[WARN] FetchBatchDataFromSourceWithStrategy - 关闭临时数据源失败: %v\n", err)
+				slog.Warn("FetchBatchDataFromSourceWithStrategy - 关闭临时数据源失败", "error", err)
 			} else {
-				fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 临时数据源已关闭\n")
+				slog.Debug("FetchBatchDataFromSourceWithStrategy - 临时数据源已关闭")
 			}
 		}()
 	} else {
-		fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 使用已注册的数据源实例\n")
+		slog.Debug("FetchBatchDataFromSourceWithStrategy - 使用已注册的数据源实例")
 	}
 
 	// 创建查询构建器
@@ -442,10 +444,10 @@ func (dp *DataProcessor) FetchBatchDataFromSourceWithStrategy(ctx context.Contex
 		tableFieldsConfig[fmt.Sprintf("%d", i)] = v
 	}
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 接口配置信息:\n")
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - InterfaceConfig: %+v\n", interfaceInfo.GetInterfaceConfig())
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - ParseConfig: %+v\n", interfaceInfo.GetParseConfig())
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - TableFieldsConfig: %+v\n", tableFieldsConfig)
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 接口配置信息:")
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - InterfaceConfig", "data", interfaceInfo.GetInterfaceConfig())
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - ParseConfig", "data", interfaceInfo.GetParseConfig())
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - TableFieldsConfig", "data", tableFieldsConfig)
 
 	queryBuilder, err := datasource.GetQueryBuilder(&dataSource, &models.DataInterface{
 		ID:                interfaceInfo.GetID(),
@@ -454,11 +456,11 @@ func (dp *DataProcessor) FetchBatchDataFromSourceWithStrategy(ctx context.Contex
 		TableFieldsConfig: tableFieldsConfig,
 	})
 	if err != nil {
-		fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 创建查询构建器失败: %v\n", err)
+		slog.Error("FetchBatchDataFromSourceWithStrategy - 创建查询构建器失败", "error", err)
 		return nil, nil, nil, fmt.Errorf("创建查询构建器失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 查询构建器创建成功\n")
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 查询构建器创建成功")
 
 	// 合并分页参数到基础参数中
 	allParams := make(map[string]interface{})
@@ -522,20 +524,20 @@ func (dp *DataProcessor) FetchBatchDataFromSourceWithStrategy(ctx context.Contex
 	}
 
 	if err != nil {
-		fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 构建查询请求失败: %v\n", err)
+		slog.Error("FetchBatchDataFromSourceWithStrategy - 构建查询请求失败", "error", err)
 		return nil, nil, nil, fmt.Errorf("构建查询请求失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 执行请求: %+v\n", executeRequest)
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 执行请求", "data", executeRequest)
 
 	// 执行数据查询
 	response, err := dsInstance.Execute(ctx, executeRequest)
 	if err != nil {
-		fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 执行接口查询失败: %v\n", err)
+		slog.Error("FetchBatchDataFromSourceWithStrategy - 执行接口查询失败", "error", err)
 		return nil, nil, nil, fmt.Errorf("执行接口查询失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 查询执行成功，响应: %+v\n", response)
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 查询执行成功，响应", "data", response)
 
 	// 检查响应是否成功
 	if !response.Success {
@@ -547,19 +549,19 @@ func (dp *DataProcessor) FetchBatchDataFromSourceWithStrategy(ctx context.Contex
 		if response.Error != "" {
 			errorMsg = fmt.Sprintf("%s: %s", errorMsg, response.Error)
 		}
-		fmt.Printf("[ERROR] FetchBatchDataFromSourceWithStrategy - 接口返回错误: %s\n", errorMsg)
+		slog.Error("FetchBatchDataFromSourceWithStrategy - 接口返回错误", "message", errorMsg)
 		return nil, nil, nil, fmt.Errorf("接口调用失败: %s", errorMsg)
 	}
 
 	// 处理返回的数据
 	data, dataTypes, warnings := dp.ProcessResponseData(response.Data)
 
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 处理后的数据: %d 行\n", len(data))
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 处理后的数据", "row_count", len(data))
 	if len(data) > 0 {
-		fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 第一行数据示例: %+v\n", data[0])
+		slog.Debug("FetchBatchDataFromSourceWithStrategy - 第一行数据示例", "data", data[0])
 	}
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 数据类型: %+v\n", dataTypes)
-	fmt.Printf("[DEBUG] FetchBatchDataFromSourceWithStrategy - 警告信息: %+v\n", warnings)
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 数据类型", "types", dataTypes)
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 警告信息", "warnings", warnings)
 
 	return data, dataTypes, warnings, nil
 }

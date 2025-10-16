@@ -22,6 +22,7 @@
 package utils
 
 import (
+	"log/slog"
 	"context"
 	"database/sql"
 	"fmt"

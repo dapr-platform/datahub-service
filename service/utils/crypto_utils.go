@@ -22,6 +22,7 @@
 package utils
 
 import (
+	"log/slog"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/md5"

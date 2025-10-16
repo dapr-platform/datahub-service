@@ -22,6 +22,7 @@
 package utils
 
 import (
+	"log/slog"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"

@@ -12,6 +12,7 @@
 package thematic_sync
 
 import (
+	"log/slog"
 	"datahub-service/service/models"
 	"fmt"
 	"strings"
@@ -120,7 +121,7 @@ func (fm *FieldMapper) getTargetFieldsConfig(targetInterfaceID string) (map[stri
 		}
 	}
 
-	fmt.Printf("[DEBUG] 获取目标字段配置，字段数: %d\n", len(targetFields))
+	slog.Debug("获取目标字段配置，字段数", "count", len(targetFields))
 	for fieldName, fieldInfo := range targetFields {
 		fmt.Printf("[DEBUG] 目标字段: %s (类型: %s, 主键: %v, 可空: %v)\n",
 			fieldName, fieldInfo.DataType, fieldInfo.IsPrimaryKey, fieldInfo.IsNullable)
@@ -167,7 +168,7 @@ func (fm *FieldMapper) parseFieldMappingRules(fieldMappingRules interface{}) (ma
 		}
 	}
 
-	fmt.Printf("[DEBUG] 解析字段映射规则，规则数: %d\n", len(mappingRules))
+	slog.Debug("解析字段映射规则，规则数", "count", len(mappingRules))
 	for source, target := range mappingRules {
 		fmt.Printf("[DEBUG] 映射规则: %s -> %s\n", source, target)
 	}
@@ -229,7 +230,7 @@ func (fm *FieldMapper) mapSingleRecord(
 				if defaultValue != nil {
 					value = defaultValue
 					found = true
-					fmt.Printf("[DEBUG] 为必需字段 %s 使用系统默认值: %v\n", targetFieldName, defaultValue)
+					slog.Debug("为必需字段 %s 使用系统默认值", "value", targetFieldName, defaultValue)
 				} else {
 					// 无法提供默认值的必需字段
 					missingFields = append(missingFields, targetFieldName)

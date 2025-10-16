@@ -3,6 +3,7 @@ package main
 import (
 	"datahub-service/api"
 	_ "datahub-service/docs"
+	"datahub-service/logger"
 	"log"
 	"net/http"
 	"os"
@@ -36,6 +37,9 @@ func init() {
 // @description 智慧园区数据底座后台服务，提供数据采集、处理、存储、治理和共享功能
 // @BasePath /swagger/datahub-service
 func main() {
+	// 初始化日志系统
+	logger.InitLogger()
+
 	mux := chi.NewRouter()
 
 	// 如果有BASE_CONTEXT，则在该路径下挂载所有路由

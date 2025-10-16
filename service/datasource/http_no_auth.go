@@ -12,6 +12,7 @@
 package datasource
 
 import (
+	"log/slog"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -105,11 +106,11 @@ func (h *HTTPNoAuthDataSource) Start(ctx context.Context) error {
 // Execute 执行HTTP请求
 func (h *HTTPNoAuthDataSource) Execute(ctx context.Context, request *ExecuteRequest) (*ExecuteResponse, error) {
 	startTime := time.Now()
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.Execute - 开始执行HTTP请求\n")
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.Execute - 请求操作: %s\n", request.Operation)
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.Execute - 请求查询: %s\n", request.Query)
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.Execute - 请求参数: %+v\n", request.Params)
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.Execute - 请求数据: %+v\n", request.Data)
+	slog.Debug("HTTPNoAuthDataSource.Execute - 开始执行HTTP请求")
+	slog.Debug("HTTPNoAuthDataSource.Execute - 请求操作", "value", request.Operation)
+	slog.Debug("HTTPNoAuthDataSource.Execute - 请求查询", "value", request.Query)
+	slog.Debug("HTTPNoAuthDataSource.Execute - 请求参数", "data", request.Params)
+	slog.Debug("HTTPNoAuthDataSource.Execute - 请求数据", "data", request.Data)
 
 	response := &ExecuteResponse{
 		Success:   false,
@@ -118,21 +119,21 @@ func (h *HTTPNoAuthDataSource) Execute(ctx context.Context, request *ExecuteRequ
 
 	// 检查数据源状态
 	if !h.IsInitialized() {
-		fmt.Printf("[ERROR] HTTPNoAuthDataSource.Execute - 数据源未初始化\n")
+		slog.Error("HTTPNoAuthDataSource.Execute - 数据源未初始化")
 		response.Error = "数据源未初始化"
 		response.Duration = time.Since(startTime)
 		return response, fmt.Errorf("数据源未初始化")
 	}
 
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.Execute - 数据源已初始化，基础URL: %s\n", h.baseURL)
+	slog.Debug("HTTPNoAuthDataSource.Execute - 数据源已初始化，基础URL", "value", h.baseURL)
 
 	// 如果启用了脚本执行，优先使用脚本
 	ds := h.GetDataSource()
 	if ds.ScriptEnabled && ds.Script != "" {
-		fmt.Printf("[DEBUG] HTTPNoAuthDataSource.Execute - 使用脚本执行\n")
+		slog.Debug("HTTPNoAuthDataSource.Execute - 使用脚本执行")
 		scriptResult, err := h.executeScript(ctx, request)
 		if err != nil {
-			fmt.Printf("[ERROR] HTTPNoAuthDataSource.Execute - 脚本执行失败: %v\n", err)
+			slog.Error("HTTPNoAuthDataSource.Execute - 脚本执行失败", "error", err)
 			response.Error = fmt.Sprintf("脚本执行失败: %v", err)
 			response.Duration = time.Since(startTime)
 			return response, err
@@ -144,7 +145,7 @@ func (h *HTTPNoAuthDataSource) Execute(ctx context.Context, request *ExecuteRequ
 		return response, nil
 	}
 
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.Execute - 使用默认HTTP请求处理\n")
+	slog.Debug("HTTPNoAuthDataSource.Execute - 使用默认HTTP请求处理")
 	// 默认HTTP请求处理
 	return h.executeHTTPRequest(ctx, request)
 }
@@ -152,7 +153,7 @@ func (h *HTTPNoAuthDataSource) Execute(ctx context.Context, request *ExecuteRequ
 // executeHTTPRequest 执行HTTP请求
 func (h *HTTPNoAuthDataSource) executeHTTPRequest(ctx context.Context, request *ExecuteRequest) (*ExecuteResponse, error) {
 	startTime := time.Now()
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 开始执行HTTP请求\n")
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 开始执行HTTP请求")
 
 	response := &ExecuteResponse{
 		Success:   false,
@@ -168,7 +169,7 @@ func (h *HTTPNoAuthDataSource) executeHTTPRequest(ctx context.Context, request *
 	var urlPattern string = "suffix"
 
 	if request.Data != nil {
-		fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 解析请求数据配置\n")
+		slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 解析请求数据配置")
 		if requestData, ok := request.Data.(map[string]interface{}); ok {
 			if m, exists := requestData["method"]; exists {
 				if methodStr, ok := m.(string); ok {
@@ -198,40 +199,40 @@ func (h *HTTPNoAuthDataSource) executeHTTPRequest(ctx context.Context, request *
 
 	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 请求配置: method=%s, dataPath=%s, urlPattern=%s\n",
 		method, dataPath, urlPattern)
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 请求头: %+v\n", headers)
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 请求头", "data", headers)
 
 	// 构建完整的请求URL
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 构建完整URL\n")
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 构建完整URL")
 	fullURL, err := h.buildFullURL(request.Query, request.Params, urlPattern)
 	if err != nil {
-		fmt.Printf("[ERROR] HTTPNoAuthDataSource.executeHTTPRequest - 构建URL失败: %v\n", err)
+		slog.Error("HTTPNoAuthDataSource.executeHTTPRequest - 构建URL失败", "error", err)
 		response.Error = fmt.Sprintf("构建URL失败: %v", err)
 		response.Duration = time.Since(startTime)
 		return response, err
 	}
 
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 完整URL: %s\n", fullURL)
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 完整URL", "value", fullURL)
 
 	// 准备请求体
 	var reqBody io.Reader
 	if body != nil && (method == "POST" || method == "PUT") {
-		fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 准备请求体\n")
+		slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 准备请求体")
 		jsonData, err := json.Marshal(body)
 		if err != nil {
-			fmt.Printf("[ERROR] HTTPNoAuthDataSource.executeHTTPRequest - 序列化请求数据失败: %v\n", err)
+			slog.Error("HTTPNoAuthDataSource.executeHTTPRequest - 序列化请求数据失败", "error", err)
 			response.Error = fmt.Sprintf("序列化请求数据失败: %v", err)
 			response.Duration = time.Since(startTime)
 			return response, err
 		}
 		reqBody = bytes.NewReader(jsonData)
-		fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 请求体: %s\n", string(jsonData))
+		slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 请求体", "value", string(jsonData))
 	}
 
 	// 创建HTTP请求
 	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 创建HTTP请求: %s %s\n", method, fullURL)
 	httpReq, err := http.NewRequestWithContext(ctx, method, fullURL, reqBody)
 	if err != nil {
-		fmt.Printf("[ERROR] HTTPNoAuthDataSource.executeHTTPRequest - 创建HTTP请求失败: %v\n", err)
+		slog.Error("HTTPNoAuthDataSource.executeHTTPRequest - 创建HTTP请求失败", "error", err)
 		response.Error = fmt.Sprintf("创建HTTP请求失败: %v", err)
 		response.Duration = time.Since(startTime)
 		return response, err
@@ -248,33 +249,33 @@ func (h *HTTPNoAuthDataSource) executeHTTPRequest(ctx context.Context, request *
 		httpReq.Header.Set(key, fmt.Sprintf("%v", value))
 	}
 
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 请求头设置完成: %+v\n", httpReq.Header)
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 请求头设置完成", "data", httpReq.Header)
 
 	// 执行请求
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 发送HTTP请求\n")
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 发送HTTP请求")
 	httpResp, err := h.client.Do(httpReq)
 	if err != nil {
-		fmt.Printf("[ERROR] HTTPNoAuthDataSource.executeHTTPRequest - HTTP请求失败: %v\n", err)
+		slog.Error("HTTPNoAuthDataSource.executeHTTPRequest - HTTP请求失败", "error", err)
 		response.Error = fmt.Sprintf("HTTP请求失败: %v", err)
 		response.Duration = time.Since(startTime)
 		return response, err
 	}
 	defer httpResp.Body.Close()
 
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 收到响应，状态码: %d\n", httpResp.StatusCode)
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 收到响应，状态码", "count", httpResp.StatusCode)
 
 	// 读取响应体
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 读取响应体\n")
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 读取响应体")
 	respBody, err := io.ReadAll(httpResp.Body)
 	if err != nil {
-		fmt.Printf("[ERROR] HTTPNoAuthDataSource.executeHTTPRequest - 读取响应体失败: %v\n", err)
+		slog.Error("HTTPNoAuthDataSource.executeHTTPRequest - 读取响应体失败", "error", err)
 		response.Error = fmt.Sprintf("读取响应体失败: %v", err)
 		response.Duration = time.Since(startTime)
 		return response, err
 	}
 
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 响应体长度: %d\n", len(respBody))
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 响应体内容: %s\n", string(respBody))
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 响应体长度", "count", len(respBody))
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 响应体内容", "value", string(respBody))
 
 	// 设置响应信息
 	response.Duration = time.Since(startTime)
@@ -285,15 +286,15 @@ func (h *HTTPNoAuthDataSource) executeHTTPRequest(ctx context.Context, request *
 	response.Metadata["data_path"] = dataPath
 
 	// 使用响应解析器处理响应
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 开始处理响应\n")
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 开始处理响应")
 	if responseParserConfig, exists := request.Data.(map[string]interface{})["response_parser"]; exists {
-		fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 使用响应解析器处理\n")
+		slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 使用响应解析器处理")
 		if parserConfig, ok := responseParserConfig.(map[string]interface{}); ok {
-			fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 解析器配置: %+v\n", parserConfig)
+			slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 解析器配置", "data", parserConfig)
 			parser := NewResponseParser(parserConfig)
 			parsedResponse, err := parser.Parse(httpResp.StatusCode, respBody, httpResp.Header)
 			if err != nil {
-				fmt.Printf("[ERROR] HTTPNoAuthDataSource.executeHTTPRequest - 响应解析失败: %v\n", err)
+				slog.Error("HTTPNoAuthDataSource.executeHTTPRequest - 响应解析失败", "error", err)
 				response.Error = fmt.Sprintf("响应解析失败: %v", err)
 				response.Data = string(respBody)
 			} else {
@@ -305,7 +306,7 @@ func (h *HTTPNoAuthDataSource) executeHTTPRequest(ctx context.Context, request *
 
 				// 添加解析后的元数据
 				if parsedResponse.ErrorMessage != "" {
-					fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 错误消息: %s\n", parsedResponse.ErrorMessage)
+					slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 错误消息", "value", parsedResponse.ErrorMessage)
 					response.Error = parsedResponse.ErrorMessage
 				}
 
@@ -328,15 +329,15 @@ func (h *HTTPNoAuthDataSource) executeHTTPRequest(ctx context.Context, request *
 					response.Metadata[k] = v
 				}
 
-				fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 最终响应元数据: %+v\n", response.Metadata)
+				slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 最终响应元数据", "data", response.Metadata)
 			}
 		} else {
-			fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 解析器配置类型错误，使用回退处理\n")
+			slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 解析器配置类型错误，使用回退处理")
 			// 回退到简单的状态码判断
 			h.handleResponseFallback(httpResp.StatusCode, respBody, dataPath, response)
 		}
 	} else {
-		fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 没有响应解析器配置，使用回退处理\n")
+		slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 没有响应解析器配置，使用回退处理")
 		// 回退到简单的状态码判断
 		h.handleResponseFallback(httpResp.StatusCode, respBody, dataPath, response)
 	}
@@ -430,12 +431,12 @@ func (h *HTTPNoAuthDataSource) extractDataByPath(data interface{}, path string) 
 
 // handleResponseFallback 回退处理响应（当没有响应解析配置时使用）
 func (h *HTTPNoAuthDataSource) handleResponseFallback(statusCode int, respBody []byte, dataPath string, response *ExecuteResponse) {
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.handleResponseFallback - 使用回退处理, 状态码: %d\n", statusCode)
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.handleResponseFallback - 数据路径: %s\n", dataPath)
+	slog.Debug("HTTPNoAuthDataSource.handleResponseFallback - 使用回退处理, 状态码", "count", statusCode)
+	slog.Debug("HTTPNoAuthDataSource.handleResponseFallback - 数据路径", "value", dataPath)
 
 	// 检查HTTP状态码
 	if statusCode >= 200 && statusCode < 300 {
-		fmt.Printf("[DEBUG] HTTPNoAuthDataSource.handleResponseFallback - 状态码成功，解析响应体\n")
+		slog.Debug("HTTPNoAuthDataSource.handleResponseFallback - 状态码成功，解析响应体")
 		response.Success = true
 
 		// 尝试解析JSON响应
@@ -447,11 +448,11 @@ func (h *HTTPNoAuthDataSource) handleResponseFallback(statusCode int, respBody [
 			fmt.Printf("[DEBUG] HTTPNoAuthDataSource.handleResponseFallback - 数据提取完成，提取后类型: %T\n", extractedData)
 			response.Data = extractedData
 		} else {
-			fmt.Printf("[DEBUG] HTTPNoAuthDataSource.handleResponseFallback - JSON解析失败，使用原始字符串: %v\n", err)
+			slog.Debug("HTTPNoAuthDataSource.handleResponseFallback - JSON解析失败，使用原始字符串", "value", err)
 			response.Data = string(respBody)
 		}
 	} else {
-		fmt.Printf("[DEBUG] HTTPNoAuthDataSource.handleResponseFallback - 状态码失败: %d\n", statusCode)
+		slog.Debug("HTTPNoAuthDataSource.handleResponseFallback - 状态码失败", "count", statusCode)
 		response.Error = fmt.Sprintf("HTTP请求失败，状态码: %d, 响应: %s", statusCode, string(respBody))
 		response.Data = string(respBody)
 	}

@@ -12,6 +12,7 @@
 package thematic_sync
 
 import (
+	"log/slog"
 	"datahub-service/service/models"
 	"fmt"
 	"hash/fnv"
@@ -106,7 +107,7 @@ func (dp *DataProcessor) applyFieldMapping(mergedRecords []map[string]interface{
 // MergeData 执行简单的数据合并（基于主键ID）
 func (dp *DataProcessor) MergeData(sourceRecords []SourceRecordInfo, request *SyncRequest, result *SyncExecutionResult) ([]map[string]interface{}, error) {
 	// 调试：打印源记录数量
-	fmt.Printf("[DEBUG] 源记录数量: %d\n", len(sourceRecords))
+	slog.Debug("源记录数量", "count", len(sourceRecords))
 
 	// 获取目标主题接口的主键字段
 	targetPrimaryKeys, err := dp.getThematicPrimaryKeyFields(request.TargetInterfaceID)
@@ -115,9 +116,9 @@ func (dp *DataProcessor) MergeData(sourceRecords []SourceRecordInfo, request *Sy
 		targetPrimaryKeys = []string{}
 	}
 	if len(targetPrimaryKeys) > 0 {
-		fmt.Printf("[DEBUG] 目标主键字段: %v\n", targetPrimaryKeys)
+		slog.Debug("目标主键字段", "value", targetPrimaryKeys)
 	} else {
-		fmt.Printf("[DEBUG] 目标接口没有配置主键字段\n")
+		slog.Debug("目标接口没有配置主键字段")
 	}
 
 	// 使用map按ID合并数据
@@ -129,7 +130,7 @@ func (dp *DataProcessor) MergeData(sourceRecords []SourceRecordInfo, request *Sy
 		if id == "" {
 			// 如果没有主键，使用记录的哈希值作为ID
 			id = dp.generateRecordHash(sourceRecord.Record)
-			fmt.Printf("[DEBUG] 记录缺少主键字段，使用哈希ID: %s\n", id)
+			slog.Debug("记录缺少主键字段，使用哈希ID", "value", id)
 		}
 
 		// 如果已存在相同ID的记录，合并字段
@@ -155,9 +156,9 @@ func (dp *DataProcessor) MergeData(sourceRecords []SourceRecordInfo, request *Sy
 	}
 
 	// 调试：打印合并结果
-	fmt.Printf("[DEBUG] 合并结果记录数量: %d\n", len(mergedRecords))
+	slog.Debug("合并结果记录数量", "count", len(mergedRecords))
 	for i, record := range mergedRecords {
-		fmt.Printf("[DEBUG] 合并记录 %d: %v\n", i, record)
+		slog.Debug("合并记录 %d", "value", i, record)
 		if i >= 2 { // 只打印前3条记录，避免日志太长
 			break
 		}

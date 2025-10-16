@@ -12,6 +12,7 @@
 package thematic_sync
 
 import (
+	"log/slog"
 	"datahub-service/service/models"
 	"fmt"
 	"strings"
@@ -98,9 +99,9 @@ func (dw *DataWriter) writeDataToTable(processedRecords []map[string]interface{}
 	// 获取主题接口的主键字段
 	primaryKeyFields := dw.getThematicPrimaryKeyFields(&thematicInterface)
 	if len(primaryKeyFields) > 0 {
-		fmt.Printf("[DEBUG] 主题接口主键字段: %v\n", primaryKeyFields)
+		slog.Debug("主题接口主键字段", "value", primaryKeyFields)
 	} else {
-		fmt.Printf("[DEBUG] 主题接口没有配置主键字段\n")
+		slog.Debug("主题接口没有配置主键字段")
 	}
 
 	// 获取字段配置信息（包括类型和约束）
@@ -237,7 +238,7 @@ func (dw *DataWriter) getFieldTypesFromInterface(thematicInterface *models.Thema
 		}
 	}
 
-	fmt.Printf("[DEBUG] 获取字段类型信息，字段数: %d\n", len(fieldTypes))
+	slog.Debug("获取字段类型信息，字段数", "count", len(fieldTypes))
 	for fieldName, fieldType := range fieldTypes {
 		fmt.Printf("[DEBUG] 字段类型: %s -> %s\n", fieldName, fieldType)
 	}
@@ -273,7 +274,7 @@ func (dw *DataWriter) getFieldConfigsFromInterface(thematicInterface *models.The
 		}
 	}
 
-	fmt.Printf("[DEBUG] 获取字段配置信息，字段数: %d\n", len(fieldConfigs))
+	slog.Debug("获取字段配置信息，字段数", "count", len(fieldConfigs))
 	for fieldName, config := range fieldConfigs {
 		fmt.Printf("[DEBUG] 字段配置: %s (类型: %s, 主键: %v, 可空: %v)\n",
 			fieldName, config.DataType, config.IsPrimaryKey, config.IsNullable)

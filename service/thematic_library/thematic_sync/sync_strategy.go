@@ -14,6 +14,7 @@ package thematic_sync
 import (
 	"datahub-service/service/models"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -50,7 +51,7 @@ func (fss *FullSyncStrategy) ProcessSync(sourceRecords []map[string]interface{},
 	// 获取主键字段
 	primaryKeyFields := fss.getThematicPrimaryKeyFields(&thematicInterface)
 	if len(primaryKeyFields) == 0 {
-		fmt.Printf("[DEBUG] 主题接口没有配置主键字段\n")
+		slog.Debug("主题接口没有配置主键字段")
 	}
 
 	// 全量同步策略：
@@ -88,8 +89,8 @@ func (fss *FullSyncStrategy) ProcessSync(sourceRecords []map[string]interface{},
 		if err != nil {
 			return fmt.Errorf("删除记录失败: %w", err)
 		}
-		result.ErrorRecordCount += deletedCount // 这里用ErrorRecordCount记录删除的数量
-		fmt.Printf("[DEBUG] 删除了 %d 条记录\n", deletedCount)
+		result.ErrorRecordCount += deletedCount  // 这里用ErrorRecordCount记录删除的数量
+		slog.Debug("删除了", "count", deletedCount) // 条记录
 	}
 
 	return nil
@@ -256,7 +257,7 @@ func NewIncrementalSyncStrategy(db *gorm.DB) *IncrementalSyncStrategy {
 
 // ProcessSync 处理增量同步 - 只处理新增和更新，不删除数据
 func (iss *IncrementalSyncStrategy) ProcessSync(sourceRecords []map[string]interface{}, request *SyncRequest, result *SyncExecutionResult) error {
-	fmt.Printf("[DEBUG] 增量同步策略：处理 %d 条记录\n", len(sourceRecords))
+	slog.Debug("增量同步策略：处理记录", "count", len(sourceRecords))
 
 	// 获取主题接口信息
 	var thematicInterface models.ThematicInterface
@@ -271,7 +272,7 @@ func (iss *IncrementalSyncStrategy) ProcessSync(sourceRecords []map[string]inter
 	// 获取主键字段
 	primaryKeyFields := iss.getThematicPrimaryKeyFields(&thematicInterface)
 	if len(primaryKeyFields) == 0 {
-		fmt.Printf("[DEBUG] 主题接口没有配置主键字段\n")
+		slog.Debug("主题接口没有配置主键字段")
 	}
 
 	// 增量同步：只执行 INSERT ON CONFLICT UPDATE（不删除）

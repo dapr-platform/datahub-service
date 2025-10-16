@@ -12,6 +12,7 @@
 package thematic_sync
 
 import (
+	"log/slog"
 	"datahub-service/service/models"
 	"fmt"
 	"time"
@@ -147,9 +148,9 @@ func (df *DataFetcher) FetchDataFromInterfaceWithConfig(libraryID, interfaceID s
 	// 获取数据接口的主键字段
 	primaryKeyFields := GetDataInterfacePrimaryKeyFields(&dataInterface)
 	if len(primaryKeyFields) > 0 {
-		fmt.Printf("[DEBUG] 数据接口主键字段: %v\n", primaryKeyFields)
+		slog.Debug("数据接口主键字段", "value", primaryKeyFields)
 	} else {
-		fmt.Printf("[DEBUG] 数据接口没有配置主键字段，查询时不使用排序\n")
+		slog.Debug("数据接口没有配置主键字段，查询时不使用排序")
 	}
 
 	// 检查是否启用增量同步
@@ -236,7 +237,7 @@ func (df *DataFetcher) fetchDataInBatchesWithPrimaryKey(fullTableName string, ba
 		offset += batchSize
 	}
 
-	fmt.Printf("[DEBUG] 总共获取记录数: %d\n", len(allRecords))
+	slog.Debug("总共获取记录数", "count", len(allRecords))
 	return allRecords, nil
 }
 
@@ -307,7 +308,7 @@ func (df *DataFetcher) fetchDataInBatches(fullTableName string, batchSize int) (
 		offset += batchSize
 	}
 
-	fmt.Printf("[DEBUG] 总共获取记录数: %d\n", len(allRecords))
+	slog.Debug("总共获取记录数", "count", len(allRecords))
 	return allRecords, nil
 }
 
@@ -537,7 +538,7 @@ func (df *DataFetcher) fetchIncrementalDataWithPrimaryKey(fullTableName string, 
 				fullTableName, orderByClause, batchSize, offset)
 		}
 
-		fmt.Printf("[DEBUG] 增量查询SQL: %s\n", sql)
+		slog.Debug("增量查询SQL", "value", sql)
 
 		rows, err := df.db.Raw(sql).Rows()
 		if err != nil {
@@ -595,7 +596,7 @@ func (df *DataFetcher) fetchIncrementalDataWithPrimaryKey(fullTableName string, 
 		offset += batchSize
 	}
 
-	fmt.Printf("[DEBUG] 增量同步总共获取记录数: %d\n", len(allRecords))
+	slog.Debug("增量同步总共获取记录数", "count", len(allRecords))
 	return allRecords, nil
 }
 
@@ -624,7 +625,7 @@ func (df *DataFetcher) fetchIncrementalData(fullTableName string, batchSize int,
 				fullTableName, config.IncrementalField, batchSize, offset)
 		}
 
-		fmt.Printf("[DEBUG] 增量查询SQL: %s\n", sql)
+		slog.Debug("增量查询SQL", "value", sql)
 
 		rows, err := df.db.Raw(sql).Rows()
 		if err != nil {
@@ -682,7 +683,7 @@ func (df *DataFetcher) fetchIncrementalData(fullTableName string, batchSize int,
 		offset += batchSize
 	}
 
-	fmt.Printf("[DEBUG] 增量同步总共获取记录数: %d\n", len(allRecords))
+	slog.Debug("增量同步总共获取记录数", "count", len(allRecords))
 	return allRecords, nil
 }
 

@@ -12,6 +12,7 @@
 package config
 
 import (
+	"log/slog"
 	"datahub-service/service/models"
 	"encoding/json"
 	"fmt"

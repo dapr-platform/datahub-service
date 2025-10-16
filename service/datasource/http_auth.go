@@ -12,6 +12,7 @@
 package datasource
 
 import (
+	"log/slog"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -222,7 +223,7 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 		if methodParam, exists := request.Params["method"]; exists {
 			if methodStr, ok := methodParam.(string); ok && methodStr != "" {
 				method = strings.ToUpper(methodStr)
-				fmt.Printf("[DEBUG] executeHTTPRequest - 使用查询构建器传递的HTTP方法: %s\n", method)
+				slog.Debug("executeHTTPRequest - 使用查询构建器传递的HTTP方法", "value", method)
 			}
 		}
 	}
@@ -255,11 +256,11 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 	if request.Params != nil {
 		if bodyParam, exists := request.Params["body"]; exists && bodyParam != nil {
 			bodyData = bodyParam
-			fmt.Printf("[DEBUG] executeHTTPRequest - 使用查询构建器传递的body数据: %+v\n", bodyData)
+			slog.Debug("executeHTTPRequest - 使用查询构建器传递的body数据", "data", bodyData)
 		}
 		if formDataParam, exists := request.Params["use_form_data"]; exists {
 			useFormData, _ = formDataParam.(bool)
-			fmt.Printf("[DEBUG] executeHTTPRequest - 使用表单数据模式: %v\n", useFormData)
+			slog.Debug("executeHTTPRequest - 使用表单数据模式", "value", useFormData)
 		}
 	}
 
@@ -274,7 +275,7 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 			if bodyStr, ok := bodyData.(string); ok {
 				reqBody = strings.NewReader(bodyStr)
 				contentType = "application/x-www-form-urlencoded"
-				fmt.Printf("[DEBUG] executeHTTPRequest - 使用表单数据: %s\n", bodyStr)
+				slog.Debug("executeHTTPRequest - 使用表单数据", "value", bodyStr)
 			} else if bodyMap, ok := bodyData.(map[string]interface{}); ok {
 				// 将map转换为表单数据
 				values := make([]string, 0, len(bodyMap))
@@ -284,7 +285,7 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 				formBody := strings.Join(values, "&")
 				reqBody = strings.NewReader(formBody)
 				contentType = "application/x-www-form-urlencoded"
-				fmt.Printf("[DEBUG] executeHTTPRequest - 转换map为表单数据: %s\n", formBody)
+				slog.Debug("executeHTTPRequest - 转换map为表单数据", "value", formBody)
 			}
 		} else {
 			// 使用JSON格式
@@ -296,7 +297,7 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 			}
 			reqBody = bytes.NewReader(jsonData)
 			contentType = "application/json"
-			fmt.Printf("[DEBUG] executeHTTPRequest - 使用JSON数据: %s\n", string(jsonData))
+			slog.Debug("executeHTTPRequest - 使用JSON数据", "value", string(jsonData))
 		}
 	}
 
@@ -318,7 +319,7 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 	// 设置Content-Type
 	if reqBody != nil {
 		httpReq.Header.Set("Content-Type", contentType)
-		fmt.Printf("[DEBUG] executeHTTPRequest - 设置Content-Type: %s\n", contentType)
+		slog.Debug("executeHTTPRequest - 设置Content-Type", "value", contentType)
 	}
 
 	// 设置从查询构建器传递的额外头部

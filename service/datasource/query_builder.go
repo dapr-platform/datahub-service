@@ -12,6 +12,7 @@
 package datasource
 
 import (
+	"log/slog"
 	"datahub-service/service/meta"
 	"datahub-service/service/models"
 	"fmt"
@@ -510,7 +511,7 @@ func (qb *QueryBuilder) buildAPIURL(urlPattern, urlSuffix string, queryParams, p
 				}
 			}
 		} else {
-			fmt.Printf("[DEBUG] QueryBuilder.buildAPIURL - 分页配置未启用，跳过分页参数\n")
+			slog.Debug("QueryBuilder.buildAPIURL - 分页配置未启用，跳过分页参数")
 		}
 	}
 
@@ -681,7 +682,7 @@ func (qb *QueryBuilder) buildDatabaseSyncRequestWithPagination(syncType string, 
 			if pageInt > 0 && pageSizeInt > 0 {
 				offset := (pageInt - 1) * pageSizeInt
 				query = fmt.Sprintf("%s LIMIT %d OFFSET %d", query, pageSizeInt, offset)
-				fmt.Printf("[DEBUG] QueryBuilder.buildDatabaseSyncRequestWithPagination - 添加分页: LIMIT %d OFFSET %d\n", pageSizeInt, offset)
+				slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 添加分页: LIMIT", "count", pageSizeInt)
 			}
 		}
 	}
@@ -725,8 +726,8 @@ func (qb *QueryBuilder) buildAPISyncRequestWithPagination(syncType string, param
 	}
 	syncParams["sync_type"] = syncType
 
-	fmt.Printf("[DEBUG] QueryBuilder.buildAPISyncRequestWithPagination - 构建API分页请求\n")
-	fmt.Printf("[DEBUG] QueryBuilder.buildAPISyncRequestWithPagination - 分页参数: %+v\n", pageParams)
+	slog.Debug("QueryBuilder.buildAPISyncRequestWithPagination - 构建API分页请求")
+	slog.Debug("QueryBuilder.buildAPISyncRequestWithPagination - 分页参数", "data", pageParams)
 
 	// 使用API请求构建器，标记为同步请求，并传递分页参数
 	return qb.buildAPIRequestWithPagination(syncParams, true, pageParams)
@@ -879,11 +880,11 @@ func (qb *QueryBuilder) buildAPIRequestWithPagination(parameters map[string]inte
 				}
 			}
 		} else {
-			fmt.Printf("[DEBUG] QueryBuilder.buildAPIRequestWithPagination - 分页配置未启用，不添加分页参数\n")
+			slog.Debug("QueryBuilder.buildAPIRequestWithPagination - 分页配置未启用，不添加分页参数")
 		}
 	} else if isSync {
 		// 没有分页配置但是是同步请求时，使用默认参数名
-		fmt.Printf("[DEBUG] QueryBuilder.buildAPIRequestWithPagination - 没有分页配置，使用默认参数名\n")
+		slog.Debug("QueryBuilder.buildAPIRequestWithPagination - 没有分页配置，使用默认参数名")
 		if page, exists := pageParams["page"]; exists {
 			queryParams["page"] = page
 		}
@@ -892,7 +893,7 @@ func (qb *QueryBuilder) buildAPIRequestWithPagination(parameters map[string]inte
 		}
 	}
 
-	fmt.Printf("[DEBUG] QueryBuilder.buildAPIRequestWithPagination - 最终查询参数: %+v\n", queryParams)
+	slog.Debug("QueryBuilder.buildAPIRequestWithPagination - 最终查询参数", "data", queryParams)
 
 	// 构建完整的URL和参数
 	fullURL, finalQueryParams, err := qb.buildAPIURL(urlPattern, urlSuffix, queryParams, pathParams, parameters, paginationConfig, isSync)
@@ -993,7 +994,7 @@ func (qb *QueryBuilder) IsPaginationEnabled() bool {
 		return isEnabled
 	}
 
-	fmt.Printf("[DEBUG] QueryBuilder.IsPaginationEnabled - 不支持分页\n")
+	slog.Debug("QueryBuilder.IsPaginationEnabled - 不支持分页")
 	return false
 }
 
@@ -1077,7 +1078,7 @@ func (qb *QueryBuilder) BuildNextPageParams(currentPage int, pageSize int) map[s
 	pageParams["page"] = currentPage
 	pageParams["page_size"] = pageSize
 
-	fmt.Printf("[DEBUG] QueryBuilder.BuildNextPageParams - 构建分页参数: %+v\n", pageParams)
+	slog.Debug("QueryBuilder.BuildNextPageParams - 构建分页参数", "data", pageParams)
 	return pageParams
 }
 

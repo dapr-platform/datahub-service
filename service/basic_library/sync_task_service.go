@@ -12,6 +12,7 @@
 package basic_library
 
 import (
+	"log/slog"
 	"context"
 	"datahub-service/service/datasource"
 	"datahub-service/service/distributed_lock"
@@ -597,20 +598,20 @@ func (s *SyncTaskService) DeleteSyncTask(ctx context.Context, taskID string) err
 
 // StartSyncTask 启动基础库同步任务
 func (s *SyncTaskService) StartSyncTask(ctx context.Context, taskID string) error {
-	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 开始启动任务: %s\n", taskID)
+	slog.Debug("SyncTaskService.StartSyncTask - 开始启动任务", "value", taskID)
 
 	// 获取任务详细信息
 	var task models.SyncTask
 	if err := s.db.Preload("TaskInterfaces").First(&task, "id = ?", taskID).Error; err != nil {
-		fmt.Printf("[ERROR] SyncTaskService.StartSyncTask - 任务不存在: %s, 错误: %v\n", taskID, err)
+		slog.Error("SyncTaskService.StartSyncTask - 任务不存在", "value1", taskID, "value2", err)
 		return fmt.Errorf("任务不存在: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] SyncTaskService.StartSyncTask - 找到任务: %s, 当前状态: %s, 类型: %s\n", task.ID, task.Status, task.TaskType)
+	slog.Debug("SyncTaskService.StartSyncTask - 找到任务", "value1", task.ID, "value2", task.Status, "value3", task.TaskType)
 
 	// 检查任务状态
 	if task.Status == meta.SyncTaskStatusRunning {
-		fmt.Printf("[ERROR] SyncTaskService.StartSyncTask - 任务状态不允许启动: %s, 当前状态: %s\n", taskID, task.Status)
+		slog.Error("SyncTaskService.StartSyncTask - 任务状态不允许启动", "value1", taskID, "value2", task.Status)
 		return fmt.Errorf("任务状态不允许启动: %s, 当前状态: %s", taskID, task.Status)
 	}
 
@@ -643,12 +644,12 @@ func (s *SyncTaskService) StartSyncTask(ctx context.Context, taskID string) erro
 
 // executeTaskWithInterfaces 使用InterfaceExecutor执行任务
 func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *models.SyncTask) {
-	fmt.Printf("[DEBUG] SyncTaskService.executeTaskWithInterfaces - 开始执行任务: %s\n", task.ID)
+	slog.Debug("SyncTaskService.executeTaskWithInterfaces - 开始执行任务", "value", task.ID)
 
 	// 创建执行记录
 	execution, err := s.CreateSyncTaskExecution(ctx, task.ID, "interface_executor")
 	if err != nil {
-		fmt.Printf("[ERROR] 创建执行记录失败: %v\n", err)
+		slog.Error("创建执行记录失败", "error", err)
 		s.updateTaskStatus(task.ID, meta.SyncTaskStatusFailed, err.Error())
 		return
 	}
@@ -659,12 +660,12 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 
 	// 执行每个接口
 	for _, taskInterface := range task.TaskInterfaces {
-		fmt.Printf("[DEBUG] 执行接口: %s\n", taskInterface.InterfaceID)
+		slog.Debug("执行接口", "value", taskInterface.InterfaceID)
 
 		// 使用统一的sync类型，内部根据接口的incremental_config自动判断全量/增量
 		executeType := "sync" // 统一使用sync类型
 
-		fmt.Printf("[DEBUG] 接口 %s 使用统一的sync执行类型，将根据接口配置自动判断全量/增量同步\n", taskInterface.InterfaceID)
+		slog.Debug("接口使用统一的sync执行类型，将根据接口配置自动判断全量/增量同步", "interface_id", taskInterface.InterfaceID)
 
 		// 准备执行请求
 		executeRequest := &interface_executor.ExecuteRequest{
@@ -680,7 +681,7 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 			hasError = true
 			errorMsg := fmt.Sprintf("接口 %s 执行失败: %v", taskInterface.InterfaceID, err)
 			errorMessages = append(errorMessages, errorMsg)
-			fmt.Printf("[ERROR] %s\n", errorMsg)
+			slog.Error("Error occurred", "message", errorMsg)
 			continue
 		}
 
@@ -688,12 +689,12 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 			hasError = true
 			errorMsg := fmt.Sprintf("接口 %s 执行失败: %s", taskInterface.InterfaceID, response.Error)
 			errorMessages = append(errorMessages, errorMsg)
-			fmt.Printf("[ERROR] %s\n", errorMsg)
+			slog.Error("Error occurred", "message", errorMsg)
 			continue
 		}
 
 		totalProcessed += response.UpdatedRows
-		fmt.Printf("[DEBUG] 接口 %s 执行成功，更新行数: %d\n", taskInterface.InterfaceID, response.UpdatedRows)
+		slog.Debug("接口 %s 执行成功，更新行数", "count", taskInterface.InterfaceID, response.UpdatedRows)
 	}
 
 	// 更新任务状态
@@ -726,9 +727,9 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 	}
 
 	if err := s.db.Model(&models.SyncTask{}).Where("id = ?", task.ID).Updates(updates).Error; err != nil {
-		fmt.Printf("[ERROR] 更新任务状态失败: %v\n", err)
+		slog.Error("更新任务状态失败", "error", err)
 	} else {
-		fmt.Printf("[DEBUG] 任务状态更新成功: %s -> %s\n", task.ID, finalStatus)
+		slog.Debug("任务状态更新成功", "from", finalStatus, "to", )
 	}
 
 	// 更新执行记录
@@ -740,12 +741,12 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 	}
 
 	if err := s.UpdateSyncTaskExecution(ctx, execution.ID, finalStatus, result, errorMessage); err != nil {
-		fmt.Printf("[ERROR] 更新执行记录失败: %v\n", err)
+		slog.Error("更新执行记录失败", "error", err)
 	} else {
-		fmt.Printf("[DEBUG] 执行记录更新成功: %s -> %s\n", execution.ID, finalStatus)
+		slog.Debug("执行记录更新成功", "from", finalStatus, "to", )
 	}
 
-	fmt.Printf("[DEBUG] 任务 %s 执行完成，状态: %s，处理行数: %d\n", task.ID, finalStatus, totalProcessed)
+	slog.Debug("任务执行完成", "task_id", task.ID, "status", finalStatus, "processed_rows", totalProcessed)
 }
 
 // updateTaskStatus 更新任务状态的辅助方法
@@ -761,9 +762,9 @@ func (s *SyncTaskService) updateTaskStatus(taskID, status, errorMessage string) 
 	}
 
 	if err := s.db.Model(&models.SyncTask{}).Where("id = ?", taskID).Updates(updates).Error; err != nil {
-		fmt.Printf("[ERROR] 更新任务状态失败: %v\n", err)
+		slog.Error("更新任务状态失败", "error", err)
 	} else {
-		fmt.Printf("[DEBUG] 任务状态更新成功: %s -> %s\n", taskID, status)
+		slog.Debug("任务状态更新成功", "from", status, "to", )
 	}
 }
 

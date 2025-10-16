@@ -13,12 +13,14 @@ package api
 
 import (
 	"datahub-service/api/controllers"
+	"datahub-service/api/middleware"
 	"datahub-service/service"
 	"datahub-service/service/governance"
 	"datahub-service/service/sharing"
+	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/render"
 )
@@ -26,9 +28,9 @@ import (
 // InitRoute 初始化所有API路由
 func InitRoute(r *chi.Mux) {
 	// 基础中间件
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(middleware.RequestID)
+	r.Use(chimiddleware.Logger)
+	r.Use(chimiddleware.Recoverer)
+	r.Use(chimiddleware.RequestID)
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// CORS配置
@@ -41,16 +43,20 @@ func InitRoute(r *chi.Mux) {
 		MaxAge:           300,
 	}))
 
-	// 健康检查
+	// 初始化PostgREST认证中间件并应用（必须在所有路由之前）
+	postgrestAuth := middleware.NewPostgRESTAuthMiddleware()
+	r.Use(postgrestAuth.Middleware)
+
+	// 健康检查（无需认证，在白名单中）
 	healthController := controllers.NewHealthController()
 	r.Get("/health", healthController.Health)
 	r.Get("/ready", healthController.Ready)
 
-	// SSE事件订阅
+	// SSE事件订阅（需要认证）
 	eventController := controllers.NewEventController()
 	r.Get("/sse/{user_name}", eventController.HandleSSE)
 
-	// 事件管理
+	// 事件管理（需要认证）
 	r.Route("/events", func(r chi.Router) {
 		r.Post("/send", eventController.SendEvent)
 		r.Post("/broadcast", eventController.BroadcastEvent)
@@ -60,13 +66,13 @@ func InitRoute(r *chi.Mux) {
 		r.Get("/history", eventController.GetEventHistoryList)
 	})
 
-	// 表管理
+	// 表管理（需要认证）
 	r.Route("/tables", func(r chi.Router) {
 		tableController := controllers.NewTableController()
 		r.Post("/manage-schema", tableController.ManageTableSchema)
 	})
 
-	// 元数据管理
+	// 元数据管理（需要认证）
 	r.Route("/meta", func(r chi.Router) {
 		metaController := controllers.NewMetaController()
 
@@ -467,5 +473,32 @@ func InitRoute(r *chi.Mux) {
 
 		// 获取表结构
 		r.Get("/{library_type}/{library_id}/tables/{table_name}/structure", dataViewController.GetTableStructure)
+	})
+
+	// 认证中间件管理接口（需要管理员权限）
+	r.Route("/admin/auth", func(r chi.Router) {
+		// 需要管理员权限（全局中间件已经处理了基本认证）
+		r.Use(middleware.RequireRole("admin"))
+
+		// 获取缓存统计信息
+		r.Get("/cache-stats", func(w http.ResponseWriter, r *http.Request) {
+			render.JSON(w, r, map[string]interface{}{
+				"status": 200,
+				"msg":    "获取缓存统计成功",
+				"data":   postgrestAuth.GetCacheStats(),
+			})
+		})
+
+		// 清理过期缓存
+		r.Post("/clear-expired-cache", func(w http.ResponseWriter, r *http.Request) {
+			clearedCount := postgrestAuth.ClearExpiredCache()
+			render.JSON(w, r, map[string]interface{}{
+				"status": 200,
+				"msg":    "清理过期缓存成功",
+				"data": map[string]interface{}{
+					"cleared_count": clearedCount,
+				},
+			})
+		})
 	})
 }

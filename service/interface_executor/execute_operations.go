@@ -16,6 +16,7 @@ import (
 	"datahub-service/service/meta"
 	"datahub-service/service/models"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/spf13/cast"
@@ -34,7 +35,7 @@ func NewExecuteOperations(executor *InterfaceExecutor) *ExecuteOperations {
 // ExecutePreview 执行预览操作
 func (ops *ExecuteOperations) ExecutePreview(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time) (*ExecuteResponse, error) {
 	// 预览操作：调用一次接口，获取数据并返回
-	fmt.Printf("[DEBUG] ExecuteOperations.ExecutePreview - 开始预览接口: %s\n", interfaceInfo.GetID())
+	slog.Debug("ExecuteOperations.ExecutePreview - 开始预览接口", "value", interfaceInfo.GetID())
 
 	// 执行数据获取
 	dataProcessor := NewDataProcessor(ops.executor)
@@ -84,7 +85,7 @@ func (ops *ExecuteOperations) ExecutePreview(ctx context.Context, interfaceInfo 
 // ExecuteTest 执行测试操作
 func (ops *ExecuteOperations) ExecuteTest(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time) (*ExecuteResponse, error) {
 	// 测试操作：实际执行一次接口同步，更新表数据
-	fmt.Printf("[DEBUG] ExecuteOperations.ExecuteTest - 开始测试接口: %s\n", interfaceInfo.GetID())
+	slog.Debug("ExecuteOperations.ExecuteTest - 开始测试接口", "value", interfaceInfo.GetID())
 
 	// 执行数据获取
 	dataProcessor := NewDataProcessor(ops.executor)
@@ -137,7 +138,7 @@ func (ops *ExecuteOperations) ExecuteTest(ctx context.Context, interfaceInfo Int
 
 // ExecuteSync 执行同步操作（统一处理全量和增量同步）
 func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time) (*ExecuteResponse, error) {
-	fmt.Printf("[DEBUG] ExecuteOperations.ExecuteSync - 开始同步接口: %s\n", interfaceInfo.GetID())
+	slog.Debug("ExecuteOperations.ExecuteSync - 开始同步接口", "value", interfaceInfo.GetID())
 
 	// 检查表是否创建
 	if !interfaceInfo.IsTableCreated() {
@@ -151,7 +152,7 @@ func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo Int
 	}
 
 	interfaceConfig := interfaceInfo.GetInterfaceConfig()
-	fmt.Printf("[DEBUG] ExecuteSync - 接口配置: %+v\n", interfaceConfig)
+	slog.Debug("ExecuteSync - 接口配置", "data", interfaceConfig)
 
 	// 1. 检查是否启用增量同步
 	syncStrategy := "full" // 默认全量同步
@@ -181,7 +182,7 @@ func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo Int
 				// 获取本系统表中对应字段的最新值
 				mappedFieldName, lastValue, err := ops.getLastSyncValue(interfaceInfo, sourceFieldName, configMap)
 				if err != nil {
-					fmt.Printf("[WARN] ExecuteSync - 获取最后同步值失败，将使用全量同步: %v\n", err)
+					slog.Warn("ExecuteSync - 获取最后同步值失败，将使用全量同步", "error", err)
 					syncStrategy = "full"
 				} else {
 					lastSyncTime = lastValue
@@ -213,7 +214,7 @@ func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo Int
 
 // ExecuteBatchSync 执行批量同步操作
 func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time, limitConfig map[string]interface{}) (*ExecuteResponse, error) {
-	fmt.Printf("[DEBUG] ExecuteBatchSync - 开始批量同步，配置: %+v\n", limitConfig)
+	slog.Debug("ExecuteBatchSync - 开始批量同步，配置", "data", limitConfig)
 
 	// 获取批量配置参数
 	defaultLimit := cast.ToInt(limitConfig["default_limit"])
@@ -237,7 +238,7 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	// 获取数据源信息
 	var dataSource models.DataSource
 	if err := ops.executor.db.First(&dataSource, "id = ?", interfaceInfo.GetDataSourceID()).Error; err != nil {
-		fmt.Printf("[ERROR] ExecuteBatchSync - 获取数据源信息失败: %v\n", err)
+		slog.Error("ExecuteBatchSync - 获取数据源信息失败", "error", err)
 		return &ExecuteResponse{
 			Success:     false,
 			Message:     "获取数据源信息失败",
@@ -253,7 +254,7 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	// 检查是否支持批量处理
 	supportsBatch := dataSource.Category == meta.DataSourceCategoryDatabase || dataSource.Category == meta.DataSourceCategoryAPI
 	if !supportsBatch {
-		fmt.Printf("[DEBUG] ExecuteBatchSync - 数据源类型不支持批量同步，使用单次同步\n")
+		slog.Debug("ExecuteBatchSync - 数据源类型不支持批量同步，使用单次同步")
 		// 对于不支持批量的数据源，回退到单次同步
 		return ops.ExecuteSync(ctx, interfaceInfo, request, startTime)
 	}
@@ -261,7 +262,7 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	// 开始事务，确保批量同步的原子性
 	tx := ops.executor.db.Begin()
 	if tx.Error != nil {
-		fmt.Printf("[ERROR] ExecuteBatchSync - 开始事务失败: %v\n", tx.Error)
+		slog.Error("ExecuteBatchSync - 开始事务失败", "error", tx.Error)
 		return &ExecuteResponse{
 			Success:     false,
 			Message:     "开始事务失败",
@@ -275,12 +276,12 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
-			fmt.Printf("[ERROR] ExecuteBatchSync - 发生panic，事务已回滚: %v\n", r)
+			slog.Error("ExecuteBatchSync - 发生panic，事务已回滚", "error", r)
 		}
 	}()
 
 	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
-	fmt.Printf("[DEBUG] ExecuteBatchSync - 开始事务批量同步，目标表: %s\n", fullTableName)
+	slog.Debug("ExecuteBatchSync - 开始事务批量同步，目标表", "value", fullTableName)
 
 	// 批量数据同步
 	dataProcessor := NewDataProcessor(ops.executor)
@@ -326,7 +327,7 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	}
 
 	for hasMoreData {
-		fmt.Printf("[DEBUG] ExecuteBatchSync - 处理第 %d 批，批量大小: %d\n", currentPage, batchSize)
+		slog.Debug("ExecuteBatchSync - 处理第 %d 批，批量大小", "count", currentPage, batchSize)
 
 		// 构建分页参数
 		pageParams := map[string]interface{}{
@@ -337,7 +338,7 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 		// 获取批量数据
 		batchData, dataTypes, warnings, err := dataProcessor.FetchBatchDataFromSource(ctx, interfaceInfo, request.Parameters, pageParams)
 		if err != nil {
-			fmt.Printf("[ERROR] ExecuteBatchSync - 获取第 %d 批数据失败: %v\n", currentPage, err)
+			slog.Error("ExecuteBatchSync - 获取第 %d 批数据失败", "error", currentPage, err)
 			// 回滚事务
 			tx.Rollback()
 			return &ExecuteResponse{
@@ -359,18 +360,18 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 
 		// 判断是否还有更多数据
 		if len(batchData) == 0 {
-			fmt.Printf("[DEBUG] ExecuteBatchSync - 第 %d 批没有数据，结束数据收集\n", currentPage)
+			slog.Debug("ExecuteBatchSync - 批次没有数据，结束数据收集", "batch", currentPage)
 			hasMoreData = false
 			break
 		}
 
 		// 将批次数据添加到总数据中
 		allBatchData = append(allBatchData, batchData...)
-		fmt.Printf("[DEBUG] ExecuteBatchSync - 第 %d 批收集了 %d 行数据，总计 %d 行\n", currentPage, len(batchData), len(allBatchData))
+		slog.Debug("ExecuteBatchSync - 批次收集数据", "batch", currentPage, "batch_count", len(batchData), "total", len(allBatchData))
 
 		// 判断是否有更多数据的逻辑
 		if len(batchData) < batchSize {
-			fmt.Printf("[DEBUG] ExecuteBatchSync - 第 %d 批数据量(%d)小于批量大小(%d)，这是最后一批\n", currentPage, len(batchData), batchSize)
+			slog.Debug("ExecuteBatchSync - 批次数据不足，停止收集", "batch", currentPage, "batch_size", batchSize)
 			hasMoreData = false
 		}
 
@@ -378,13 +379,13 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 
 		// 防止无限循环
 		if currentPage > 1000 {
-			fmt.Printf("[WARN] ExecuteBatchSync - 达到最大批次限制(1000)，停止数据收集\n")
+			slog.Warn("ExecuteBatchSync - 达到最大批次限制(1000)，停止数据收集")
 			allWarnings = append(allWarnings, "达到最大批次限制，可能还有更多数据未同步")
 			break
 		}
 	}
 
-	fmt.Printf("[DEBUG] ExecuteBatchSync - 数据收集完成，总共收集 %d 批，%d 行数据\n", currentPage-1, len(allBatchData))
+	slog.Debug("ExecuteBatchSync - 数据收集完成", "total_batches", currentPage-1, "total_rows", len(allBatchData))
 
 	// 如果没有数据，提交事务并返回
 	if len(allBatchData) == 0 {
@@ -412,12 +413,12 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	}
 
 	// 在事务中执行数据库操作
-	fmt.Printf("[DEBUG] ExecuteBatchSync - 开始在事务中执行数据库操作\n")
+	slog.Debug("ExecuteBatchSync - 开始在事务中执行数据库操作")
 
 	// 1. 清空目标表（在事务中执行）
-	fmt.Printf("[DEBUG] ExecuteBatchSync - 清空表: %s\n", fullTableName)
+	slog.Debug("ExecuteBatchSync - 清空表", "value", fullTableName)
 	if err := tx.Exec(fmt.Sprintf("DELETE FROM %s", fullTableName)).Error; err != nil {
-		fmt.Printf("[ERROR] ExecuteBatchSync - 清空表失败: %v\n", err)
+		slog.Error("ExecuteBatchSync - 清空表失败", "error", err)
 		tx.Rollback()
 		return &ExecuteResponse{
 			Success:     false,
@@ -429,10 +430,10 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	}
 
 	// 2. 批量插入所有数据（在事务中执行）
-	fmt.Printf("[DEBUG] ExecuteBatchSync - 开始批量插入 %d 行数据\n", len(allBatchData))
+	slog.Debug("ExecuteBatchSync - 开始批量插入数据", "row_count", len(allBatchData))
 	insertedRows, err := fieldMapper.InsertBatchDataWithTx(ctx, tx, interfaceInfo, allBatchData)
 	if err != nil {
-		fmt.Printf("[ERROR] ExecuteBatchSync - 批量插入数据失败: %v\n", err)
+		slog.Error("ExecuteBatchSync - 批量插入数据失败", "error", err)
 		tx.Rollback()
 		return &ExecuteResponse{
 			Success:     false,
@@ -445,7 +446,7 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 
 	// 3. 提交事务
 	if err := tx.Commit().Error; err != nil {
-		fmt.Printf("[ERROR] ExecuteBatchSync - 提交事务失败: %v\n", err)
+		slog.Error("ExecuteBatchSync - 提交事务失败", "error", err)
 		return &ExecuteResponse{
 			Success:     false,
 			Message:     "提交事务失败",
@@ -456,7 +457,7 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	}
 
 	totalRows = insertedRows
-	fmt.Printf("[DEBUG] ExecuteBatchSync - 事务提交成功，总共插入 %d 行\n", totalRows)
+	slog.Debug("ExecuteBatchSync - 事务提交成功，总共插入", "count", totalRows) // 行
 
 	return &ExecuteResponse{
 		Success:      true,
@@ -530,7 +531,7 @@ func (ops *ExecuteOperations) getLastSyncValue(interfaceInfo InterfaceInfo, sour
 
 // ExecuteSingleSync 执行单次数据同步
 func (ops *ExecuteOperations) ExecuteSingleSync(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time, syncStrategy string, lastSyncTime interface{}, incrementalKey string) (*ExecuteResponse, error) {
-	fmt.Printf("[DEBUG] ExecuteSingleSync - 开始单次同步，策略: %s\n", syncStrategy)
+	slog.Debug("ExecuteSingleSync - 开始单次同步，策略", "value", syncStrategy)
 
 	// 准备增量参数
 	syncParams := make(map[string]interface{})
@@ -632,7 +633,7 @@ func (ops *ExecuteOperations) ExecuteSingleSync(ctx context.Context, interfaceIn
 
 // ExecuteBatchSyncWithStrategy 执行批量同步（支持增量策略）
 func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time, limitConfig map[string]interface{}, syncStrategy string, lastSyncTime interface{}, incrementalKey string) (*ExecuteResponse, error) {
-	fmt.Printf("[DEBUG] ExecuteBatchSyncWithStrategy - 开始批量同步，策略: %s\n", syncStrategy)
+	slog.Debug("ExecuteBatchSyncWithStrategy - 开始批量同步，策略", "value", syncStrategy)
 
 	// 获取批量配置参数
 	defaultLimit := cast.ToInt(limitConfig["default_limit"])
@@ -677,7 +678,7 @@ func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, 
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
-			fmt.Printf("[ERROR] ExecuteBatchSyncWithStrategy - 发生panic，事务已回滚: %v\n", r)
+			slog.Error("ExecuteBatchSyncWithStrategy - 发生panic，事务已回滚", "error", r)
 		}
 	}()
 

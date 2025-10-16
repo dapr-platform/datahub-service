@@ -12,6 +12,7 @@
 package interface_executor
 
 import (
+	"log/slog"
 	"context"
 	"fmt"
 	"strconv"
@@ -128,16 +129,16 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 		fullTableName = fmt.Sprintf(`"%s"`, tableName)
 	}
 
-	fmt.Printf("[DEBUG] FieldMapper.UpdateTableData - 开始更新表数据\n")
-	fmt.Printf("[DEBUG] UpdateTableData - 表名: %s\n", fullTableName)
-	fmt.Printf("[DEBUG] UpdateTableData - 数据行数: %d\n", len(data))
+	slog.Debug("FieldMapper.UpdateTableData - 开始更新表数据")
+	slog.Debug("UpdateTableData - 表名", "value", fullTableName)
+	slog.Debug("UpdateTableData - 数据行数", "count", len(data))
 
 	// 打印parseConfig信息
 	parseConfig := interfaceInfo.GetParseConfig()
-	fmt.Printf("[DEBUG] UpdateTableData - parseConfig: %+v\n", parseConfig)
+	slog.Debug("UpdateTableData - parseConfig", "data", parseConfig)
 
 	if len(data) > 0 {
-		fmt.Printf("[DEBUG] UpdateTableData - 第一行数据示例: %+v\n", data[0])
+		slog.Debug("UpdateTableData - 第一行数据示例", "data", data[0])
 	}
 
 	// 这里应该根据接口类型（实时/批量）和配置来决定更新策略
@@ -147,17 +148,17 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 	tx := db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Printf("[ERROR] UpdateTableData - 事务回滚，原因: %v\n", r)
+			slog.Error("UpdateTableData - 事务回滚，原因", "error", r)
 			tx.Rollback()
 		}
 	}()
 
 	// 清空现有数据
 	deleteSQL := fmt.Sprintf("DELETE FROM %s", fullTableName)
-	fmt.Printf("[DEBUG] UpdateTableData - 清空表SQL: %s\n", deleteSQL)
+	slog.Debug("UpdateTableData - 清空表SQL", "value", deleteSQL)
 
 	if err := tx.Exec(deleteSQL).Error; err != nil {
-		fmt.Printf("[ERROR] UpdateTableData - 清空表数据失败: %v\n", err)
+		slog.Error("UpdateTableData - 清空表数据失败", "error", err)
 		tx.Rollback()
 		return 0, fmt.Errorf("清空表数据失败: %w", err)
 	}
@@ -167,15 +168,15 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 	for i, row := range data {
 		// 只对第一行数据输出详细调试信息
 		if i == 0 {
-			fmt.Printf("[DEBUG] UpdateTableData - 处理第 %d 行数据: %+v\n", i+1, row)
+			slog.Debug("UpdateTableData - 处理第 %d 行数据", "data", i+1, row)
 		} else if i%100 == 0 {
-			fmt.Printf("[DEBUG] UpdateTableData - 已处理 %d 行数据...\n", i+1)
+			slog.Debug("UpdateTableData - 已处理", "count", i+1) // 行数据...
 		}
 
 		// 应用parseConfig中的fieldMapping
 		mappedRow := fm.ApplyFieldMapping(row, parseConfig, i == 0)
 		if i == 0 {
-			fmt.Printf("[DEBUG] UpdateTableData - 字段映射后的数据: %+v\n", mappedRow)
+			slog.Debug("UpdateTableData - 字段映射后的数据", "data", mappedRow)
 		}
 
 		// 构建插入SQL
@@ -198,14 +199,14 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 			strings.Join(placeholders, ", "))
 
 		if i == 0 {
-			fmt.Printf("[DEBUG] UpdateTableData - 插入SQL: %s\n", insertSQL)
-			fmt.Printf("[DEBUG] UpdateTableData - 插入参数: %+v\n", values)
+			slog.Debug("UpdateTableData - 插入SQL", "value", insertSQL)
+			slog.Debug("UpdateTableData - 插入参数", "data", values)
 		}
 
 		if err := tx.Exec(insertSQL, values...).Error; err != nil {
-			fmt.Printf("[ERROR] UpdateTableData - 插入数据失败: %v\n", err)
-			fmt.Printf("[ERROR] UpdateTableData - 失败的SQL: %s\n", insertSQL)
-			fmt.Printf("[ERROR] UpdateTableData - 失败的参数: %+v\n", values)
+			slog.Error("UpdateTableData - 插入数据失败", "error", err)
+			slog.Error("UpdateTableData - 失败的SQL", "message", insertSQL)
+			slog.Error("UpdateTableData - 失败的参数", "data", values)
 			tx.Rollback()
 			return 0, fmt.Errorf("插入数据失败: %w", err)
 		}
@@ -214,11 +215,11 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
-		fmt.Printf("[ERROR] UpdateTableData - 提交事务失败: %v\n", err)
+		slog.Error("UpdateTableData - 提交事务失败", "error", err)
 		return 0, fmt.Errorf("提交事务失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] UpdateTableData - 成功插入 %d 行数据\n", insertedRows)
+	slog.Debug("UpdateTableData - 成功插入", "count", insertedRows) // 行数据
 	return insertedRows, nil
 }
 
@@ -231,14 +232,14 @@ func (fm *FieldMapper) InsertBatchData(ctx context.Context, db *gorm.DB, interfa
 	// 构造表名
 	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
 
-	fmt.Printf("[DEBUG] FieldMapper.InsertBatchData - 开始插入批量数据到表: %s\n", fullTableName)
-	fmt.Printf("[DEBUG] InsertBatchData - 数据行数: %d\n", len(data))
+	slog.Debug("FieldMapper.InsertBatchData - 开始插入批量数据到表", "value", fullTableName)
+	slog.Debug("InsertBatchData - 数据行数", "count", len(data))
 
 	// 开启事务
 	tx := db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Printf("[ERROR] InsertBatchData - 事务回滚，原因: %v\n", r)
+			slog.Error("InsertBatchData - 事务回滚，原因", "error", r)
 			tx.Rollback()
 		}
 	}()
@@ -246,12 +247,12 @@ func (fm *FieldMapper) InsertBatchData(ctx context.Context, db *gorm.DB, interfa
 	// 插入数据
 	var insertedRows int64
 	for i, row := range data {
-		fmt.Printf("[DEBUG] InsertBatchData - 处理第 %d 行数据: %+v\n", i+1, row)
+		slog.Debug("InsertBatchData - 处理第 %d 行数据", "data", i+1, row)
 
 		// 应用parseConfig中的fieldMapping
 		parseConfig := interfaceInfo.GetParseConfig()
 		mappedRow := fm.ApplyFieldMapping(row, parseConfig)
-		fmt.Printf("[DEBUG] InsertBatchData - 字段映射后的数据: %+v\n", mappedRow)
+		slog.Debug("InsertBatchData - 字段映射后的数据", "data", mappedRow)
 
 		// 构建插入SQL
 		columns := make([]string, 0, len(mappedRow))
@@ -272,13 +273,13 @@ func (fm *FieldMapper) InsertBatchData(ctx context.Context, db *gorm.DB, interfa
 			strings.Join(columns, ", "),
 			strings.Join(placeholders, ", "))
 
-		fmt.Printf("[DEBUG] InsertBatchData - 插入SQL: %s\n", insertSQL)
-		fmt.Printf("[DEBUG] InsertBatchData - 插入参数: %+v\n", values)
+		slog.Debug("InsertBatchData - 插入SQL", "value", insertSQL)
+		slog.Debug("InsertBatchData - 插入参数", "data", values)
 
 		if err := tx.Exec(insertSQL, values...).Error; err != nil {
-			fmt.Printf("[ERROR] InsertBatchData - 插入数据失败: %v\n", err)
-			fmt.Printf("[ERROR] InsertBatchData - 失败的SQL: %s\n", insertSQL)
-			fmt.Printf("[ERROR] InsertBatchData - 失败的参数: %+v\n", values)
+			slog.Error("InsertBatchData - 插入数据失败", "error", err)
+			slog.Error("InsertBatchData - 失败的SQL", "message", insertSQL)
+			slog.Error("InsertBatchData - 失败的参数", "data", values)
 			tx.Rollback()
 			return 0, fmt.Errorf("插入数据失败: %w", err)
 		}
@@ -287,11 +288,11 @@ func (fm *FieldMapper) InsertBatchData(ctx context.Context, db *gorm.DB, interfa
 
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
-		fmt.Printf("[ERROR] InsertBatchData - 提交事务失败: %v\n", err)
+		slog.Error("InsertBatchData - 提交事务失败", "error", err)
 		return 0, fmt.Errorf("提交事务失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] InsertBatchData - 成功插入 %d 行数据\n", insertedRows)
+	slog.Debug("InsertBatchData - 成功插入", "count", insertedRows) // 行数据
 	return insertedRows, nil
 }
 
@@ -304,18 +305,18 @@ func (fm *FieldMapper) InsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 	// 构造表名
 	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
 
-	fmt.Printf("[DEBUG] FieldMapper.InsertBatchDataWithTx - 开始插入批量数据到表: %s\n", fullTableName)
-	fmt.Printf("[DEBUG] InsertBatchDataWithTx - 数据行数: %d\n", len(data))
+	slog.Debug("FieldMapper.InsertBatchDataWithTx - 开始插入批量数据到表", "value", fullTableName)
+	slog.Debug("InsertBatchDataWithTx - 数据行数", "count", len(data))
 
 	// 插入数据（使用提供的事务）
 	var insertedRows int64
 	for i, row := range data {
-		fmt.Printf("[DEBUG] InsertBatchDataWithTx - 处理第 %d 行数据: %+v\n", i+1, row)
+		slog.Debug("InsertBatchDataWithTx - 处理第 %d 行数据", "data", i+1, row)
 
 		// 应用parseConfig中的fieldMapping
 		parseConfig := interfaceInfo.GetParseConfig()
 		mappedRow := fm.ApplyFieldMapping(row, parseConfig)
-		fmt.Printf("[DEBUG] InsertBatchDataWithTx - 字段映射后的数据: %+v\n", mappedRow)
+		slog.Debug("InsertBatchDataWithTx - 字段映射后的数据", "data", mappedRow)
 
 		// 构建插入SQL
 		columns := make([]string, 0, len(mappedRow))
@@ -336,19 +337,19 @@ func (fm *FieldMapper) InsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 			strings.Join(columns, ", "),
 			strings.Join(placeholders, ", "))
 
-		fmt.Printf("[DEBUG] InsertBatchDataWithTx - 插入SQL: %s\n", insertSQL)
-		fmt.Printf("[DEBUG] InsertBatchDataWithTx - 插入参数: %+v\n", values)
+		slog.Debug("InsertBatchDataWithTx - 插入SQL", "value", insertSQL)
+		slog.Debug("InsertBatchDataWithTx - 插入参数", "data", values)
 
 		if err := tx.Exec(insertSQL, values...).Error; err != nil {
-			fmt.Printf("[ERROR] InsertBatchDataWithTx - 插入数据失败: %v\n", err)
-			fmt.Printf("[ERROR] InsertBatchDataWithTx - 失败的SQL: %s\n", insertSQL)
-			fmt.Printf("[ERROR] InsertBatchDataWithTx - 失败的参数: %+v\n", values)
+			slog.Error("InsertBatchDataWithTx - 插入数据失败", "error", err)
+			slog.Error("InsertBatchDataWithTx - 失败的SQL", "message", insertSQL)
+			slog.Error("InsertBatchDataWithTx - 失败的参数", "data", values)
 			return 0, fmt.Errorf("插入数据失败: %w", err)
 		}
 		insertedRows++
 	}
 
-	fmt.Printf("[DEBUG] InsertBatchDataWithTx - 成功插入 %d 行数据\n", insertedRows)
+	slog.Debug("InsertBatchDataWithTx - 成功插入", "count", insertedRows) // 行数据
 	return insertedRows, nil
 }
 
@@ -356,14 +357,14 @@ func (fm *FieldMapper) InsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig map[string]interface{}, debugLog ...bool) map[string]interface{} {
 	debug := len(debugLog) > 0 && debugLog[0]
 	if debug {
-		fmt.Printf("[DEBUG] FieldMapper.ApplyFieldMapping - 原始数据: %+v\n", row)
-		fmt.Printf("[DEBUG] ApplyFieldMapping - parseConfig: %+v\n", parseConfig)
+		slog.Debug("FieldMapper.ApplyFieldMapping - 原始数据", "data", row)
+		slog.Debug("ApplyFieldMapping - parseConfig", "data", parseConfig)
 	}
 
 	// 如果没有parseConfig，直接返回原始数据
 	if parseConfig == nil {
 		if debug {
-			fmt.Printf("[DEBUG] ApplyFieldMapping - parseConfig为空，返回原始数据\n")
+			slog.Debug("ApplyFieldMapping - parseConfig为空，返回原始数据")
 		}
 		return row
 	}
@@ -372,13 +373,13 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 	fieldMappingInterface, exists := parseConfig["fieldMapping"]
 	if !exists {
 		if debug {
-			fmt.Printf("[DEBUG] ApplyFieldMapping - 没有fieldMapping配置，返回原始数据\n")
+			slog.Debug("ApplyFieldMapping - 没有fieldMapping配置，返回原始数据")
 		}
 		return row
 	}
 
 	if debug {
-		fmt.Printf("[DEBUG] ApplyFieldMapping - fieldMapping原始配置: %+v\n", fieldMappingInterface)
+		slog.Debug("ApplyFieldMapping - fieldMapping原始配置", "data", fieldMappingInterface)
 	}
 
 	// 支持两种格式：数组格式（新）和对象格式（旧）
@@ -391,18 +392,18 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 		fieldMappingArray = mappingArray
 		isArrayFormat = true
 		if debug {
-			fmt.Printf("[DEBUG] ApplyFieldMapping - 使用数组格式fieldMapping，条目数: %d\n", len(fieldMappingArray))
+			slog.Debug("ApplyFieldMapping - 使用数组格式fieldMapping，条目数", "count", len(fieldMappingArray))
 		}
 	} else if mappingMap, ok := fieldMappingInterface.(map[string]interface{}); ok {
 		// 兼容旧的对象格式
 		fieldMappingMap = mappingMap
 		isArrayFormat = false
 		if debug {
-			fmt.Printf("[DEBUG] ApplyFieldMapping - 使用对象格式fieldMapping（兼容模式）\n")
+			slog.Debug("ApplyFieldMapping - 使用对象格式fieldMapping（兼容模式）")
 		}
 	} else {
 		if debug {
-			fmt.Printf("[DEBUG] ApplyFieldMapping - fieldMapping格式不支持，返回原始数据\n")
+			slog.Debug("ApplyFieldMapping - fieldMapping格式不支持，返回原始数据")
 		}
 		return row
 	}
@@ -471,7 +472,7 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 	}
 
 	if debug {
-		fmt.Printf("[DEBUG] ApplyFieldMapping - 映射后数据: %+v\n", mappedRow)
+		slog.Debug("ApplyFieldMapping - 映射后数据", "data", mappedRow)
 	}
 	return mappedRow
 }
@@ -490,7 +491,7 @@ func (fm *FieldMapper) ProcessValueForDatabase(columnName string, value interfac
 	// 获取字段的数据类型
 	dataType := fm.getFieldDataType(columnName, interfaceInfo)
 	if debug {
-		fmt.Printf("[DEBUG] ProcessValueForDatabase - 字段 %s 的数据类型: %s\n", columnName, dataType)
+		slog.Debug("ProcessValueForDatabase - 字段 %s 的数据类型", "value", columnName, dataType)
 	}
 
 	// 根据数据类型进行转换
@@ -559,7 +560,7 @@ func (fm *FieldMapper) convertToTimestamp(value interface{}, debug bool) interfa
 		}
 
 		if debug {
-			fmt.Printf("[DEBUG] convertToTimestamp - 无法解析时间字符串，返回原值: %s\n", v)
+			slog.Debug("convertToTimestamp - 无法解析时间字符串，返回原值", "value", v)
 		}
 		return v
 	default:
@@ -568,7 +569,7 @@ func (fm *FieldMapper) convertToTimestamp(value interface{}, debug bool) interfa
 			return fm.convertToTimestamp(timeStr, debug)
 		}
 		if debug {
-			fmt.Printf("[DEBUG] convertToTimestamp - 无法处理的时间类型，返回原值: %v\n", v)
+			slog.Debug("convertToTimestamp - 无法处理的时间类型，返回原值", "value", v)
 		}
 		return v
 	}
@@ -603,7 +604,7 @@ func (fm *FieldMapper) convertToDate(value interface{}, debug bool) interface{} 
 		}
 
 		if debug {
-			fmt.Printf("[DEBUG] convertToDate - 无法解析日期字符串，返回原值: %s\n", v)
+			slog.Debug("convertToDate - 无法解析日期字符串，返回原值", "value", v)
 		}
 		return v
 	default:
@@ -668,7 +669,7 @@ func (fm *FieldMapper) convertToInteger(value interface{}, debug bool) interface
 			return intVal
 		}
 		if debug {
-			fmt.Printf("[DEBUG] convertToInteger - 无法转换字符串为整数，返回原值: %s\n", v)
+			slog.Debug("convertToInteger - 无法转换字符串为整数，返回原值", "value", v)
 		}
 		return v
 	default:
@@ -905,25 +906,25 @@ func (fm *FieldMapper) ReplaceTableData(ctx context.Context, db *gorm.DB, interf
 		fullTableName = fmt.Sprintf(`"%s"`, tableName)
 	}
 
-	fmt.Printf("[DEBUG] FieldMapper.ReplaceTableData - 开始替换表数据\n")
-	fmt.Printf("[DEBUG] ReplaceTableData - 表名: %s\n", fullTableName)
-	fmt.Printf("[DEBUG] ReplaceTableData - 数据行数: %d\n", len(data))
+	slog.Debug("FieldMapper.ReplaceTableData - 开始替换表数据")
+	slog.Debug("ReplaceTableData - 表名", "value", fullTableName)
+	slog.Debug("ReplaceTableData - 数据行数", "count", len(data))
 
 	// 开启事务
 	tx := db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Printf("[ERROR] ReplaceTableData - 事务回滚，原因: %v\n", r)
+			slog.Error("ReplaceTableData - 事务回滚，原因", "error", r)
 			tx.Rollback()
 		}
 	}()
 
 	// 清空现有数据
 	deleteSQL := fmt.Sprintf("DELETE FROM %s", fullTableName)
-	fmt.Printf("[DEBUG] ReplaceTableData - 清空表SQL: %s\n", deleteSQL)
+	slog.Debug("ReplaceTableData - 清空表SQL", "value", deleteSQL)
 
 	if err := tx.Exec(deleteSQL).Error; err != nil {
-		fmt.Printf("[ERROR] ReplaceTableData - 清空表数据失败: %v\n", err)
+		slog.Error("ReplaceTableData - 清空表数据失败", "error", err)
 		tx.Rollback()
 		return 0, fmt.Errorf("清空表数据失败: %w", err)
 	}
@@ -933,16 +934,16 @@ func (fm *FieldMapper) ReplaceTableData(ctx context.Context, db *gorm.DB, interf
 	for i, row := range data {
 		// 只对第一行数据输出详细调试信息
 		if i == 0 {
-			fmt.Printf("[DEBUG] ReplaceTableData - 处理第 %d 行数据: %+v\n", i+1, row)
+			slog.Debug("ReplaceTableData - 处理第 %d 行数据", "data", i+1, row)
 		} else if i%100 == 0 {
-			fmt.Printf("[DEBUG] ReplaceTableData - 已处理 %d 行数据...\n", i+1)
+			slog.Debug("ReplaceTableData - 已处理", "count", i+1) // 行数据...
 		}
 
 		// 应用parseConfig中的fieldMapping
 		parseConfig := interfaceInfo.GetParseConfig()
 		mappedRow := fm.ApplyFieldMapping(row, parseConfig, i == 0)
 		if i == 0 {
-			fmt.Printf("[DEBUG] ReplaceTableData - 字段映射后的数据: %+v\n", mappedRow)
+			slog.Debug("ReplaceTableData - 字段映射后的数据", "data", mappedRow)
 		}
 
 		// 构建插入SQL
@@ -965,14 +966,14 @@ func (fm *FieldMapper) ReplaceTableData(ctx context.Context, db *gorm.DB, interf
 			strings.Join(placeholders, ", "))
 
 		if i == 0 {
-			fmt.Printf("[DEBUG] ReplaceTableData - 插入SQL: %s\n", insertSQL)
-			fmt.Printf("[DEBUG] ReplaceTableData - 插入参数: %+v\n", values)
+			slog.Debug("ReplaceTableData - 插入SQL", "value", insertSQL)
+			slog.Debug("ReplaceTableData - 插入参数", "data", values)
 		}
 
 		if err := tx.Exec(insertSQL, values...).Error; err != nil {
-			fmt.Printf("[ERROR] ReplaceTableData - 插入数据失败: %v\n", err)
-			fmt.Printf("[ERROR] ReplaceTableData - 失败的SQL: %s\n", insertSQL)
-			fmt.Printf("[ERROR] ReplaceTableData - 失败的参数: %+v\n", values)
+			slog.Error("ReplaceTableData - 插入数据失败", "error", err)
+			slog.Error("ReplaceTableData - 失败的SQL", "message", insertSQL)
+			slog.Error("ReplaceTableData - 失败的参数", "data", values)
 			tx.Rollback()
 			return 0, fmt.Errorf("插入数据失败: %w", err)
 		}
@@ -981,11 +982,11 @@ func (fm *FieldMapper) ReplaceTableData(ctx context.Context, db *gorm.DB, interf
 
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
-		fmt.Printf("[ERROR] ReplaceTableData - 提交事务失败: %v\n", err)
+		slog.Error("ReplaceTableData - 提交事务失败", "error", err)
 		return 0, fmt.Errorf("提交事务失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] ReplaceTableData - 成功插入 %d 行数据\n", insertedRows)
+	slog.Debug("ReplaceTableData - 成功插入", "count", insertedRows) // 行数据
 	return insertedRows, nil
 }
 
@@ -998,18 +999,18 @@ func (fm *FieldMapper) UpsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 	// 构造表名
 	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
 
-	fmt.Printf("[DEBUG] FieldMapper.UpsertBatchDataWithTx - 开始UPSERT批量数据到表: %s\n", fullTableName)
-	fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 数据行数: %d\n", len(data))
+	slog.Debug("FieldMapper.UpsertBatchDataWithTx - 开始UPSERT批量数据到表", "value", fullTableName)
+	slog.Debug("UpsertBatchDataWithTx - 数据行数", "count", len(data))
 
 	// 处理数据（使用提供的事务）
 	var processedRows int64
 	for i, row := range data {
-		fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 处理第 %d 行数据: %+v\n", i+1, row)
+		slog.Debug("UpsertBatchDataWithTx - 处理第 %d 行数据", "data", i+1, row)
 
 		// 应用parseConfig中的fieldMapping
 		parseConfig := interfaceInfo.GetParseConfig()
 		mappedRow := fm.ApplyFieldMapping(row, parseConfig)
-		fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 字段映射后的数据: %+v\n", mappedRow)
+		slog.Debug("UpsertBatchDataWithTx - 字段映射后的数据", "data", mappedRow)
 
 		// 构建UPSERT SQL（这里简化为INSERT，实际应该实现UPSERT逻辑）
 		columns := make([]string, 0, len(mappedRow))
@@ -1030,18 +1031,18 @@ func (fm *FieldMapper) UpsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 			strings.Join(columns, ", "),
 			strings.Join(placeholders, ", "))
 
-		fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 插入SQL: %s\n", insertSQL)
-		fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 插入参数: %+v\n", values)
+		slog.Debug("UpsertBatchDataWithTx - 插入SQL", "value", insertSQL)
+		slog.Debug("UpsertBatchDataWithTx - 插入参数", "data", values)
 
 		if err := tx.Exec(insertSQL, values...).Error; err != nil {
-			fmt.Printf("[ERROR] UpsertBatchDataWithTx - 插入数据失败: %v\n", err)
-			fmt.Printf("[ERROR] UpsertBatchDataWithTx - 失败的SQL: %s\n", insertSQL)
-			fmt.Printf("[ERROR] UpsertBatchDataWithTx - 失败的参数: %+v\n", values)
+			slog.Error("UpsertBatchDataWithTx - 插入数据失败", "error", err)
+			slog.Error("UpsertBatchDataWithTx - 失败的SQL", "message", insertSQL)
+			slog.Error("UpsertBatchDataWithTx - 失败的参数", "data", values)
 			return 0, fmt.Errorf("插入数据失败: %w", err)
 		}
 		processedRows++
 	}
 
-	fmt.Printf("[DEBUG] UpsertBatchDataWithTx - 成功处理 %d 行数据\n", processedRows)
+	slog.Debug("UpsertBatchDataWithTx - 成功处理", "count", processedRows) // 行数据
 	return processedRows, nil
 }

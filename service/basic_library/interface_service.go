@@ -12,6 +12,7 @@
 package basic_library
 
 import (
+	"log/slog"
 	"context"
 	"datahub-service/service/database"
 	"datahub-service/service/datasource"
@@ -950,7 +951,7 @@ func (s *InterfaceService) ImportCSVData(interfaceID string, csvContent string) 
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
-			fmt.Printf("[ERROR] ImportCSVData - 发生panic，事务已回滚: %v\n", r)
+			slog.Error("ImportCSVData - 发生panic，事务已回滚", "error", r)
 		}
 	}()
 
