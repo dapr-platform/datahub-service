@@ -94,12 +94,13 @@ func (sti *SyncTaskInterface) GetProgressPercent() string {
 
 // SyncTask 通用同步任务模型
 type SyncTask struct {
-	ID           string `json:"id" gorm:"primaryKey;type:varchar(36)" example:"550e8400-e29b-41d4-a716-446655440000"`
-	LibraryType  string `json:"library_type" gorm:"not null;size:20;index" example:"basic_library"`                               // basic_library, thematic_library
-	LibraryID    string `json:"library_id" gorm:"not null;type:varchar(36);index" example:"550e8400-e29b-41d4-a716-446655440000"` // 基础库ID或主题库ID
-	DataSourceID string `json:"data_source_id" gorm:"not null;type:varchar(36);index" example:"550e8400-e29b-41d4-a716-446655440000"`
-	TaskType     string `json:"task_type" gorm:"not null;size:20" example:"batch_sync"`             // batch_sync, realtime_sync
-	Status       string `json:"status" gorm:"not null;size:20;default:'pending'" example:"pending"` // pending, running, success, failed, cancelled
+	ID              string `json:"id" gorm:"primaryKey;type:varchar(36)" example:"550e8400-e29b-41d4-a716-446655440000"`
+	LibraryType     string `json:"library_type" gorm:"not null;size:20;index" example:"basic_library"`                               // basic_library, thematic_library
+	LibraryID       string `json:"library_id" gorm:"not null;type:varchar(36);index" example:"550e8400-e29b-41d4-a716-446655440000"` // 基础库ID或主题库ID
+	DataSourceID    string `json:"data_source_id" gorm:"not null;type:varchar(36);index" example:"550e8400-e29b-41d4-a716-446655440000"`
+	TaskType        string `json:"task_type" gorm:"not null;size:20" example:"batch_sync"`                 // batch_sync, realtime_sync
+	Status          string `json:"status" gorm:"not null;size:20;default:'draft'" example:"draft"`         // draft, active, paused (任务生命周期状态)
+	ExecutionStatus string `json:"execution_status" gorm:"not null;size:20;default:'idle'" example:"idle"` // idle, running, success, failed (任务执行状态)
 
 	// 执行时机相关字段
 	TriggerType     string     `json:"trigger_type" gorm:"not null;size:20;default:'manual'" example:"manual"` // manual, once, interval, cron
@@ -198,31 +199,40 @@ func (st *SyncTask) GetLibraryDisplayName() string {
 
 // CanDelete 判断任务是否可以删除
 func (st *SyncTask) CanDelete() bool {
-	deletableStatuses := map[string]bool{
-		"success":   true,
-		"failed":    true,
-		"cancelled": true,
+	// 草稿和暂停状态的任务可以删除
+	if st.Status == "draft" || st.Status == "paused" {
+		return true
 	}
-	return deletableStatuses[st.Status]
+	// 激活状态且非运行中的任务也可以删除
+	if st.Status == "active" && st.ExecutionStatus != "running" {
+		return true
+	}
+	return false
 }
 
 // CanUpdate 判断任务是否可以更新
 func (st *SyncTask) CanUpdate() bool {
-	return st.Status == "pending"
+	// 草稿和暂停状态可以更新
+	if st.Status == "draft" || st.Status == "paused" {
+		return true
+	}
+	// 激活状态且非运行中也可以更新
+	if st.Status == "active" && st.ExecutionStatus != "running" {
+		return true
+	}
+	return false
 }
 
-// CanCancel 判断任务是否可以取消
+// CanCancel 判断任务是否可以取消（暂停）
 func (st *SyncTask) CanCancel() bool {
-	cancellableStatuses := map[string]bool{
-		"pending": true,
-		"running": true,
-	}
-	return cancellableStatuses[st.Status]
+	// 只有激活状态的任务可以暂停
+	return st.Status == "active"
 }
 
 // CanRetry 判断任务是否可以重试
 func (st *SyncTask) CanRetry() bool {
-	return st.Status == "failed"
+	// 执行状态为失败的任务可以重试
+	return st.ExecutionStatus == "failed"
 }
 
 // GetDuration 获取任务执行时长
@@ -245,24 +255,19 @@ func (st *SyncTask) GetProgressPercent() string {
 	return fmt.Sprintf("%d%%", st.Progress)
 }
 
-// IsCompleted 判断任务是否已完成（成功或失败）
+// IsCompleted 判断任务的最近一次执行是否已完成（成功或失败）
 func (st *SyncTask) IsCompleted() bool {
-	completedStatuses := map[string]bool{
-		"success":   true,
-		"failed":    true,
-		"cancelled": true,
-	}
-	return completedStatuses[st.Status]
+	return st.ExecutionStatus == "success" || st.ExecutionStatus == "failed"
 }
 
 // IsRunning 判断任务是否正在运行
 func (st *SyncTask) IsRunning() bool {
-	return st.Status == "running"
+	return st.ExecutionStatus == "running"
 }
 
-// IsPending 判断任务是否待执行
+// IsPending 判断任务是否待执行（空闲状态）
 func (st *SyncTask) IsPending() bool {
-	return st.Status == "pending"
+	return st.ExecutionStatus == "idle"
 }
 
 // IsScheduled 判断任务是否为调度任务
@@ -290,12 +295,8 @@ func (st *SyncTask) ShouldExecuteNow() bool {
 
 // CanStart 判断任务是否可以启动
 func (st *SyncTask) CanStart() bool {
-	startableStatuses := map[string]bool{
-		"pending":   true,
-		"failed":    true,
-		"cancelled": true,
-	}
-	return startableStatuses[st.Status]
+	// 只有激活状态且非运行中的任务可以启动
+	return st.Status == "active" && st.ExecutionStatus != "running"
 }
 
 // GetInterfaceCount 获取关联的接口数量

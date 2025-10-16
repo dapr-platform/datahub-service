@@ -20,13 +20,6 @@ import (
 // TaskStatus 任务状态枚举 - 使用meta中的定义
 type TaskStatus string
 
-const (
-	TaskStatusPending   TaskStatus = meta.SyncTaskStatusPending
-	TaskStatusRunning   TaskStatus = meta.SyncTaskStatusRunning
-	TaskStatusSuccess   TaskStatus = meta.SyncTaskStatusSuccess
-	TaskStatusFailed    TaskStatus = meta.SyncTaskStatusFailed
-	TaskStatusCancelled TaskStatus = meta.SyncTaskStatusCancelled
-)
 
 // SyncType 同步类型枚举 - 使用meta中的定义
 type SyncType string

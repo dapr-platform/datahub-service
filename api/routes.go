@@ -446,7 +446,6 @@ func InitRoute(r *chi.Mux) {
 
 			// 任务控制操作
 			r.Post("/{id}/execute", thematicSyncController.ExecuteSyncTask)
-			r.Post("/{id}/stop", thematicSyncController.StopSyncTask)
 			r.Get("/{id}/status", thematicSyncController.GetSyncTaskStatus)
 
 			// 任务执行记录

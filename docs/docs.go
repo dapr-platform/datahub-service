@@ -9635,6 +9635,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/thematic-sync/tasks/{id}/activate": {
+            "post": {
+                "description": "激活同步任务，任务将可以被调度执行",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题同步"
+                ],
+                "summary": "激活同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/thematic-sync/tasks/{id}/execute": {
             "post": {
                 "description": "立即执行指定的同步任务",
@@ -9776,16 +9823,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/thematic-sync/tasks/{id}/status": {
-            "get": {
-                "description": "获取指定同步任务的当前状态信息",
+        "/thematic-sync/tasks/{id}/pause": {
+            "post": {
+                "description": "暂停同步任务，任务将不会被调度执行，但可以手动执行",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "主题同步"
                 ],
-                "summary": "获取同步任务状态",
+                "summary": "暂停同步任务",
                 "parameters": [
                     {
                         "type": "string",
@@ -9823,16 +9870,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/thematic-sync/tasks/{id}/stop": {
-            "post": {
-                "description": "停止正在执行的同步任务",
+        "/thematic-sync/tasks/{id}/status": {
+            "get": {
+                "description": "获取指定同步任务的当前状态信息",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "主题同步"
                 ],
-                "summary": "停止同步任务",
+                "summary": "获取同步任务状态",
                 "parameters": [
                     {
                         "type": "string",
@@ -15987,7 +16034,7 @@ const docTemplate = `{
                     "additionalProperties": true
                 },
                 "status": {
-                    "$ref": "#/definitions/models.TaskStatus"
+                    "type": "string"
                 },
                 "success": {
                     "description": "向后兼容字段",
@@ -16056,6 +16103,11 @@ const docTemplate = `{
                 "error_message": {
                     "type": "string"
                 },
+                "execution_status": {
+                    "description": "idle, running, success, failed (任务执行状态)",
+                    "type": "string",
+                    "example": "idle"
+                },
                 "executions": {
                     "description": "执行记录关联",
                     "type": "array",
@@ -16116,9 +16168,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "description": "pending, running, success, failed, cancelled",
+                    "description": "draft, active, paused (任务生命周期状态)",
                     "type": "string",
-                    "example": "pending"
+                    "example": "draft"
                 },
                 "task_interfaces": {
                     "description": "多接口关联",
@@ -16374,23 +16426,6 @@ const docTemplate = `{
                     "example": "users"
                 }
             }
-        },
-        "models.TaskStatus": {
-            "type": "string",
-            "enum": [
-                "pending",
-                "running",
-                "success",
-                "failed",
-                "cancelled"
-            ],
-            "x-enum-varnames": [
-                "TaskStatusPending",
-                "TaskStatusRunning",
-                "TaskStatusSuccess",
-                "TaskStatusFailed",
-                "TaskStatusCancelled"
-            ]
         },
         "models.ThematicInterface": {
             "type": "object",

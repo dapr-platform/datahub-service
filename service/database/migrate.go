@@ -492,5 +492,50 @@ func createDefaultSyncConfigurations(db *gorm.DB) error {
 		}
 	}
 
+	// 迁移现有同步任务的状态
+	if err := MigrateSyncTaskStatus(db); err != nil {
+		log.Printf("迁移同步任务状态失败（非致命错误）: %v", err)
+		// 不返回错误，允许系统继续运行
+	}
+
+	return nil
+}
+
+// MigrateSyncTaskStatus 迁移现有同步任务的状态字段
+func MigrateSyncTaskStatus(db *gorm.DB) error {
+	log.Println("开始迁移同步任务状态...")
+
+	// 检查execution_status字段是否存在
+	if !db.Migrator().HasColumn(&models.SyncTask{}, "execution_status") {
+		log.Println("execution_status字段不存在，跳过数据迁移")
+		return nil
+	}
+
+	// 更新所有现有任务的execution_status字段（如果为空）
+	// 将旧的status映射到新的status和execution_status
+	result := db.Exec(`
+		UPDATE sync_tasks 
+		SET 
+			execution_status = CASE 
+				WHEN execution_status IS NULL OR execution_status = '' THEN 'idle'
+				ELSE execution_status
+			END,
+			status = CASE 
+				WHEN status = 'pending' THEN 'draft'
+				WHEN status = 'running' THEN 'active'
+				WHEN status = 'success' THEN 'active'
+				WHEN status = 'failed' THEN 'active'
+				WHEN status = 'cancelled' THEN 'paused'
+				ELSE status
+			END
+		WHERE execution_status IS NULL OR execution_status = ''
+			OR status IN ('pending', 'running', 'success', 'failed', 'cancelled')
+	`)
+
+	if result.Error != nil {
+		return fmt.Errorf("更新同步任务状态失败: %w", result.Error)
+	}
+
+	log.Printf("同步任务状态迁移完成，影响 %d 条记录", result.RowsAffected)
 	return nil
 }

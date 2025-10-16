@@ -11,12 +11,11 @@
 package meta
 
 // 主题库同步任务状态常量
+// 注意：任务状态只有三种，completed/failed 等状态属于执行记录(ThematicSyncExecution)
 const (
-	ThematicSyncTaskStatusDraft     = "draft"     // 草稿
-	ThematicSyncTaskStatusActive    = "active"    // 激活
-	ThematicSyncTaskStatusPaused    = "paused"    // 暂停
-	ThematicSyncTaskStatusCompleted = "completed" // 完成
-	ThematicSyncTaskStatusFailed    = "failed"    // 失败
+	ThematicSyncTaskStatusDraft  = "draft"  // 草稿 - 正在编辑，尚未激活
+	ThematicSyncTaskStatusActive = "active" // 激活 - 可以被调度执行
+	ThematicSyncTaskStatusPaused = "paused" // 暂停 - 不会被调度执行
 )
 
 // 主题库同步任务触发类型常量
@@ -49,31 +48,19 @@ var ThematicSyncTaskStatuses = []MetaField{
 		Name:        "draft",
 		DisplayName: "草稿",
 		Type:        "string",
-		Description: "任务处于草稿状态，尚未激活",
+		Description: "任务处于草稿状态，正在编辑，尚未激活",
 	},
 	{
 		Name:        "active",
 		DisplayName: "激活",
 		Type:        "string",
-		Description: "任务已激活，可以被调度执行",
+		Description: "任务已激活，可以被调度执行或手动执行",
 	},
 	{
 		Name:        "paused",
 		DisplayName: "暂停",
 		Type:        "string",
-		Description: "任务已暂停，不会被调度执行",
-	},
-	{
-		Name:        "completed",
-		DisplayName: "完成",
-		Type:        "string",
-		Description: "任务已完成，不会再次执行",
-	},
-	{
-		Name:        "failed",
-		DisplayName: "失败",
-		Type:        "string",
-		Description: "任务执行失败",
+		Description: "任务已暂停，不会被调度执行，但可以手动执行",
 	},
 }
 
@@ -538,8 +525,6 @@ func IsValidThematicSyncTaskStatus(status string) bool {
 		ThematicSyncTaskStatusDraft,
 		ThematicSyncTaskStatusActive,
 		ThematicSyncTaskStatusPaused,
-		ThematicSyncTaskStatusCompleted,
-		ThematicSyncTaskStatusFailed,
 	}
 	for _, validStatus := range validStatuses {
 		if status == validStatus {

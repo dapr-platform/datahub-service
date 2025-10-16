@@ -27,13 +27,19 @@ var SyncTaskTypes = []MetaField{
 	},
 }
 
-// 同步任务状态常量
+// 同步任务生命周期状态常量
 const (
-	SyncTaskStatusPending   = "pending"   // 待执行
-	SyncTaskStatusRunning   = "running"   // 运行中
-	SyncTaskStatusSuccess   = "success"   // 成功
-	SyncTaskStatusFailed    = "failed"    // 失败
-	SyncTaskStatusCancelled = "cancelled" // 已取消
+	SyncTaskStatusDraft  = "draft"  // 草稿：正在编辑，不参与调度
+	SyncTaskStatusActive = "active" // 激活：已配置完成，参与调度
+	SyncTaskStatusPaused = "paused" // 暂停：临时停止调度，但保留配置
+)
+
+// 同步任务执行状态常量
+const (
+	SyncExecutionStatusIdle    = "idle"    // 空闲：等待下次执行
+	SyncExecutionStatusRunning = "running" // 执行中：正在执行同步
+	SyncExecutionStatusSuccess = "success" // 成功：最近一次执行成功
+	SyncExecutionStatusFailed  = "failed"  // 失败：最近一次执行失败
 )
 
 // 同步任务执行时机常量
@@ -44,18 +50,42 @@ const (
 	SyncTaskTriggerCron     = "cron"     // Cron表达式执行
 )
 
-// 同步任务执行记录状态常量
+// 同步任务执行记录状态常量（SyncTaskExecution表使用）
 const (
-	SyncExecutionStatusRunning   = "running"   // 运行中
-	SyncExecutionStatusSuccess   = "success"   // 成功
-	SyncExecutionStatusFailed    = "failed"    // 失败
-	SyncExecutionStatusCancelled = "cancelled" // 已取消
+	SyncExecutionRecordStatusRunning   = "running"   // 运行中
+	SyncExecutionRecordStatusSuccess   = "success"   // 成功
+	SyncExecutionRecordStatusFailed    = "failed"    // 失败
+	SyncExecutionRecordStatusCancelled = "cancelled" // 已取消
 )
 
 var SyncTaskStatuses = []MetaField{
 	{
-		Name:         "pending",
-		DisplayName:  "待执行",
+		Name:         "draft",
+		DisplayName:  "草稿",
+		Type:         "string",
+		Required:     true,
+		DefaultValue: "",
+	},
+	{
+		Name:         "active",
+		DisplayName:  "激活",
+		Type:         "string",
+		Required:     true,
+		DefaultValue: "",
+	},
+	{
+		Name:         "paused",
+		DisplayName:  "暂停",
+		Type:         "string",
+		Required:     true,
+		DefaultValue: "",
+	},
+}
+
+var SyncTaskExecutionStatuses = []MetaField{
+	{
+		Name:         "idle",
+		DisplayName:  "空闲",
 		Type:         "string",
 		Required:     true,
 		DefaultValue: "",
@@ -77,13 +107,6 @@ var SyncTaskStatuses = []MetaField{
 	{
 		Name:         "failed",
 		DisplayName:  "失败",
-		Type:         "string",
-		Required:     true,
-		DefaultValue: "",
-	},
-	{
-		Name:         "cancelled",
-		DisplayName:  "取消",
 		Type:         "string",
 		Required:     true,
 		DefaultValue: "",
@@ -211,14 +234,23 @@ const (
 	SyncTaskScheduleFieldRetryIntervalUnit = "retry_interval_unit"
 )
 
-// 任务状态验证函数
+// 任务生命周期状态验证函数
 func IsValidTaskStatus(status string) bool {
 	validStatuses := map[string]bool{
-		SyncTaskStatusPending:   true,
-		SyncTaskStatusRunning:   true,
-		SyncTaskStatusSuccess:   true,
-		SyncTaskStatusFailed:    true,
-		SyncTaskStatusCancelled: true,
+		SyncTaskStatusDraft:  true,
+		SyncTaskStatusActive: true,
+		SyncTaskStatusPaused: true,
+	}
+	return validStatuses[status]
+}
+
+// 任务执行状态验证函数
+func IsValidExecutionStatus(status string) bool {
+	validStatuses := map[string]bool{
+		SyncExecutionStatusIdle:    true,
+		SyncExecutionStatusRunning: true,
+		SyncExecutionStatusSuccess: true,
+		SyncExecutionStatusFailed:  true,
 	}
 	return validStatuses[status]
 }
@@ -234,13 +266,13 @@ func IsValidSyncTaskTrigger(trigger string) bool {
 	return validTriggers[trigger]
 }
 
-// IsValidSyncExecutionStatus 验证同步执行记录状态是否有效
-func IsValidSyncExecutionStatus(status string) bool {
+// IsValidSyncExecutionRecordStatus 验证同步执行记录状态是否有效
+func IsValidSyncExecutionRecordStatus(status string) bool {
 	validStatuses := map[string]bool{
-		SyncExecutionStatusRunning:   true,
-		SyncExecutionStatusSuccess:   true,
-		SyncExecutionStatusFailed:    true,
-		SyncExecutionStatusCancelled: true,
+		SyncExecutionRecordStatusRunning:   true,
+		SyncExecutionRecordStatusSuccess:   true,
+		SyncExecutionRecordStatusFailed:    true,
+		SyncExecutionRecordStatusCancelled: true,
 	}
 	return validStatuses[status]
 }
@@ -269,50 +301,48 @@ func IsValidScheduleType(scheduleType string) bool {
 // 获取可删除的任务状态
 func GetDeletableTaskStatuses() []string {
 	return []string{
-		SyncTaskStatusSuccess,
-		SyncTaskStatusFailed,
-		SyncTaskStatusCancelled,
-		SyncTaskStatusPending,
+		SyncTaskStatusDraft,
+		SyncTaskStatusPaused,
+		SyncTaskStatusActive, // 激活状态但非运行中也可以删除
 	}
 }
 
-// 获取可取消的任务状态
+// 获取可取消的任务状态（将任务状态改为paused）
 func GetCancellableTaskStatuses() []string {
 	return []string{
-		SyncTaskStatusPending,
-		SyncTaskStatusRunning,
+		SyncTaskStatusActive,
 	}
 }
 
-// 获取可重试的任务状态
+// 获取可重试的任务状态（执行失败的任务可以重试）
 func GetRetryableTaskStatuses() []string {
 	return []string{
-		SyncTaskStatusFailed,
+		SyncTaskStatusActive, // 激活状态但执行失败的可以重试
+		SyncTaskStatusPaused, // 暂停状态但之前执行失败的也可以重试
 	}
 }
 
 // 获取可更新配置的任务状态
 func GetUpdatableTaskStatuses() []string {
 	return []string{
-		SyncTaskStatusPending,
-		SyncTaskStatusFailed,
+		SyncTaskStatusDraft,
+		SyncTaskStatusPaused,
+		SyncTaskStatusActive, // 激活状态但非运行中也可以更新配置
 	}
 }
 
 // 任务状态流转验证
 func CanTransitionStatus(from, to string) bool {
 	allowedTransitions := map[string][]string{
-		SyncTaskStatusPending: {
-			SyncTaskStatusRunning,
-			SyncTaskStatusCancelled,
+		SyncTaskStatusDraft: {
+			SyncTaskStatusActive, // 激活任务
 		},
-		SyncTaskStatusRunning: {
-			SyncTaskStatusSuccess,
-			SyncTaskStatusFailed,
-			SyncTaskStatusCancelled,
+		SyncTaskStatusActive: {
+			SyncTaskStatusPaused, // 暂停任务
 		},
-		SyncTaskStatusFailed: {
-			SyncTaskStatusPending, // 重试
+		SyncTaskStatusPaused: {
+			SyncTaskStatusActive, // 恢复任务
+			SyncTaskStatusDraft,  // 重新编辑
 		},
 	}
 
@@ -352,6 +382,7 @@ func initSyncTaskMetas() {
 	SyncTaskMetas = make(map[string][]MetaField)
 	SyncTaskMetas["sync_task_types"] = SyncTaskTypes
 	SyncTaskMetas["sync_task_statuses"] = SyncTaskStatuses
+	SyncTaskMetas["sync_task_execution_statuses"] = SyncTaskExecutionStatuses
 	SyncTaskMetas["sync_task_schedule_types"] = SyncTaskScheduleTypes
 	SyncTaskMetas["sync_event_types"] = SyncEventTypes
 }

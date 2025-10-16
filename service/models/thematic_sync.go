@@ -52,10 +52,12 @@ type ThematicSyncTask struct {
 	NextRunTime     *time.Time `json:"next_run_time,omitempty"`
 
 	// 状态信息
-	Status          string     `json:"status" gorm:"not null;default:'draft'"` // draft, active, paused, completed, failed
+	// 任务状态只有三种：draft(草稿), active(激活), paused(暂停)
+	// 执行结果状态（success/failed）记录在 ThematicSyncExecution 中
+	Status          string     `json:"status" gorm:"not null;default:'draft'"` // draft, active, paused
 	LastSyncTime    *time.Time `json:"last_sync_time,omitempty"`
-	LastSyncStatus  string     `json:"last_sync_status,omitempty"`
-	LastSyncMessage string     `json:"last_sync_message,omitempty"`
+	LastSyncStatus  string     `json:"last_sync_status,omitempty"`  // 最近一次执行的状态: success, failed
+	LastSyncMessage string     `json:"last_sync_message,omitempty"` // 最近一次执行的消息
 
 	// 统计信息
 	TotalSyncCount      int64 `json:"total_sync_count" gorm:"default:0"`
@@ -175,7 +177,31 @@ func (t *ThematicSyncTask) ShouldExecuteNow() bool {
 
 // CanStart 判断任务是否可以开始执行
 func (t *ThematicSyncTask) CanStart() bool {
-	return t.Status == "active" || t.Status == "draft"
+	// active 和 paused 状态都可以手动执行
+	// 只有 draft 状态不能执行（还在编辑中）
+	return t.Status == "active" || t.Status == "paused"
+}
+
+// CanSchedule 判断任务是否可以被调度执行
+func (t *ThematicSyncTask) CanSchedule() bool {
+	// 只有 active 状态才能被调度执行
+	return t.Status == "active"
+}
+
+// CanPause 判断任务是否可以暂停
+func (t *ThematicSyncTask) CanPause() bool {
+	return t.Status == "active"
+}
+
+// CanActivate 判断任务是否可以激活
+func (t *ThematicSyncTask) CanActivate() bool {
+	return t.Status == "draft" || t.Status == "paused"
+}
+
+// CanDelete 判断任务是否可以删除
+func (t *ThematicSyncTask) CanDelete() bool {
+	// 所有状态都可以删除
+	return true
 }
 
 // UpdateNextRunTime 更新下次执行时间

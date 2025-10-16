@@ -209,6 +209,15 @@ func (tss *ThematicSyncService) CreateSyncTask(ctx context.Context, req *CreateT
 		return nil, fmt.Errorf("创建同步任务失败: %w", err)
 	}
 
+	// 如果任务状态为active且配置了调度，添加到调度器
+	if task.Status == "active" && (task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once") {
+		if err := tss.AddScheduledTask(task); err != nil {
+			log.Printf("添加任务到调度器失败 [%s]: %v", task.ID, err)
+		} else {
+			log.Printf("任务已添加到调度器 [任务ID: %s, 触发类型: %s]", task.ID, task.TriggerType)
+		}
+	}
+
 	return task, nil
 }
 
@@ -219,6 +228,9 @@ func (tss *ThematicSyncService) UpdateSyncTask(ctx context.Context, taskID strin
 		return nil, fmt.Errorf("获取同步任务失败: %w", err)
 	}
 
+	// 记录原始状态
+	oldStatus := task.Status
+
 	// 更新字段
 	if req.TaskName != "" {
 		task.TaskName = req.TaskName
@@ -226,16 +238,42 @@ func (tss *ThematicSyncService) UpdateSyncTask(ctx context.Context, taskID strin
 	if req.Description != "" {
 		task.Description = req.Description
 	}
-	if req.Status != "" {
+
+	// 记录是否有状态变化
+	var statusChanged bool
+	if req.Status != "" && req.Status != oldStatus {
+		// 验证状态转换（主题库使用相同的状态模型）
+		validTransitions := map[string][]string{
+			"draft":  {"active"},
+			"active": {"paused"},
+			"paused": {"active", "draft"},
+		}
+
+		if allowed, exists := validTransitions[oldStatus]; exists {
+			isValid := false
+			for _, allowedStatus := range allowed {
+				if allowedStatus == req.Status {
+					isValid = true
+					break
+				}
+			}
+			if !isValid {
+				return nil, fmt.Errorf("不允许从 %s 状态转换到 %s 状态", oldStatus, req.Status)
+			}
+		}
+
 		task.Status = req.Status
+		statusChanged = true
 	}
 
 	// 更新调度配置
+	scheduleChanged := false
 	if req.ScheduleConfig != nil {
 		task.TriggerType = req.ScheduleConfig.Type
 		task.CronExpression = req.ScheduleConfig.CronExpression
 		task.IntervalSeconds = req.ScheduleConfig.IntervalSeconds
 		task.ScheduledTime = req.ScheduleConfig.ScheduledTime
+		scheduleChanged = true
 	}
 
 	// 更新各种配置规则
@@ -268,6 +306,37 @@ func (tss *ThematicSyncService) UpdateSyncTask(ctx context.Context, taskID strin
 
 	if err := tss.db.Save(&task).Error; err != nil {
 		return nil, fmt.Errorf("更新同步任务失败: %w", err)
+	}
+
+	// 处理状态变化（激活/暂停）
+	if statusChanged {
+		log.Printf("主题任务状态变化: %s -> %s [任务ID: %s]", oldStatus, task.Status, taskID)
+
+		switch task.Status {
+		case "active":
+			// 激活任务：添加到调度器
+			if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
+				if err := tss.AddScheduledTask(&task); err != nil {
+					log.Printf("添加任务到调度器失败 [%s]: %v", taskID, err)
+				} else {
+					log.Printf("主题任务已激活并添加到调度器 [任务ID: %s]", taskID)
+				}
+			}
+		case "paused":
+			// 暂停任务：从调度器移除
+			if err := tss.RemoveScheduledTask(taskID); err != nil {
+				log.Printf("从调度器移除任务失败 [%s]: %v", taskID, err)
+			} else {
+				log.Printf("主题任务已暂停并从调度器移除 [任务ID: %s]", taskID)
+			}
+		}
+	} else if scheduleChanged {
+		// 如果只是修改了调度配置（未改变状态），重新加载调度器
+		if err := tss.ReloadScheduledTasks(); err != nil {
+			log.Printf("重新加载调度器失败: %v", err)
+		} else {
+			log.Printf("调度配置已更新，调度器已重新加载 [任务ID: %s]", taskID)
+		}
 	}
 
 	return &task, nil
@@ -331,11 +400,7 @@ func (tss *ThematicSyncService) DeleteSyncTask(ctx context.Context, taskID strin
 		return fmt.Errorf("获取同步任务失败: %w", err)
 	}
 
-	// 检查任务状态，运行中的任务不能删除
-	if task.Status == "running" {
-		return fmt.Errorf("运行中的任务不能删除")
-	}
-
+	// 所有状态的任务都可以删除（根据 CanDelete 方法）
 	// 开启事务删除任务和相关记录
 	return tss.db.Transaction(func(tx *gorm.DB) error {
 		// 删除执行记录
@@ -758,8 +823,8 @@ func (tss *ThematicSyncService) GetSyncTaskStatistics(ctx context.Context, taskI
 	return statistics, nil
 }
 
-// StopSyncTask 停止同步任务（新增方法）
-func (tss *ThematicSyncService) StopSyncTask(ctx context.Context, taskID string) error {
+// PauseSyncTask 暂停同步任务
+func (tss *ThematicSyncService) PauseSyncTask(ctx context.Context, taskID string) error {
 	// 获取任务信息
 	task, err := tss.GetSyncTask(ctx, taskID)
 	if err != nil {
@@ -767,18 +832,60 @@ func (tss *ThematicSyncService) StopSyncTask(ctx context.Context, taskID string)
 	}
 
 	// 检查任务状态
-	if task.Status != "running" {
-		return fmt.Errorf("任务状态不允许停止: %s", task.Status)
+	if !task.CanPause() {
+		return fmt.Errorf("任务状态不允许暂停: %s (只有active状态可以暂停)", task.Status)
 	}
 
-	// 更新任务状态为停止
+	// 更新任务状态为暂停
 	updates := map[string]interface{}{
-		"status":     "stopped",
+		"status":     "paused",
 		"updated_at": time.Now(),
 	}
 
 	if err := tss.db.Model(&models.ThematicSyncTask{}).Where("id = ?", taskID).Updates(updates).Error; err != nil {
-		return fmt.Errorf("停止同步任务失败: %w", err)
+		return fmt.Errorf("暂停同步任务失败: %w", err)
+	}
+
+	// 暂停后需要重新加载调度器，移除该任务
+	if err := tss.ReloadScheduledTasks(); err != nil {
+		log.Printf("重新加载调度器失败: %v", err)
+	} else {
+		log.Printf("任务已暂停，调度器已更新 [任务ID: %s]", taskID)
+	}
+
+	return nil
+}
+
+// ActivateSyncTask 激活同步任务
+func (tss *ThematicSyncService) ActivateSyncTask(ctx context.Context, taskID string) error {
+	// 获取任务信息
+	task, err := tss.GetSyncTask(ctx, taskID)
+	if err != nil {
+		return err
+	}
+
+	// 检查任务状态
+	if !task.CanActivate() {
+		return fmt.Errorf("任务状态不允许激活: %s (只有draft或paused状态可以激活)", task.Status)
+	}
+
+	// 更新任务状态为激活
+	updates := map[string]interface{}{
+		"status":     "active",
+		"updated_at": time.Now(),
+	}
+
+	if err := tss.db.Model(&models.ThematicSyncTask{}).Where("id = ?", taskID).Updates(updates).Error; err != nil {
+		return fmt.Errorf("激活同步任务失败: %w", err)
+	}
+
+	// 激活后需要重新加载调度器，添加该任务
+	if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
+		if err := tss.ReloadScheduledTasks(); err != nil {
+			log.Printf("重新加载调度器失败: %v", err)
+		} else {
+			log.Printf("任务已激活，调度器已更新 [任务ID: %s]", taskID)
+		}
 	}
 
 	return nil
@@ -978,13 +1085,27 @@ func (tss *ThematicSyncService) loadScheduledTasks() error {
 // getScheduledTasks 获取需要执行的调度任务
 func (tss *ThematicSyncService) getScheduledTasks(ctx context.Context) ([]models.ThematicSyncTask, error) {
 	var tasks []models.ThematicSyncTask
+
+	// 查找状态为active且配置了调度的主题任务（cron, interval, once）
+	err := tss.db.Where("status = ? AND trigger_type IN (?, ?, ?)",
+		"active", "cron", "interval", "once").Find(&tasks).Error
+	if err != nil {
+		return nil, fmt.Errorf("获取调度任务失败: %w", err)
+	}
+
+	return tasks, nil
+}
+
+// getShouldExecuteNowTasks 获取应该立即执行的任务（用于interval检查）
+func (tss *ThematicSyncService) getShouldExecuteNowTasks(ctx context.Context) ([]models.ThematicSyncTask, error) {
+	var tasks []models.ThematicSyncTask
 	now := time.Now()
 
 	// 查找状态为active且下次执行时间已到的主题任务
 	err := tss.db.Where("status = ? AND next_run_time IS NOT NULL AND next_run_time <= ?",
 		"active", now).Find(&tasks).Error
 	if err != nil {
-		return nil, fmt.Errorf("获取调度任务失败: %w", err)
+		return nil, fmt.Errorf("获取待执行任务失败: %w", err)
 	}
 
 	return tasks, nil
@@ -1046,7 +1167,7 @@ func (tss *ThematicSyncService) runIntervalChecker() {
 
 // checkIntervalTasks 检查间隔任务
 func (tss *ThematicSyncService) checkIntervalTasks() {
-	tasks, err := tss.getScheduledTasks(tss.ctx)
+	tasks, err := tss.getShouldExecuteNowTasks(tss.ctx)
 	if err != nil {
 		log.Printf("获取间隔任务失败: %v", err)
 		return

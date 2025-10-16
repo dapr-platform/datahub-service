@@ -381,8 +381,8 @@ func (c *ThematicSyncController) ExecuteSyncTask(w http.ResponseWriter, r *http.
 	render.JSON(w, r, SuccessResponse("执行同步任务成功", syncResult))
 }
 
-// @Summary 停止同步任务
-// @Description 停止正在执行的同步任务
+// @Summary 暂停同步任务
+// @Description 暂停同步任务，任务将不会被调度执行，但可以手动执行
 // @Tags 主题同步
 // @Produce json
 // @Param id path string true "任务ID"
@@ -390,21 +390,47 @@ func (c *ThematicSyncController) ExecuteSyncTask(w http.ResponseWriter, r *http.
 // @Failure 400 {object} APIResponse
 // @Failure 404 {object} APIResponse
 // @Failure 500 {object} APIResponse
-// @Router /thematic-sync/tasks/{id}/stop [post]
-func (c *ThematicSyncController) StopSyncTask(w http.ResponseWriter, r *http.Request) {
+// @Router /thematic-sync/tasks/{id}/pause [post]
+func (c *ThematicSyncController) PauseSyncTask(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
 		render.JSON(w, r, BadRequestResponse("任务ID参数不能为空", nil))
 		return
 	}
 
-	err := c.thematicSyncService.StopSyncTask(r.Context(), id)
+	err := c.thematicSyncService.PauseSyncTask(r.Context(), id)
 	if err != nil {
-		render.JSON(w, r, InternalErrorResponse("停止同步任务失败", err))
+		render.JSON(w, r, InternalErrorResponse("暂停同步任务失败", err))
 		return
 	}
 
-	render.JSON(w, r, SuccessResponse("停止同步任务成功", nil))
+	render.JSON(w, r, SuccessResponse("暂停同步任务成功", nil))
+}
+
+// @Summary 激活同步任务
+// @Description 激活同步任务，任务将可以被调度执行
+// @Tags 主题同步
+// @Produce json
+// @Param id path string true "任务ID"
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 404 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /thematic-sync/tasks/{id}/activate [post]
+func (c *ThematicSyncController) ActivateSyncTask(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("任务ID参数不能为空", nil))
+		return
+	}
+
+	err := c.thematicSyncService.ActivateSyncTask(r.Context(), id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("激活同步任务失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("激活同步任务成功", nil))
 }
 
 // @Summary 获取同步任务状态

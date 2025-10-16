@@ -12,7 +12,6 @@
 package basic_library
 
 import (
-	"log/slog"
 	"context"
 	"datahub-service/service/datasource"
 	"datahub-service/service/distributed_lock"
@@ -21,6 +20,7 @@ import (
 	"datahub-service/service/models"
 	"fmt"
 	"log"
+	"log/slog"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -200,7 +200,8 @@ func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTas
 		CronExpression:  req.CronExpression,
 		IntervalSeconds: req.IntervalSeconds,
 		ScheduledTime:   req.ScheduledTime,
-		Status:          meta.SyncTaskStatusPending,
+		Status:          meta.SyncTaskStatusDraft,     // 默认状态为草稿
+		ExecutionStatus: meta.SyncExecutionStatusIdle, // 默认执行状态为空闲
 		Config:          config,
 		CreatedBy:       req.CreatedBy,
 	}
@@ -227,7 +228,7 @@ func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTas
 		taskInterface := &models.SyncTaskInterface{
 			TaskID:      task.ID,
 			InterfaceID: interfaceID,
-			Status:      meta.SyncTaskStatusPending,
+			Status:      meta.SyncExecutionStatusIdle, // 初始状态为空闲
 			Config:      interfaceConfigMap[interfaceID],
 		}
 
@@ -246,6 +247,10 @@ func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTas
 	if err := s.db.Preload("TaskInterfaces").Preload("DataSource").First(task, "id = ?", task.ID).Error; err != nil {
 		return nil, fmt.Errorf("重新加载任务失败: %w", err)
 	}
+
+	// 注意：草稿状态的任务不会自动添加到调度器
+	// 需要手动激活任务后才会加入调度
+	log.Printf("任务已创建 [任务ID: %s, 状态: %s, 触发类型: %s]", task.ID, task.Status, task.TriggerType)
 
 	return task, nil
 }
@@ -308,6 +313,7 @@ type CreateSyncTaskRequest struct {
 
 // UpdateSyncTaskRequest 更新基础库同步任务请求
 type UpdateSyncTaskRequest struct {
+	Status           string                    `json:"status,omitempty"` // draft, active, paused
 	TriggerType      string                    `json:"trigger_type,omitempty"`
 	CronExpression   string                    `json:"cron_expression,omitempty"`
 	IntervalSeconds  int                       `json:"interval_seconds,omitempty"`
@@ -454,6 +460,9 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 		return nil, fmt.Errorf("任务不存在: %w", err)
 	}
 
+	// 记录原始状态
+	oldStatus := task.Status
+
 	// 开启事务
 	tx := s.db.Begin()
 	defer func() {
@@ -465,6 +474,21 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 	// 准备更新数据
 	updates := map[string]interface{}{
 		"updated_at": time.Now(),
+	}
+
+	// 记录是否有状态变化
+	var statusChanged bool
+	var newStatus string
+
+	if req.Status != "" && req.Status != oldStatus {
+		// 验证状态转换是否合法
+		if !meta.CanTransitionStatus(oldStatus, req.Status) {
+			tx.Rollback()
+			return nil, fmt.Errorf("不允许从 %s 状态转换到 %s 状态", oldStatus, req.Status)
+		}
+		updates["status"] = req.Status
+		statusChanged = true
+		newStatus = req.Status
 	}
 
 	if req.TriggerType != "" {
@@ -490,6 +514,30 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 	if err := tx.Model(&task).Updates(updates).Error; err != nil {
 		tx.Rollback()
 		return nil, fmt.Errorf("更新任务失败: %w", err)
+	}
+
+	// 如果修改了调度配置，重新计算下次执行时间
+	scheduleChanged := req.TriggerType != "" || req.CronExpression != "" || req.IntervalSeconds > 0
+	if scheduleChanged {
+		// 重新加载任务以获取最新数据
+		if err := tx.First(&task, "id = ?", taskID).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("重新加载任务失败: %w", err)
+		}
+
+		// 重新计算下次执行时间
+		if err := s.calculateNextRunTime(&task); err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("计算下次执行时间失败: %w", err)
+		}
+
+		// 更新下次执行时间
+		if err := tx.Model(&task).Updates(map[string]interface{}{
+			"next_run_time": task.NextRunTime,
+		}).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("更新下次执行时间失败: %w", err)
+		}
 	}
 
 	// 更新接口配置（如果提供）
@@ -519,7 +567,7 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 			taskInterface := &models.SyncTaskInterface{
 				TaskID:      taskID,
 				InterfaceID: interfaceID,
-				Status:      meta.SyncTaskStatusPending,
+				Status:      meta.SyncExecutionStatusIdle, // 初始状态为空闲
 				Config:      interfaceConfigMap[interfaceID],
 			}
 
@@ -557,6 +605,37 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 	// 加载库信息
 	if err := s.loadLibraryInfo(&task); err != nil {
 		return nil, fmt.Errorf("加载库信息失败: %w", err)
+	}
+
+	// 处理状态变化（激活/暂停）
+	if statusChanged {
+		log.Printf("任务状态变化: %s -> %s [任务ID: %s]", oldStatus, newStatus, taskID)
+
+		switch newStatus {
+		case meta.SyncTaskStatusActive:
+			// 激活任务：添加到调度器
+			if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
+				if err := s.AddScheduledTask(&task); err != nil {
+					log.Printf("添加任务到调度器失败 [%s]: %v", taskID, err)
+				} else {
+					log.Printf("任务已激活并添加到调度器 [任务ID: %s]", taskID)
+				}
+			}
+		case meta.SyncTaskStatusPaused:
+			// 暂停任务：从调度器移除
+			if err := s.RemoveScheduledTask(taskID); err != nil {
+				log.Printf("从调度器移除任务失败 [%s]: %v", taskID, err)
+			} else {
+				log.Printf("任务已暂停并从调度器移除 [任务ID: %s]", taskID)
+			}
+		}
+	} else if scheduleChanged {
+		// 如果只是修改了调度配置（未改变状态），重新加载调度器
+		if err := s.ReloadScheduledTasks(); err != nil {
+			log.Printf("重新加载调度器失败: %v", err)
+		} else {
+			log.Printf("调度配置已更新，调度器已重新加载 [任务ID: %s]", taskID)
+		}
 	}
 
 	return &task, nil
@@ -609,19 +688,22 @@ func (s *SyncTaskService) StartSyncTask(ctx context.Context, taskID string) erro
 
 	slog.Debug("SyncTaskService.StartSyncTask - 找到任务", "value1", task.ID, "value2", task.Status, "value3", task.TaskType)
 
-	// 检查任务状态
-	if task.Status == meta.SyncTaskStatusRunning {
-		slog.Error("SyncTaskService.StartSyncTask - 任务状态不允许启动", "value1", taskID, "value2", task.Status)
-		return fmt.Errorf("任务状态不允许启动: %s, 当前状态: %s", taskID, task.Status)
+	// 检查任务是否可以启动
+	if !task.CanStart() {
+		slog.Error("SyncTaskService.StartSyncTask - 任务状态不允许启动",
+			"taskID", taskID,
+			"status", task.Status,
+			"executionStatus", task.ExecutionStatus)
+		return fmt.Errorf("任务状态不允许启动: 任务ID=%s, 状态=%s, 执行状态=%s", taskID, task.Status, task.ExecutionStatus)
 	}
 
-	// 更新任务状态为运行中
+	// 更新任务执行状态为运行中
 	if err := s.db.Model(&task).Updates(map[string]interface{}{
-		"status":     meta.SyncTaskStatusRunning,
-		"start_time": time.Now(),
-		"updated_at": time.Now(),
+		"execution_status": meta.SyncExecutionStatusRunning,
+		"start_time":       time.Now(),
+		"updated_at":       time.Now(),
 	}).Error; err != nil {
-		return fmt.Errorf("更新任务状态失败: %w", err)
+		return fmt.Errorf("更新任务执行状态失败: %w", err)
 	}
 
 	// 创建独立的context用于任务执行，避免HTTP请求context被取消影响任务执行
@@ -632,7 +714,7 @@ func (s *SyncTaskService) StartSyncTask(ctx context.Context, taskID string) erro
 		go s.executeTaskWithInterfaces(taskCtx, &task)
 	} else {
 		// 没有指定接口的情况，返回错误
-		s.updateTaskStatus(task.ID, meta.SyncTaskStatusFailed, "任务必须关联至少一个接口")
+		s.updateTaskExecutionStatus(task.ID, meta.SyncExecutionStatusFailed, "任务必须关联至少一个接口")
 		return fmt.Errorf("任务必须关联至少一个接口")
 	}
 
@@ -650,7 +732,7 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 	execution, err := s.CreateSyncTaskExecution(ctx, task.ID, "interface_executor")
 	if err != nil {
 		slog.Error("创建执行记录失败", "error", err)
-		s.updateTaskStatus(task.ID, meta.SyncTaskStatusFailed, err.Error())
+		s.updateTaskExecutionStatus(task.ID, meta.SyncExecutionStatusFailed, err.Error())
 		return
 	}
 
@@ -697,29 +779,29 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 		slog.Debug("接口 %s 执行成功，更新行数", "count", taskInterface.InterfaceID, response.UpdatedRows)
 	}
 
-	// 更新任务状态
-	var finalStatus string
+	// 更新任务执行状态
+	var finalExecutionStatus string
 	var errorMessage string
 
 	if hasError {
 		if totalProcessed > 0 {
-			finalStatus = meta.SyncTaskStatusSuccess // 部分成功
+			finalExecutionStatus = meta.SyncExecutionStatusSuccess // 部分成功
 			errorMessage = fmt.Sprintf("部分接口执行失败: %v", errorMessages)
 		} else {
-			finalStatus = meta.SyncTaskStatusFailed
+			finalExecutionStatus = meta.SyncExecutionStatusFailed
 			errorMessage = fmt.Sprintf("所有接口执行失败: %v", errorMessages)
 		}
 	} else {
-		finalStatus = meta.SyncTaskStatusSuccess
+		finalExecutionStatus = meta.SyncExecutionStatusSuccess
 	}
 
 	// 更新任务
 	updates := map[string]interface{}{
-		"status":         finalStatus,
-		"end_time":       time.Now(),
-		"processed_rows": totalProcessed,
-		"progress":       100,
-		"updated_at":     time.Now(),
+		"execution_status": finalExecutionStatus,
+		"end_time":         time.Now(),
+		"processed_rows":   totalProcessed,
+		"progress":         100,
+		"updated_at":       time.Now(),
 	}
 
 	if errorMessage != "" {
@@ -727,9 +809,9 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 	}
 
 	if err := s.db.Model(&models.SyncTask{}).Where("id = ?", task.ID).Updates(updates).Error; err != nil {
-		slog.Error("更新任务状态失败", "error", err)
+		slog.Error("更新任务执行状态失败", "error", err)
 	} else {
-		slog.Debug("任务状态更新成功", "from", finalStatus, "to", )
+		slog.Debug("任务执行状态更新成功", "status", finalExecutionStatus)
 	}
 
 	// 更新执行记录
@@ -740,21 +822,21 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 		"failed_count":    len(errorMessages),
 	}
 
-	if err := s.UpdateSyncTaskExecution(ctx, execution.ID, finalStatus, result, errorMessage); err != nil {
+	if err := s.UpdateSyncTaskExecution(ctx, execution.ID, finalExecutionStatus, result, errorMessage); err != nil {
 		slog.Error("更新执行记录失败", "error", err)
 	} else {
-		slog.Debug("执行记录更新成功", "from", finalStatus, "to", )
+		slog.Debug("执行记录更新成功", "status", finalExecutionStatus)
 	}
 
-	slog.Debug("任务执行完成", "task_id", task.ID, "status", finalStatus, "processed_rows", totalProcessed)
+	slog.Debug("任务执行完成", "task_id", task.ID, "execution_status", finalExecutionStatus, "processed_rows", totalProcessed)
 }
 
-// updateTaskStatus 更新任务状态的辅助方法
-func (s *SyncTaskService) updateTaskStatus(taskID, status, errorMessage string) {
+// updateTaskExecutionStatus 更新任务执行状态的辅助方法
+func (s *SyncTaskService) updateTaskExecutionStatus(taskID, executionStatus, errorMessage string) {
 	updates := map[string]interface{}{
-		"status":     status,
-		"end_time":   time.Now(),
-		"updated_at": time.Now(),
+		"execution_status": executionStatus,
+		"end_time":         time.Now(),
+		"updated_at":       time.Now(),
 	}
 
 	if errorMessage != "" {
@@ -762,9 +844,9 @@ func (s *SyncTaskService) updateTaskStatus(taskID, status, errorMessage string) 
 	}
 
 	if err := s.db.Model(&models.SyncTask{}).Where("id = ?", taskID).Updates(updates).Error; err != nil {
-		slog.Error("更新任务状态失败", "error", err)
+		slog.Error("更新任务执行状态失败", "error", err)
 	} else {
-		slog.Debug("任务状态更新成功", "from", status, "to", )
+		slog.Debug("任务执行状态更新成功", "executionStatus", executionStatus)
 	}
 }
 
@@ -776,17 +858,18 @@ func (s *SyncTaskService) StopSyncTask(ctx context.Context, taskID string) error
 		return fmt.Errorf("任务不存在: %w", err)
 	}
 
-	// 检查任务状态
-	if task.Status != meta.SyncTaskStatusRunning {
-		return fmt.Errorf("只有运行中的任务可以停止，当前状态: %s", task.Status)
+	// 检查任务执行状态
+	if task.ExecutionStatus != meta.SyncExecutionStatusRunning {
+		return fmt.Errorf("只有运行中的任务可以停止，当前执行状态: %s", task.ExecutionStatus)
 	}
 
 	// 注意：这里需要调用同步引擎停止任务
-	// 暂时更新状态为已取消
+	// 暂时更新执行状态为失败（被中断）
 	updates := map[string]interface{}{
-		"status":     meta.SyncTaskStatusCancelled,
-		"end_time":   time.Now(),
-		"updated_at": time.Now(),
+		"execution_status": meta.SyncExecutionStatusFailed,
+		"end_time":         time.Now(),
+		"error_message":    "任务被手动停止",
+		"updated_at":       time.Now(),
 	}
 
 	if err := s.db.Model(&task).Updates(updates).Error; err != nil {
@@ -796,7 +879,7 @@ func (s *SyncTaskService) StopSyncTask(ctx context.Context, taskID string) error
 	return nil
 }
 
-// CancelSyncTask 取消基础库同步任务
+// CancelSyncTask 暂停基础库同步任务（将active状态改为paused）
 func (s *SyncTaskService) CancelSyncTask(ctx context.Context, taskID string) error {
 	// 获取任务
 	var task models.SyncTask
@@ -804,29 +887,32 @@ func (s *SyncTaskService) CancelSyncTask(ctx context.Context, taskID string) err
 		return fmt.Errorf("任务不存在: %w", err)
 	}
 
-	// 检查任务状态是否允许取消
-	if !contains(meta.GetCancellableTaskStatuses(), task.Status) {
-		return fmt.Errorf("任务状态 %s 不允许取消", task.Status)
+	// 检查任务状态是否允许暂停
+	if !task.CanCancel() {
+		return fmt.Errorf("任务状态 %s 不允许暂停", task.Status)
 	}
 
-	// 更新任务状态
+	// 将任务状态更新为暂停
 	updates := map[string]interface{}{
-		"status":     meta.SyncTaskStatusCancelled,
+		"status":     meta.SyncTaskStatusPaused,
 		"updated_at": time.Now(),
 	}
 
-	if task.Status == meta.SyncTaskStatusPending {
-		updates["end_time"] = time.Now()
-	}
-
 	if err := s.db.Model(&task).Updates(updates).Error; err != nil {
-		return fmt.Errorf("取消任务失败: %w", err)
+		return fmt.Errorf("暂停任务失败: %w", err)
 	}
 
-	// 如果任务正在运行，需要调用同步引擎取消
-	if task.Status == meta.SyncTaskStatusRunning {
+	// 如果任务正在运行，需要调用同步引擎取消当前执行
+	if task.ExecutionStatus == meta.SyncExecutionStatusRunning {
 		// 注意：这里需要调用同步引擎取消任务
-		fmt.Printf("取消运行中的任务: %s\n", taskID)
+		fmt.Printf("停止运行中的任务: %s\n", taskID)
+		// 更新执行状态
+		s.updateTaskExecutionStatus(taskID, meta.SyncExecutionStatusFailed, "任务被暂停")
+	}
+
+	// 从调度器中移除任务
+	if err := s.RemoveScheduledTask(taskID); err != nil {
+		log.Printf("从调度器移除任务失败 [%s]: %v", taskID, err)
 	}
 
 	return nil
@@ -853,15 +939,19 @@ func (s *SyncTaskService) RetrySyncTask(ctx context.Context, taskID string) (*mo
 		}
 	}()
 
-	// 创建新任务
+	// 创建新任务（复制原任务配置，重置执行状态）
 	newTask := &models.SyncTask{
-		LibraryType:  originalTask.LibraryType,
-		LibraryID:    originalTask.LibraryID,
-		DataSourceID: originalTask.DataSourceID,
-		TaskType:     originalTask.TaskType,
-		Status:       meta.SyncTaskStatusPending,
-		Config:       originalTask.Config,
-		CreatedBy:    originalTask.CreatedBy,
+		LibraryType:     originalTask.LibraryType,
+		LibraryID:       originalTask.LibraryID,
+		DataSourceID:    originalTask.DataSourceID,
+		TaskType:        originalTask.TaskType,
+		TriggerType:     originalTask.TriggerType,
+		CronExpression:  originalTask.CronExpression,
+		IntervalSeconds: originalTask.IntervalSeconds,
+		Status:          originalTask.Status,          // 保持原状态
+		ExecutionStatus: meta.SyncExecutionStatusIdle, // 重置执行状态为空闲
+		Config:          originalTask.Config,
+		CreatedBy:       originalTask.CreatedBy,
 	}
 
 	if err := tx.Create(newTask).Error; err != nil {
@@ -874,7 +964,7 @@ func (s *SyncTaskService) RetrySyncTask(ctx context.Context, taskID string) (*mo
 		newTaskInterface := &models.SyncTaskInterface{
 			TaskID:      newTask.ID,
 			InterfaceID: originalTaskInterface.InterfaceID,
-			Status:      meta.SyncTaskStatusPending,
+			Status:      meta.SyncExecutionStatusIdle, // 初始状态为空闲
 			Config:      originalTaskInterface.Config,
 		}
 
@@ -925,7 +1015,7 @@ func (s *SyncTaskService) GetSyncTaskStatus(ctx context.Context, taskID string) 
 	}
 
 	// 如果任务正在运行，尝试从同步引擎获取实时状态
-	if task.Status == meta.SyncTaskStatusRunning {
+	if task.ExecutionStatus == meta.SyncExecutionStatusRunning {
 		// 注意：这里需要从同步引擎获取实时状态
 		// 暂时使用数据库中的信息
 	}
@@ -979,12 +1069,12 @@ func (s *SyncTaskService) GetSyncTaskStatistics(ctx context.Context, libraryType
 		return nil, fmt.Errorf("获取总任务数失败: %w", err)
 	}
 
-	// 获取各状态任务数
-	query.Where("status = ?", meta.SyncTaskStatusPending).Count(&stats.PendingTasks)
-	query.Where("status = ?", meta.SyncTaskStatusRunning).Count(&stats.RunningTasks)
-	query.Where("status = ?", meta.SyncTaskStatusSuccess).Count(&stats.SuccessTasks)
-	query.Where("status = ?", meta.SyncTaskStatusFailed).Count(&stats.FailedTasks)
-	query.Where("status = ?", meta.SyncTaskStatusCancelled).Count(&stats.CancelledTasks)
+	// 获取各执行状态任务数
+	s.db.Model(&models.SyncTask{}).Where("library_type = ? AND execution_status = ?", meta.LibraryTypeBasic, meta.SyncExecutionStatusIdle).Count(&stats.PendingTasks)
+	s.db.Model(&models.SyncTask{}).Where("library_type = ? AND execution_status = ?", meta.LibraryTypeBasic, meta.SyncExecutionStatusRunning).Count(&stats.RunningTasks)
+	s.db.Model(&models.SyncTask{}).Where("library_type = ? AND execution_status = ?", meta.LibraryTypeBasic, meta.SyncExecutionStatusSuccess).Count(&stats.SuccessTasks)
+	s.db.Model(&models.SyncTask{}).Where("library_type = ? AND execution_status = ?", meta.LibraryTypeBasic, meta.SyncExecutionStatusFailed).Count(&stats.FailedTasks)
+	s.db.Model(&models.SyncTask{}).Where("library_type = ? AND status = ?", meta.LibraryTypeBasic, meta.SyncTaskStatusPaused).Count(&stats.CancelledTasks)
 
 	// 计算成功率
 	if stats.TotalTasks > 0 {
@@ -1127,13 +1217,31 @@ func (s *SyncTaskService) calculateNextRunTime(task *models.SyncTask) error {
 // GetScheduledTasks 获取需要执行的调度任务
 func (s *SyncTaskService) GetScheduledTasks(ctx context.Context) ([]models.SyncTask, error) {
 	var tasks []models.SyncTask
-	now := time.Now()
 
-	// 查找状态为pending且下次执行时间已到的基础库任务
-	err := s.db.Where("library_type = ? AND status = ? AND next_run_time IS NOT NULL AND next_run_time <= ?",
-		meta.LibraryTypeBasic, meta.SyncTaskStatusPending, now).Find(&tasks).Error
+	// 查找状态为active且配置了调度的基础库任务（cron, interval, once）
+	err := s.db.Where("library_type = ? AND status = ? AND trigger_type IN (?, ?, ?)",
+		meta.LibraryTypeBasic, meta.SyncTaskStatusActive, "cron", "interval", "once").
+		Preload("TaskInterfaces").
+		Find(&tasks).Error
 	if err != nil {
 		return nil, fmt.Errorf("获取调度任务失败: %w", err)
+	}
+
+	return tasks, nil
+}
+
+// getShouldExecuteNowTasks 获取应该立即执行的任务（用于interval检查）
+func (s *SyncTaskService) getShouldExecuteNowTasks(ctx context.Context) ([]models.SyncTask, error) {
+	var tasks []models.SyncTask
+	now := time.Now()
+
+	// 查找状态为active且下次执行时间已到的基础库任务
+	err := s.db.Where("library_type = ? AND status = ? AND next_run_time IS NOT NULL AND next_run_time <= ?",
+		meta.LibraryTypeBasic, meta.SyncTaskStatusActive, now).
+		Preload("TaskInterfaces").
+		Find(&tasks).Error
+	if err != nil {
+		return nil, fmt.Errorf("获取待执行任务失败: %w", err)
 	}
 
 	return tasks, nil
@@ -1161,6 +1269,52 @@ func (s *SyncTaskService) UpdateTaskNextRunTime(ctx context.Context, taskID stri
 	}
 
 	return nil
+}
+
+// ActivateSyncTask 激活同步任务（将draft状态改为active并加入调度）
+func (s *SyncTaskService) ActivateSyncTask(ctx context.Context, taskID string) error {
+	// 获取任务
+	var task models.SyncTask
+	if err := s.db.Preload("TaskInterfaces").First(&task, "id = ?", taskID).Error; err != nil {
+		return fmt.Errorf("任务不存在: %w", err)
+	}
+
+	// 检查任务状态
+	if task.Status != meta.SyncTaskStatusDraft && task.Status != meta.SyncTaskStatusPaused {
+		return fmt.Errorf("只有草稿或暂停状态的任务可以激活，当前状态: %s", task.Status)
+	}
+
+	// 更新任务状态为激活
+	updates := map[string]interface{}{
+		"status":     meta.SyncTaskStatusActive,
+		"updated_at": time.Now(),
+	}
+
+	if err := s.db.Model(&task).Updates(updates).Error; err != nil {
+		return fmt.Errorf("激活任务失败: %w", err)
+	}
+
+	// 如果是调度任务，添加到调度器
+	if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
+		task.Status = meta.SyncTaskStatusActive
+		if err := s.AddScheduledTask(&task); err != nil {
+			log.Printf("添加任务到调度器失败 [%s]: %v", taskID, err)
+		} else {
+			log.Printf("任务已激活并添加到调度器 [任务ID: %s, 触发类型: %s]", taskID, task.TriggerType)
+		}
+	}
+
+	return nil
+}
+
+// PauseSyncTask 暂停同步任务（将active状态改为paused并从调度器移除）
+func (s *SyncTaskService) PauseSyncTask(ctx context.Context, taskID string) error {
+	return s.CancelSyncTask(ctx, taskID) // CancelSyncTask 已经实现了暂停逻辑
+}
+
+// ResumeSyncTask 恢复同步任务（将paused状态改为active）
+func (s *SyncTaskService) ResumeSyncTask(ctx context.Context, taskID string) error {
+	return s.ActivateSyncTask(ctx, taskID) // 复用激活逻辑
 }
 
 // SetDistributedLock 设置分布式锁
@@ -1293,7 +1447,7 @@ func (s *SyncTaskService) runIntervalChecker() {
 
 // checkIntervalTasks 检查间隔任务
 func (s *SyncTaskService) checkIntervalTasks() {
-	tasks, err := s.GetScheduledTasks(s.ctx)
+	tasks, err := s.getShouldExecuteNowTasks(s.ctx)
 	if err != nil {
 		log.Printf("获取间隔任务失败: %v", err)
 		return
