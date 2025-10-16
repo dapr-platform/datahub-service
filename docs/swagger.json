@@ -7433,7 +7433,7 @@
                 }
             },
             "post": {
-                "description": "创建新的基础库数据同步任务，专门处理基础库数据同步\n\n**支持的任务类型:**\n- batch_sync: 批量同步（根据接口配置自动判断全量/增量）\n- realtime_sync: 实时同步\n\n**任务状态流转:**\npending → running → success/failed/cancelled\n\n**注意:** 此接口仅支持基础库同步任务，不支持主题库同步",
+                "description": "创建新的基础库数据同步任务，专门处理基础库数据同步\n\n**支持的任务类型:**\n- batch_sync: 批量同步（根据接口配置自动判断全量/增量）\n- realtime_sync: 实时同步\n\n**任务生命周期状态:**\n- draft: 草稿，正在编辑，不参与调度\n- active: 激活，已配置完成，参与调度\n- paused: 暂停，临时停止调度，但保留配置\n\n**任务执行状态:**\n- idle: 空闲，等待下次执行\n- running: 执行中，正在执行同步\n- success: 成功，最近一次执行成功\n- failed: 失败，最近一次执行失败\n\n**状态流转:**\n生命周期: draft → active ↔ paused\n执行状态: idle → running → success/failed → idle\n\n**注意:**\n- 新创建的任务默认为 draft 状态，需要手动激活后才会参与调度\n- 此接口仅支持基础库同步任务，不支持主题库同步",
                 "consumes": [
                     "application/json"
                 ],
@@ -7807,7 +7807,7 @@
                 }
             },
             "put": {
-                "description": "更新同步任务的配置信息，只能更新处于 pending 状态的任务",
+                "description": "更新同步任务的配置信息和状态\n\n**可更新状态:**\n- draft 和 paused 状态的任务可以更新任何配置\n- active 状态且非运行中的任务也可以更新\n- running 状态的任务不允许更新\n\n**状态变更:**\n- 可以通过 status 字段变更任务状态（draft/active/paused）\n- 状态变更会自动触发调度器的添加/移除操作",
                 "consumes": [
                     "application/json"
                 ],
@@ -7936,9 +7936,9 @@
                 }
             }
         },
-        "/sync/tasks/{id}/cancel": {
+        "/sync/tasks/{id}/activate": {
             "post": {
-                "description": "取消指定的同步任务，可以取消待执行或正在执行的任务",
+                "description": "激活同步任务，将 draft 或 paused 状态改为 active，并添加到调度器\n\n**状态转换:**\n- draft → active: 首次激活任务\n- paused → active: 恢复已暂停的任务\n\n**注意:**\n- 只有 draft 或 paused 状态的任务可以激活\n- 激活后，如果配置了调度（cron/interval/once），任务会自动加入调度器",
                 "consumes": [
                     "application/json"
                 ],
@@ -7948,7 +7948,7 @@
                 "tags": [
                     "基础库同步任务"
                 ],
-                "summary": "取消同步任务",
+                "summary": "激活同步任务",
                 "parameters": [
                     {
                         "type": "string",
@@ -7960,7 +7960,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "取消成功",
+                        "description": "激活成功",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -7978,7 +7978,63 @@
                         }
                     },
                     "409": {
-                        "description": "任务状态不允许取消",
+                        "description": "任务状态不允许激活",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/{id}/cancel": {
+            "post": {
+                "description": "暂停指定的同步任务，将 active 状态改为 paused，并从调度器中移除\n\n**注意:**\n- 此接口已重命名为 PauseSyncTask，但保留 cancel 路由以保持向后兼容\n- 建议使用 /sync/tasks/{id}/pause 接口",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "基础库同步任务"
+                ],
+                "summary": "暂停同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "暂停成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "任务状态不允许暂停",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -8049,6 +8105,118 @@
                     },
                     "400": {
                         "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/{id}/pause": {
+            "post": {
+                "description": "暂停同步任务，将 active 状态改为 paused，并从调度器中移除\n\n**状态转换:**\n- active → paused: 暂停任务调度\n\n**注意:**\n- 只有 active 状态的任务可以暂停\n- 暂停后，任务会从调度器中移除，不再自动执行\n- 如果任务正在运行，会先停止执行，然后更新为 paused 状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "基础库同步任务"
+                ],
+                "summary": "暂停同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "暂停成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "任务状态不允许暂停",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync/tasks/{id}/resume": {
+            "post": {
+                "description": "恢复已暂停的同步任务，将 paused 状态改为 active，并重新添加到调度器\n\n**状态转换:**\n- paused → active: 恢复任务调度\n\n**注意:**\n- 只有 paused 状态的任务可以恢复\n- 恢复后，任务会重新加入调度器\n- 此接口等同于 ActivateSyncTask，但语义更明确",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "基础库同步任务"
+                ],
+                "summary": "恢复同步任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "恢复成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "任务状态不允许恢复",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -11776,6 +11944,11 @@
                 "scheduled_time": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
+                },
+                "status": {
+                    "description": "draft, active, paused",
+                    "type": "string",
+                    "example": "active"
                 },
                 "task_type": {
                     "type": "string",

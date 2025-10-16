@@ -1270,6 +1270,10 @@ definitions:
       scheduled_time:
         example: "2024-01-01T00:00:00Z"
         type: string
+      status:
+        description: draft, active, paused
+        example: active
+        type: string
       task_type:
         example: batch_sync
         type: string
@@ -10021,10 +10025,24 @@ paths:
         - batch_sync: 批量同步（根据接口配置自动判断全量/增量）
         - realtime_sync: 实时同步
 
-        **任务状态流转:**
-        pending → running → success/failed/cancelled
+        **任务生命周期状态:**
+        - draft: 草稿，正在编辑，不参与调度
+        - active: 激活，已配置完成，参与调度
+        - paused: 暂停，临时停止调度，但保留配置
 
-        **注意:** 此接口仅支持基础库同步任务，不支持主题库同步
+        **任务执行状态:**
+        - idle: 空闲，等待下次执行
+        - running: 执行中，正在执行同步
+        - success: 成功，最近一次执行成功
+        - failed: 失败，最近一次执行失败
+
+        **状态流转:**
+        生命周期: draft → active ↔ paused
+        执行状态: idle → running → success/failed → idle
+
+        **注意:**
+        - 新创建的任务默认为 draft 状态，需要手动激活后才会参与调度
+        - 此接口仅支持基础库同步任务，不支持主题库同步
       parameters:
       - description: 基础库同步任务创建信息
         in: body
@@ -10132,7 +10150,17 @@ paths:
     put:
       consumes:
       - application/json
-      description: 更新同步任务的配置信息，只能更新处于 pending 状态的任务
+      description: |-
+        更新同步任务的配置信息和状态
+
+        **可更新状态:**
+        - draft 和 paused 状态的任务可以更新任何配置
+        - active 状态且非运行中的任务也可以更新
+        - running 状态的任务不允许更新
+
+        **状态变更:**
+        - 可以通过 status 字段变更任务状态（draft/active/paused）
+        - 状态变更会自动触发调度器的添加/移除操作
       parameters:
       - description: 任务ID
         in: path
@@ -10176,11 +10204,20 @@ paths:
       summary: 更新同步任务
       tags:
       - 基础库同步任务
-  /sync/tasks/{id}/cancel:
+  /sync/tasks/{id}/activate:
     post:
       consumes:
       - application/json
-      description: 取消指定的同步任务，可以取消待执行或正在执行的任务
+      description: |-
+        激活同步任务，将 draft 或 paused 状态改为 active，并添加到调度器
+
+        **状态转换:**
+        - draft → active: 首次激活任务
+        - paused → active: 恢复已暂停的任务
+
+        **注意:**
+        - 只有 draft 或 paused 状态的任务可以激活
+        - 激活后，如果配置了调度（cron/interval/once），任务会自动加入调度器
       parameters:
       - description: 任务ID
         in: path
@@ -10191,7 +10228,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: 取消成功
+          description: 激活成功
           schema:
             $ref: '#/definitions/controllers.APIResponse'
         "400":
@@ -10203,14 +10240,56 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
         "409":
-          description: 任务状态不允许取消
+          description: 任务状态不允许激活
           schema:
             $ref: '#/definitions/controllers.APIResponse'
         "500":
           description: 服务器内部错误
           schema:
             $ref: '#/definitions/controllers.APIResponse'
-      summary: 取消同步任务
+      summary: 激活同步任务
+      tags:
+      - 基础库同步任务
+  /sync/tasks/{id}/cancel:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        暂停指定的同步任务，将 active 状态改为 paused，并从调度器中移除
+
+        **注意:**
+        - 此接口已重命名为 PauseSyncTask，但保留 cancel 路由以保持向后兼容
+        - 建议使用 /sync/tasks/{id}/pause 接口
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 暂停成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 任务不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "409":
+          description: 任务状态不允许暂停
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 暂停同步任务
       tags:
       - 基础库同步任务
   /sync/tasks/{id}/executions:
@@ -10255,6 +10334,98 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取指定任务的执行记录
+      tags:
+      - 基础库同步任务
+  /sync/tasks/{id}/pause:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        暂停同步任务，将 active 状态改为 paused，并从调度器中移除
+
+        **状态转换:**
+        - active → paused: 暂停任务调度
+
+        **注意:**
+        - 只有 active 状态的任务可以暂停
+        - 暂停后，任务会从调度器中移除，不再自动执行
+        - 如果任务正在运行，会先停止执行，然后更新为 paused 状态
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 暂停成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 任务不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "409":
+          description: 任务状态不允许暂停
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 暂停同步任务
+      tags:
+      - 基础库同步任务
+  /sync/tasks/{id}/resume:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        恢复已暂停的同步任务，将 paused 状态改为 active，并重新添加到调度器
+
+        **状态转换:**
+        - paused → active: 恢复任务调度
+
+        **注意:**
+        - 只有 paused 状态的任务可以恢复
+        - 恢复后，任务会重新加入调度器
+        - 此接口等同于 ActivateSyncTask，但语义更明确
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 恢复成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 任务不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "409":
+          description: 任务状态不允许恢复
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 恢复同步任务
       tags:
       - 基础库同步任务
   /sync/tasks/{id}/retry:

@@ -222,9 +222,14 @@ func InitRoute(r *chi.Mux) {
 			// 任务控制操作
 			r.Post("/{id}/start", syncTaskController.StartSyncTask)
 			r.Post("/{id}/stop", syncTaskController.StopSyncTask)
-			r.Post("/{id}/cancel", syncTaskController.CancelSyncTask)
+			r.Post("/{id}/cancel", syncTaskController.CancelSyncTask) // 保留向后兼容，实际为暂停
 			r.Post("/{id}/retry", syncTaskController.RetrySyncTask)
 			r.Get("/{id}/status", syncTaskController.GetSyncTaskStatus)
+
+			// 任务状态管理（新增）
+			r.Post("/{id}/activate", syncTaskController.ActivateSyncTask) // 激活任务（draft/paused → active）
+			r.Post("/{id}/pause", syncTaskController.PauseSyncTask)       // 暂停任务（active → paused）
+			r.Post("/{id}/resume", syncTaskController.ResumeSyncTask)     // 恢复任务（paused → active）
 
 			// 任务执行记录
 			r.Get("/{id}/executions", syncTaskController.GetTaskExecutions)

@@ -62,6 +62,7 @@ type SyncTaskCreateRequest struct {
 
 // SyncTaskUpdateRequest 更新同步任务请求
 type SyncTaskUpdateRequest struct {
+	Status           string                    `json:"status,omitempty" example:"active"` // draft, active, paused
 	TriggerType      string                    `json:"trigger_type,omitempty" example:"manual"`
 	CronExpression   string                    `json:"cron_expression,omitempty" example:"0 0 * * *"`
 	IntervalSeconds  int                       `json:"interval_seconds,omitempty" example:"3600"`
@@ -105,10 +106,24 @@ type SyncTaskExecutionListRequest struct {
 // @Description - batch_sync: 批量同步（根据接口配置自动判断全量/增量）
 // @Description - realtime_sync: 实时同步
 // @Description
-// @Description **任务状态流转:**
-// @Description pending → running → success/failed/cancelled
+// @Description **任务生命周期状态:**
+// @Description - draft: 草稿，正在编辑，不参与调度
+// @Description - active: 激活，已配置完成，参与调度
+// @Description - paused: 暂停，临时停止调度，但保留配置
 // @Description
-// @Description **注意:** 此接口仅支持基础库同步任务，不支持主题库同步
+// @Description **任务执行状态:**
+// @Description - idle: 空闲，等待下次执行
+// @Description - running: 执行中，正在执行同步
+// @Description - success: 成功，最近一次执行成功
+// @Description - failed: 失败，最近一次执行失败
+// @Description
+// @Description **状态流转:**
+// @Description 生命周期: draft → active ↔ paused
+// @Description 执行状态: idle → running → success/failed → idle
+// @Description
+// @Description **注意:**
+// @Description - 新创建的任务默认为 draft 状态，需要手动激活后才会参与调度
+// @Description - 此接口仅支持基础库同步任务，不支持主题库同步
 // @Tags 基础库同步任务
 // @Accept json
 // @Produce json
@@ -289,7 +304,16 @@ func (c *SyncTaskController) GetSyncTask(w http.ResponseWriter, r *http.Request)
 
 // UpdateSyncTask 更新同步任务
 // @Summary 更新同步任务
-// @Description 更新同步任务的配置信息，只能更新处于 pending 状态的任务
+// @Description 更新同步任务的配置信息和状态
+// @Description
+// @Description **可更新状态:**
+// @Description - draft 和 paused 状态的任务可以更新任何配置
+// @Description - active 状态且非运行中的任务也可以更新
+// @Description - running 状态的任务不允许更新
+// @Description
+// @Description **状态变更:**
+// @Description - 可以通过 status 字段变更任务状态（draft/active/paused）
+// @Description - 状态变更会自动触发调度器的添加/移除操作
 // @Tags 基础库同步任务
 // @Accept json
 // @Produce json
@@ -327,6 +351,7 @@ func (c *SyncTaskController) UpdateSyncTask(w http.ResponseWriter, r *http.Reque
 
 	// 创建更新请求
 	updateReq := &basic_library.UpdateSyncTaskRequest{
+		Status:           req.Status,
 		TriggerType:      req.TriggerType,
 		CronExpression:   req.CronExpression,
 		IntervalSeconds:  req.IntervalSeconds,
@@ -433,17 +458,21 @@ func (c *SyncTaskController) StopSyncTask(w http.ResponseWriter, r *http.Request
 	render.JSON(w, r, SuccessResponse("停止同步任务成功", nil))
 }
 
-// CancelSyncTask 取消同步任务
-// @Summary 取消同步任务
-// @Description 取消指定的同步任务，可以取消待执行或正在执行的任务
+// CancelSyncTask 暂停同步任务（保留向后兼容）
+// @Summary 暂停同步任务
+// @Description 暂停指定的同步任务，将 active 状态改为 paused，并从调度器中移除
+// @Description
+// @Description **注意:**
+// @Description - 此接口已重命名为 PauseSyncTask，但保留 cancel 路由以保持向后兼容
+// @Description - 建议使用 /sync/tasks/{id}/pause 接口
 // @Tags 基础库同步任务
 // @Accept json
 // @Produce json
 // @Param id path string true "任务ID"
-// @Success 200 {object} APIResponse "取消成功"
+// @Success 200 {object} APIResponse "暂停成功"
 // @Failure 400 {object} APIResponse "请求参数错误"
 // @Failure 404 {object} APIResponse "任务不存在"
-// @Failure 409 {object} APIResponse "任务状态不允许取消"
+// @Failure 409 {object} APIResponse "任务状态不允许暂停"
 // @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /sync/tasks/{id}/cancel [post]
 func (c *SyncTaskController) CancelSyncTask(w http.ResponseWriter, r *http.Request) {
@@ -455,11 +484,11 @@ func (c *SyncTaskController) CancelSyncTask(w http.ResponseWriter, r *http.Reque
 
 	err := c.syncTaskService.CancelSyncTask(r.Context(), taskID)
 	if err != nil {
-		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "取消同步任务失败", err))
+		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "暂停同步任务失败", err))
 		return
 	}
 
-	render.JSON(w, r, SuccessResponse("取消同步任务成功", nil))
+	render.JSON(w, r, SuccessResponse("暂停同步任务成功", nil))
 }
 
 // RetrySyncTask 重试同步任务
@@ -698,4 +727,115 @@ func (c *SyncTaskController) GetTaskExecutions(w http.ResponseWriter, r *http.Re
 	}
 
 	render.JSON(w, r, SuccessResponse("获取任务执行记录列表成功", response))
+}
+
+// ActivateSyncTask 激活同步任务
+// @Summary 激活同步任务
+// @Description 激活同步任务，将 draft 或 paused 状态改为 active，并添加到调度器
+// @Description
+// @Description **状态转换:**
+// @Description - draft → active: 首次激活任务
+// @Description - paused → active: 恢复已暂停的任务
+// @Description
+// @Description **注意:**
+// @Description - 只有 draft 或 paused 状态的任务可以激活
+// @Description - 激活后，如果配置了调度（cron/interval/once），任务会自动加入调度器
+// @Tags 基础库同步任务
+// @Accept json
+// @Produce json
+// @Param id path string true "任务ID"
+// @Success 200 {object} APIResponse "激活成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 404 {object} APIResponse "任务不存在"
+// @Failure 409 {object} APIResponse "任务状态不允许激活"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /sync/tasks/{id}/activate [post]
+func (c *SyncTaskController) ActivateSyncTask(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "id")
+	if taskID == "" {
+		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "任务ID不能为空", nil))
+		return
+	}
+
+	err := c.syncTaskService.ActivateSyncTask(r.Context(), taskID)
+	if err != nil {
+		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "激活同步任务失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("激活同步任务成功", nil))
+}
+
+// PauseSyncTask 暂停同步任务
+// @Summary 暂停同步任务
+// @Description 暂停同步任务，将 active 状态改为 paused，并从调度器中移除
+// @Description
+// @Description **状态转换:**
+// @Description - active → paused: 暂停任务调度
+// @Description
+// @Description **注意:**
+// @Description - 只有 active 状态的任务可以暂停
+// @Description - 暂停后，任务会从调度器中移除，不再自动执行
+// @Description - 如果任务正在运行，会先停止执行，然后更新为 paused 状态
+// @Tags 基础库同步任务
+// @Accept json
+// @Produce json
+// @Param id path string true "任务ID"
+// @Success 200 {object} APIResponse "暂停成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 404 {object} APIResponse "任务不存在"
+// @Failure 409 {object} APIResponse "任务状态不允许暂停"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /sync/tasks/{id}/pause [post]
+func (c *SyncTaskController) PauseSyncTask(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "id")
+	if taskID == "" {
+		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "任务ID不能为空", nil))
+		return
+	}
+
+	err := c.syncTaskService.PauseSyncTask(r.Context(), taskID)
+	if err != nil {
+		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "暂停同步任务失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("暂停同步任务成功", nil))
+}
+
+// ResumeSyncTask 恢复同步任务
+// @Summary 恢复同步任务
+// @Description 恢复已暂停的同步任务，将 paused 状态改为 active，并重新添加到调度器
+// @Description
+// @Description **状态转换:**
+// @Description - paused → active: 恢复任务调度
+// @Description
+// @Description **注意:**
+// @Description - 只有 paused 状态的任务可以恢复
+// @Description - 恢复后，任务会重新加入调度器
+// @Description - 此接口等同于 ActivateSyncTask，但语义更明确
+// @Tags 基础库同步任务
+// @Accept json
+// @Produce json
+// @Param id path string true "任务ID"
+// @Success 200 {object} APIResponse "恢复成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 404 {object} APIResponse "任务不存在"
+// @Failure 409 {object} APIResponse "任务状态不允许恢复"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /sync/tasks/{id}/resume [post]
+func (c *SyncTaskController) ResumeSyncTask(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "id")
+	if taskID == "" {
+		render.JSON(w, r, ErrorResponse(http.StatusBadRequest, "任务ID不能为空", nil))
+		return
+	}
+
+	err := c.syncTaskService.ResumeSyncTask(r.Context(), taskID)
+	if err != nil {
+		render.JSON(w, r, ErrorResponse(http.StatusInternalServerError, "恢复同步任务失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("恢复同步任务成功", nil))
 }
