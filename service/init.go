@@ -22,6 +22,7 @@ import (
 	"datahub-service/service/thematic_library"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -75,7 +76,7 @@ func initDatabase() {
 		log.Fatalf("数据库连接失败: %v", err)
 	}
 
-	log.Println("数据库连接成功")
+	slog.Info("数据库连接成功")
 }
 
 // getEnvWithDefault 获取环境变量，如果不存在则返回默认值
@@ -88,24 +89,24 @@ func getEnvWithDefault(key, defaultValue string) string {
 
 // runMigrations 运行数据库迁移
 func runMigrations() {
-	log.Println("开始运行数据库迁移...")
+	slog.Info("开始运行数据库迁移...")
 
 	if err := database.AutoMigrate(DB); err != nil {
 		log.Fatalf("数据库迁移失败: %v", err)
 	}
-	log.Println("数据库表结构迁移完成")
+	slog.Info("数据库表结构迁移完成")
 
 	if err := database.InitializeData(DB); err != nil {
 		log.Fatalf("基础数据初始化失败: %v", err)
 	}
-	log.Println("基础数据初始化完成")
+	slog.Info("基础数据初始化完成")
 
 	if err := database.AutoMigrateView(DB); err != nil {
 		log.Fatalf("视图迁移失败: %v", err)
 	}
-	log.Println("视图迁移完成")
+	slog.Info("视图迁移完成")
 
-	log.Println("所有数据库迁移任务完成")
+	slog.Info("所有数据库迁移任务完成")
 }
 
 // initServices 初始化服务
@@ -128,11 +129,11 @@ func initServices() {
 	if schedulerEnabled := getEnvWithDefault("SCHEDULER_ENABLED", "true"); schedulerEnabled == "true" {
 		lock, err := distributed_lock.NewRedisLock()
 		if err != nil {
-			log.Printf("警告: Redis分布式锁初始化失败，调度器将在单实例模式运行: %v", err)
+			slog.Warn("警告: Redis分布式锁初始化失败，调度器将在单实例模式运行", "error", err)
 			GlobalDistributedLock = nil
 		} else {
 			GlobalDistributedLock = lock
-			log.Println("Redis分布式锁初始化成功")
+			slog.Info("Redis分布式锁初始化成功")
 
 			// 将分布式锁注入到服务中
 			GlobalSyncTaskService.SetDistributedLock(lock)
@@ -145,20 +146,20 @@ func initServices() {
 
 	// 启动基础库调度器
 	if err := GlobalSyncTaskService.StartScheduler(); err != nil {
-		log.Printf("启动基础库同步任务调度器失败: %v", err)
+		slog.Error("启动基础库同步任务调度器失败", "error", err)
 	}
 
 	// 启动主题库调度器
 	if err := GlobalThematicSyncService.StartScheduler(); err != nil {
-		log.Printf("启动主题库同步任务调度器失败: %v", err)
+		slog.Error("启动主题库同步任务调度器失败", "error", err)
 	}
 
-	log.Println("服务初始化完成")
+	slog.Info("服务初始化完成")
 }
 
 // initializeDataSources 初始化数据源
 func initializeDataSources() {
-	log.Println("开始初始化数据源...")
+	slog.Info("开始初始化数据源...")
 
 	// 获取数据源初始化服务
 	datasourceInitService := GlobalBasicLibraryService.GetDatasourceInitService()
@@ -170,17 +171,21 @@ func initializeDataSources() {
 	// 初始化并启动所有数据源（合并操作）
 	result, err := datasourceInitService.InitializeAndStartAllDataSources(ctx)
 	if err != nil {
-		log.Printf("数据源初始化失败: %v", err)
+		slog.Error("数据源初始化失败", "error", err)
 		return
 	}
 
 	// 输出初始化结果
-	log.Printf("数据源初始化结果: 总计=%d, 成功=%d, 失败=%d, 跳过=%d, 耗时=%dms",
-		result.TotalCount, result.SuccessCount, result.FailedCount, result.SkippedCount, result.Duration)
+	slog.Info("数据源初始化结果",
+		"total_count", result.TotalCount,
+		"success_count", result.SuccessCount,
+		"failed_count", result.FailedCount,
+		"skipped_count", result.SkippedCount,
+		"duration_ms", result.Duration)
 
 	if result.FailedCount > 0 {
-		log.Printf("失败的数据源: %v", result.FailedSources)
+		slog.Warn("存在失败的数据源", "failed_sources", result.FailedSources)
 	}
 
-	log.Println("数据源初始化和启动流程完成")
+	slog.Info("数据源初始化和启动流程完成")
 }

@@ -112,6 +112,7 @@ func InitRoute(r *chi.Mux) {
 		r.Get("/", basicLibraryController.GetBasicLibraryList)
 		r.Get("/datasources", basicLibraryController.GetDataSourceList)
 		r.Get("/interfaces", basicLibraryController.GetDataInterfaceList)
+		r.Get("/interfaces/{id}", basicLibraryController.GetDataInterface)
 
 		// 数据源测试
 		r.Post("/test-datasource", basicLibraryController.TestDataSource)
@@ -157,6 +158,12 @@ func InitRoute(r *chi.Mux) {
 
 		// CSV导入接口
 		r.Post("/import-csv", basicLibraryController.ImportCSV)
+
+		// 表字段和索引管理接口
+		r.Get("/interfaces/{id}/table-columns", basicLibraryController.GetInterfaceTableColumns)
+		r.Get("/interfaces/{id}/table-indexes", basicLibraryController.GetInterfaceTableIndexes)
+		r.Post("/interfaces/create-table-index", basicLibraryController.CreateInterfaceTableIndex)
+		r.Post("/interfaces/drop-table-index", basicLibraryController.DropInterfaceTableIndex)
 
 		// 数据源管理器相关接口
 		r.Get("/datasource-manager-stats", basicLibraryController.GetDataSourceManagerStats)
@@ -204,6 +211,12 @@ func InitRoute(r *chi.Mux) {
 		r.Post("/update-view", thematicLibraryController.UpdateThematicInterfaceView)
 		r.Delete("/{id}/delete-view", thematicLibraryController.DeleteThematicInterfaceView)
 		r.Get("/{id}/view-sql", thematicLibraryController.GetThematicInterfaceViewSQL)
+
+		// 表字段和索引管理接口
+		r.Get("/{id}/table-columns", thematicLibraryController.GetThematicInterfaceTableColumns)
+		r.Get("/{id}/table-indexes", thematicLibraryController.GetThematicInterfaceTableIndexes)
+		r.Post("/create-table-index", thematicLibraryController.CreateThematicInterfaceTableIndex)
+		r.Post("/drop-table-index", thematicLibraryController.DropThematicInterfaceTableIndex)
 	})
 
 	// 通用同步任务管理（统一接口）

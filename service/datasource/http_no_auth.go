@@ -197,7 +197,7 @@ func (h *HTTPNoAuthDataSource) executeHTTPRequest(ctx context.Context, request *
 		}
 	}
 
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 请求配置: method=%s, dataPath=%s, urlPattern=%s\n",
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 请求配置: method=%s, dataPath=%s, urlPattern=%s\n",
 		method, dataPath, urlPattern)
 	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 请求头", "data", headers)
 
@@ -229,7 +229,7 @@ func (h *HTTPNoAuthDataSource) executeHTTPRequest(ctx context.Context, request *
 	}
 
 	// 创建HTTP请求
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 创建HTTP请求: %s %s\n", method, fullURL)
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 创建HTTP请求: %s %s\n", method, fullURL)
 	httpReq, err := http.NewRequestWithContext(ctx, method, fullURL, reqBody)
 	if err != nil {
 		slog.Error("HTTPNoAuthDataSource.executeHTTPRequest - 创建HTTP请求失败", "error", err)
@@ -298,8 +298,8 @@ func (h *HTTPNoAuthDataSource) executeHTTPRequest(ctx context.Context, request *
 				response.Error = fmt.Sprintf("响应解析失败: %v", err)
 				response.Data = string(respBody)
 			} else {
-				fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 响应解析成功: success=%t\n", parsedResponse.Success)
-				fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 解析后数据类型: %T\n", parsedResponse.Data)
+				slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 响应解析成功: success=%t\n", parsedResponse.Success)
+				slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 解析后数据类型: %T\n", parsedResponse.Data)
 
 				response.Success = parsedResponse.Success
 				response.Data = parsedResponse.Data
@@ -342,7 +342,7 @@ func (h *HTTPNoAuthDataSource) executeHTTPRequest(ctx context.Context, request *
 		h.handleResponseFallback(httpResp.StatusCode, respBody, dataPath, response)
 	}
 
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.executeHTTPRequest - 响应处理完成: success=%t, error=%s\n",
+	slog.Debug("HTTPNoAuthDataSource.executeHTTPRequest - 响应处理完成: success=%t, error=%s\n",
 		response.Success, response.Error)
 
 	return response, nil
@@ -442,10 +442,10 @@ func (h *HTTPNoAuthDataSource) handleResponseFallback(statusCode int, respBody [
 		// 尝试解析JSON响应
 		var jsonData interface{}
 		if err := json.Unmarshal(respBody, &jsonData); err == nil {
-			fmt.Printf("[DEBUG] HTTPNoAuthDataSource.handleResponseFallback - JSON解析成功，数据类型: %T\n", jsonData)
+			slog.Debug("HTTPNoAuthDataSource.handleResponseFallback - JSON解析成功，数据类型: %T\n", jsonData)
 			// 根据数据路径提取数据
 			extractedData := h.extractDataByPath(jsonData, dataPath)
-			fmt.Printf("[DEBUG] HTTPNoAuthDataSource.handleResponseFallback - 数据提取完成，提取后类型: %T\n", extractedData)
+			slog.Debug("HTTPNoAuthDataSource.handleResponseFallback - 数据提取完成，提取后类型: %T\n", extractedData)
 			response.Data = extractedData
 		} else {
 			slog.Debug("HTTPNoAuthDataSource.handleResponseFallback - JSON解析失败，使用原始字符串", "value", err)
@@ -457,7 +457,7 @@ func (h *HTTPNoAuthDataSource) handleResponseFallback(statusCode int, respBody [
 		response.Data = string(respBody)
 	}
 
-	fmt.Printf("[DEBUG] HTTPNoAuthDataSource.handleResponseFallback - 回退处理完成: success=%t\n", response.Success)
+	slog.Debug("HTTPNoAuthDataSource.handleResponseFallback - 回退处理完成: success=%t\n", response.Success)
 }
 
 // Stop 停止HTTP无认证数据源
@@ -467,7 +467,7 @@ func (h *HTTPNoAuthDataSource) Stop(ctx context.Context) error {
 	if ds != nil && ds.ScriptEnabled && ds.Script != "" {
 		if err := h.executeStopScript(ctx); err != nil {
 			// 记录错误但不阻止停止流程
-			fmt.Printf("停止脚本执行失败: %v\n", err)
+			slog.Error("停止脚本执行失败: %v\n", err.Error())
 		}
 	}
 

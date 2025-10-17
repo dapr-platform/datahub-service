@@ -13,7 +13,7 @@ package controllers
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -116,11 +116,13 @@ func (c *DataViewController) GetLibraryTables(w http.ResponseWriter, r *http.Req
 	libraryType := chi.URLParam(r, "library_type")
 	libraryID := chi.URLParam(r, "library_id")
 
-	log.Printf("[DEBUG] GetLibraryTables - 请求参数: library_type=%s, library_id=%s", libraryType, libraryID)
+	slog.Debug("GetLibraryTables - 请求参数",
+		"library_type", libraryType,
+		"library_id", libraryID)
 
 	// 验证库类型
 	if libraryType != "basic_library" && libraryType != "thematic_library" {
-		log.Printf("[ERROR] GetLibraryTables - 无效的库类型: %s", libraryType)
+		slog.Error("GetLibraryTables - 无效的库类型", "library_type", libraryType)
 		render.JSON(w, r, BadRequestResponse("无效的库类型，支持: basic_library, thematic_library", nil))
 		return
 	}
@@ -129,27 +131,36 @@ func (c *DataViewController) GetLibraryTables(w http.ResponseWriter, r *http.Req
 	includeColumns := r.URL.Query().Get("include_columns") == "true"
 	includeRelationships := r.URL.Query().Get("include_relationships") == "true"
 
-	log.Printf("[DEBUG] GetLibraryTables - 查询参数: include_columns=%v, include_relationships=%v", includeColumns, includeRelationships)
+	slog.Debug("GetLibraryTables - 查询参数",
+		"include_columns", includeColumns,
+		"include_relationships", includeRelationships)
 
 	// 获取库信息和对应的schema名称
 	libraryInfo, err := c.getLibraryInfo(libraryType, libraryID)
 	if err != nil {
-		log.Printf("[ERROR] GetLibraryTables - 获取库信息失败: %v", err)
+		slog.Error("GetLibraryTables - 获取库信息失败", "error", err)
 		render.JSON(w, r, NotFoundResponse("库不存在: "+err.Error(), err))
 		return
 	}
 
-	log.Printf("[DEBUG] GetLibraryTables - 库信息: ID=%s, Name=%s, SchemaName=%s", libraryInfo.ID, libraryInfo.Name, libraryInfo.SchemaName)
+	slog.Debug("GetLibraryTables - 库信息",
+		"id", libraryInfo.ID,
+		"name", libraryInfo.Name,
+		"schema_name", libraryInfo.SchemaName)
 
 	// 获取schema下的所有表名
 	tableNames, err := c.schemaService.ListTables(libraryInfo.SchemaName)
 	if err != nil {
-		log.Printf("[ERROR] GetLibraryTables - 获取表信息失败: schema=%s, error=%v", libraryInfo.SchemaName, err)
+		slog.Error("GetLibraryTables - 获取表信息失败",
+			"schema", libraryInfo.SchemaName,
+			"error", err)
 		render.JSON(w, r, InternalErrorResponse("获取表信息失败: "+err.Error(), err))
 		return
 	}
 
-	log.Printf("[DEBUG] GetLibraryTables - 获取到 %d 个表: %v", len(tableNames), tableNames)
+	slog.Debug("GetLibraryTables - 获取到表数量",
+		"count", len(tableNames),
+		"table_names", tableNames)
 
 	// 转换数据格式
 	tableInfos := make([]TableInfo, 0, len(tableNames))
@@ -360,20 +371,23 @@ func (c *DataViewController) getLibraryInfo(libraryType, libraryID string) (*Lib
 
 // getBasicLibraryInfo 获取基础库信息
 func (c *DataViewController) getBasicLibraryInfo(libraryID string) (*LibraryInfo, error) {
-	log.Printf("[DEBUG] getBasicLibraryInfo - 查询基础库: ID=%s", libraryID)
+	slog.Debug("getBasicLibraryInfo - 查询基础库", "id", libraryID)
 
 	var basicLibrary models.BasicLibrary
 	err := c.db.First(&basicLibrary, "id = ?", libraryID).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			log.Printf("[ERROR] getBasicLibraryInfo - 基础库不存在: %s", libraryID)
+			slog.Error("getBasicLibraryInfo - 基础库不存在", "id", libraryID)
 			return nil, fmt.Errorf("基础库不存在: %s", libraryID)
 		}
-		log.Printf("[ERROR] getBasicLibraryInfo - 查询基础库失败: %v", err)
+		slog.Error("getBasicLibraryInfo - 查询基础库失败", "error", err)
 		return nil, fmt.Errorf("查询基础库失败: %v", err)
 	}
 
-	log.Printf("[DEBUG] getBasicLibraryInfo - 找到基础库: ID=%s, NameZh=%s, NameEn=%s", basicLibrary.ID, basicLibrary.NameZh, basicLibrary.NameEn)
+	slog.Debug("getBasicLibraryInfo - 找到基础库",
+		"id", basicLibrary.ID,
+		"name_zh", basicLibrary.NameZh,
+		"name_en", basicLibrary.NameEn)
 
 	return &LibraryInfo{
 		ID:         basicLibrary.ID,
@@ -384,20 +398,23 @@ func (c *DataViewController) getBasicLibraryInfo(libraryID string) (*LibraryInfo
 
 // getThematicLibraryInfo 获取主题库信息
 func (c *DataViewController) getThematicLibraryInfo(libraryID string) (*LibraryInfo, error) {
-	log.Printf("[DEBUG] getThematicLibraryInfo - 查询主题库: ID=%s", libraryID)
+	slog.Debug("getThematicLibraryInfo - 查询主题库", "id", libraryID)
 
 	var thematicLibrary models.ThematicLibrary
 	err := c.db.First(&thematicLibrary, "id = ?", libraryID).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			log.Printf("[ERROR] getThematicLibraryInfo - 主题库不存在: %s", libraryID)
+			slog.Error("getThematicLibraryInfo - 主题库不存在", "id", libraryID)
 			return nil, fmt.Errorf("主题库不存在: %s", libraryID)
 		}
-		log.Printf("[ERROR] getThematicLibraryInfo - 查询主题库失败: %v", err)
+		slog.Error("getThematicLibraryInfo - 查询主题库失败", "error", err)
 		return nil, fmt.Errorf("查询主题库失败: %v", err)
 	}
 
-	log.Printf("[DEBUG] getThematicLibraryInfo - 找到主题库: ID=%s, NameZh=%s, NameEn=%s", thematicLibrary.ID, thematicLibrary.NameZh, thematicLibrary.NameEn)
+	slog.Debug("getThematicLibraryInfo - 找到主题库",
+		"id", thematicLibrary.ID,
+		"name_zh", thematicLibrary.NameZh,
+		"name_en", thematicLibrary.NameEn)
 
 	return &LibraryInfo{
 		ID:         thematicLibrary.ID,

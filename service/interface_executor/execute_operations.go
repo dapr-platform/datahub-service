@@ -156,42 +156,59 @@ func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo Int
 
 	// 1. 检查是否启用增量同步
 	syncStrategy := "full" // 默认全量同步
-	var lastSyncTime interface{}
+	var lastSyncValue interface{}
 	var incrementalKey string
 
+	slog.Debug("ExecuteSync - 开始检查增量配置")
 	if incrementalConfig, exists := interfaceConfig["incremental_config"]; exists {
+		slog.Debug("ExecuteSync - 找到增量配置", "incremental_config", incrementalConfig)
+
 		if configMap, ok := incrementalConfig.(map[string]interface{}); ok {
 			enabled := cast.ToBool(configMap["enabled"])
-			fmt.Printf("[DEBUG] ExecuteSync - 增量配置启用状态: %t\n", enabled)
+			slog.Debug("ExecuteSync - 增量配置启用状态", "enabled", enabled)
 
 			if enabled {
 				syncStrategy = "incremental"
+				slog.Debug("ExecuteSync - 设置同步策略为增量", "sync_strategy", syncStrategy)
 
 				// 获取增量字段名（源字段）
-				sourceFieldName := cast.ToString(configMap["field_name"])
+				sourceFieldName := cast.ToString(configMap["increment_field"])
+				slog.Debug("ExecuteSync - 增量字段名", "increment_field", sourceFieldName)
+
 				if sourceFieldName == "" {
+					slog.Error("ExecuteSync - 增量配置缺少字段名")
 					return &ExecuteResponse{
 						Success:     false,
 						Message:     "增量配置缺少字段名",
 						Duration:    time.Since(startTime).Milliseconds(),
 						ExecuteType: request.ExecuteType,
-						Error:       "incremental field_name is required",
+						Error:       "incremental increment_field is required",
 					}, fmt.Errorf("增量配置缺少字段名")
 				}
 
 				// 获取本系统表中对应字段的最新值
+				slog.Debug("ExecuteSync - 开始获取最后同步值", "source_field", sourceFieldName)
 				mappedFieldName, lastValue, err := ops.getLastSyncValue(interfaceInfo, sourceFieldName, configMap)
 				if err != nil {
 					slog.Warn("ExecuteSync - 获取最后同步值失败，将使用全量同步", "error", err)
 					syncStrategy = "full"
 				} else {
-					lastSyncTime = lastValue
+					lastSyncValue = lastValue
 					incrementalKey = sourceFieldName
-					fmt.Printf("[DEBUG] ExecuteSync - 增量同步参数: sourceField=%s, mappedField=%s, lastValue=%v\n",
-						sourceFieldName, mappedFieldName, lastValue)
+					slog.Debug("ExecuteSync - 增量同步参数",
+						"source_field", sourceFieldName,
+						"mapped_field", mappedFieldName,
+						"last_sync_value", lastValue,
+						"incremental_key", incrementalKey)
 				}
+			} else {
+				slog.Debug("ExecuteSync - 增量配置未启用，使用全量同步")
 			}
+		} else {
+			slog.Error("ExecuteSync - 增量配置类型转换失败", "type", fmt.Sprintf("%T", incrementalConfig))
 		}
+	} else {
+		slog.Debug("ExecuteSync - 接口配置中没有增量配置，使用全量同步")
 	}
 
 	// 2. 检查是否需要批量同步
@@ -199,17 +216,17 @@ func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo Int
 	if hasLimitConfig {
 		if limitMap, ok := limitConfig.(map[string]interface{}); ok {
 			enabled := cast.ToBool(limitMap["enabled"])
-			fmt.Printf("[DEBUG] ExecuteSync - 批量配置启用状态: %t\n", enabled)
+			slog.Debug("ExecuteSync - 批量配置启用状态", "enabled", enabled)
 
 			if enabled {
 				// 使用批量同步（支持增量）
-				return ops.ExecuteBatchSyncWithStrategy(ctx, interfaceInfo, request, startTime, limitMap, syncStrategy, lastSyncTime, incrementalKey)
+				return ops.ExecuteBatchSyncWithStrategy(ctx, interfaceInfo, request, startTime, limitMap, syncStrategy, lastSyncValue, incrementalKey)
 			}
 		}
 	}
 
 	// 3. 执行单次数据同步
-	return ops.ExecuteSingleSync(ctx, interfaceInfo, request, startTime, syncStrategy, lastSyncTime, incrementalKey)
+	return ops.ExecuteSingleSync(ctx, interfaceInfo, request, startTime, syncStrategy, lastSyncValue, incrementalKey)
 }
 
 // ExecuteBatchSync 执行批量同步操作
@@ -233,7 +250,7 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 		batchSize = maxLimit
 	}
 
-	fmt.Printf("[DEBUG] ExecuteBatchSync - 批量大小: %d, 最大限制: %d\n", batchSize, int(maxLimit))
+	slog.Debug("ExecuteBatchSync - 批量大小", "batch_size", batchSize, "max_limit", int(maxLimit))
 
 	// 获取数据源信息
 	var dataSource models.DataSource
@@ -249,7 +266,7 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	}
 
 	// 检查数据源类型，数据库和API接口都可能需要批量处理
-	fmt.Printf("[DEBUG] ExecuteBatchSync - 数据源类型: %s, 分类: %s\n", dataSource.Type, dataSource.Category)
+	slog.Debug("ExecuteBatchSync - 数据源类型: %s, 分类: %s\n", dataSource.Type, dataSource.Category)
 
 	// 检查是否支持批量处理
 	supportsBatch := dataSource.Category == meta.DataSourceCategoryDatabase || dataSource.Category == meta.DataSourceCategoryAPI
@@ -316,18 +333,18 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 		}
 
 		currentPage = startPage
-		fmt.Printf("[DEBUG] ExecuteBatchSync - API分页配置: pageParam=%s, sizeParam=%s, startPage=%d\n", pageParamName, sizeParamName, startPage)
+		slog.Debug("ExecuteBatchSync - API分页配置", "page_param", pageParamName, "size_param", sizeParamName, "start_page", startPage)
 	} else {
 		// 数据库类型：使用标准分页参数
 		pageParamName = "page"
 		sizeParamName = "page_size"
 		startPage = 1
 		currentPage = startPage
-		fmt.Printf("[DEBUG] ExecuteBatchSync - 数据库分页配置: pageParam=%s, sizeParam=%s, startPage=%d\n", pageParamName, sizeParamName, startPage)
+		slog.Debug("ExecuteBatchSync - 数据库分页配置", "page_param", pageParamName, "size_param", sizeParamName, "start_page", startPage)
 	}
 
 	for hasMoreData {
-		slog.Debug("ExecuteBatchSync - 处理第 %d 批，批量大小", "count", currentPage, batchSize)
+		slog.Debug("ExecuteBatchSync - 处理批次", "page", currentPage, "batch_size", batchSize)
 
 		// 构建分页参数
 		pageParams := map[string]interface{}{
@@ -338,7 +355,7 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 		// 获取批量数据
 		batchData, dataTypes, warnings, err := dataProcessor.FetchBatchDataFromSource(ctx, interfaceInfo, request.Parameters, pageParams)
 		if err != nil {
-			slog.Error("ExecuteBatchSync - 获取第 %d 批数据失败", "error", currentPage, err)
+			slog.Error("ExecuteBatchSync - 获取批数据失败", "page", currentPage, "error", err)
 			// 回滚事务
 			tx.Rollback()
 			return &ExecuteResponse{
@@ -512,7 +529,7 @@ func (ops *ExecuteOperations) getLastSyncValue(interfaceInfo InterfaceInfo, sour
 	}
 
 	if count == 0 {
-		fmt.Printf("[DEBUG] getLastSyncValue - 表 %s 为空，返回nil作为初始值\n", fullTableName)
+		slog.Debug("getLastSyncValue - 表为空，返回nil作为初始值", "table", fullTableName)
 		return mappedFieldName, nil, nil
 	}
 
@@ -525,13 +542,13 @@ func (ops *ExecuteOperations) getLastSyncValue(interfaceInfo InterfaceInfo, sour
 		return mappedFieldName, nil, fmt.Errorf("查询最新值失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] getLastSyncValue - 查询SQL: %s, 结果: %v\n", sql, lastValue)
+	slog.Debug("getLastSyncValue - 查询SQL: %s, 结果: %v\n", sql, lastValue)
 	return mappedFieldName, lastValue, nil
 }
 
 // ExecuteSingleSync 执行单次数据同步
-func (ops *ExecuteOperations) ExecuteSingleSync(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time, syncStrategy string, lastSyncTime interface{}, incrementalKey string) (*ExecuteResponse, error) {
-	slog.Debug("ExecuteSingleSync - 开始单次同步，策略", "value", syncStrategy)
+func (ops *ExecuteOperations) ExecuteSingleSync(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time, syncStrategy string, lastSyncValue interface{}, incrementalKey string) (*ExecuteResponse, error) {
+	slog.Debug("ExecuteSingleSync - 开始单次同步，策略", "sync_strategy", syncStrategy, "last_sync_value", lastSyncValue, "incremental_key", incrementalKey)
 
 	// 准备增量参数
 	syncParams := make(map[string]interface{})
@@ -539,10 +556,10 @@ func (ops *ExecuteOperations) ExecuteSingleSync(ctx context.Context, interfaceIn
 		syncParams[k] = v
 	}
 
-	if syncStrategy == "incremental" && lastSyncTime != nil {
+	if syncStrategy == "incremental" && lastSyncValue != nil {
 		// 添加增量查询参数
 		syncParams["incremental_field"] = incrementalKey
-		syncParams["last_sync_time"] = lastSyncTime
+		syncParams["last_sync_value"] = lastSyncValue
 		syncParams["comparison_type"] = "gt" // 大于比较
 	}
 
@@ -579,7 +596,7 @@ func (ops *ExecuteOperations) ExecuteSingleSync(ctx context.Context, interfaceIn
 				"schema_name":     interfaceInfo.GetSchemaName(),
 				"table_name":      interfaceInfo.GetTableName(),
 				"sync_strategy":   syncStrategy,
-				"last_sync_time":  lastSyncTime,
+				"last_sync_value": lastSyncValue,
 				"incremental_key": incrementalKey,
 			},
 		}, nil
@@ -625,15 +642,19 @@ func (ops *ExecuteOperations) ExecuteSingleSync(ctx context.Context, interfaceIn
 			"schema_name":     interfaceInfo.GetSchemaName(),
 			"table_name":      interfaceInfo.GetTableName(),
 			"sync_strategy":   syncStrategy,
-			"last_sync_time":  lastSyncTime,
+			"last_sync_value": lastSyncValue,
 			"incremental_key": incrementalKey,
 		},
 	}, nil
 }
 
 // ExecuteBatchSyncWithStrategy 执行批量同步（支持增量策略）
-func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time, limitConfig map[string]interface{}, syncStrategy string, lastSyncTime interface{}, incrementalKey string) (*ExecuteResponse, error) {
-	slog.Debug("ExecuteBatchSyncWithStrategy - 开始批量同步，策略", "value", syncStrategy)
+func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, interfaceInfo InterfaceInfo, request *ExecuteRequest, startTime time.Time, limitConfig map[string]interface{}, syncStrategy string, lastSyncValue interface{}, incrementalKey string) (*ExecuteResponse, error) {
+	slog.Debug("ExecuteBatchSyncWithStrategy - 开始批量同步",
+		"sync_strategy", syncStrategy,
+		"last_sync_value", lastSyncValue,
+		"incremental_key", incrementalKey,
+		"limit_config", limitConfig)
 
 	// 获取批量配置参数
 	defaultLimit := cast.ToInt(limitConfig["default_limit"])
@@ -651,17 +672,27 @@ func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, 
 		batchSize = maxLimit
 	}
 
+	slog.Debug("ExecuteBatchSyncWithStrategy - 批量大小", "batch_size", batchSize, "default_limit", defaultLimit, "max_limit", maxLimit)
+
 	// 准备同步参数
 	syncParams := make(map[string]interface{})
 	for k, v := range request.Parameters {
 		syncParams[k] = v
 	}
 
-	if syncStrategy == "incremental" && lastSyncTime != nil {
+	slog.Debug("ExecuteBatchSyncWithStrategy - 原始请求参数", "parameters", request.Parameters)
+
+	if syncStrategy == "incremental" && lastSyncValue != nil {
 		syncParams["incremental_field"] = incrementalKey
-		syncParams["last_sync_time"] = lastSyncTime
+		syncParams["last_sync_value"] = lastSyncValue
 		syncParams["comparison_type"] = "gt"
+		slog.Debug("ExecuteBatchSyncWithStrategy - 添加增量参数",
+			"incremental_field", incrementalKey,
+			"last_sync_value", lastSyncValue,
+			"comparison_type", "gt")
 	}
+
+	slog.Debug("ExecuteBatchSyncWithStrategy - 最终同步参数", "sync_params", syncParams)
 
 	// 开始事务
 	tx := ops.executor.db.Begin()
@@ -796,7 +827,7 @@ func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, 
 			"schema_name":     interfaceInfo.GetSchemaName(),
 			"table_name":      interfaceInfo.GetTableName(),
 			"sync_strategy":   syncStrategy,
-			"last_sync_time":  lastSyncTime,
+			"last_sync_value": lastSyncValue,
 			"incremental_key": incrementalKey,
 			"batch_count":     currentPage - 1,
 			"batch_size":      batchSize,

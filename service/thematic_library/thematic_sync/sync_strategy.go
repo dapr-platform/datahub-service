@@ -257,7 +257,7 @@ func NewIncrementalSyncStrategy(db *gorm.DB) *IncrementalSyncStrategy {
 
 // ProcessSync 处理增量同步 - 只处理新增和更新，不删除数据
 func (iss *IncrementalSyncStrategy) ProcessSync(sourceRecords []map[string]interface{}, request *SyncRequest, result *SyncExecutionResult) error {
-	slog.Debug("增量同步策略：处理记录", "count", len(sourceRecords))
+	slog.Debug("增量同步策略处理记录", "count", len(sourceRecords))
 
 	// 获取主题接口信息
 	var thematicInterface models.ThematicInterface
@@ -284,7 +284,7 @@ func (iss *IncrementalSyncStrategy) ProcessSync(sourceRecords []map[string]inter
 	result.InsertedRecordCount += insertedCount
 	result.UpdatedRecordCount += updatedCount
 
-	fmt.Printf("[DEBUG] 增量同步完成 - 新增: %d, 更新: %d\n", insertedCount, updatedCount)
+	slog.Debug("增量同步完成", "inserted", insertedCount, "updated", updatedCount)
 	return nil
 }
 

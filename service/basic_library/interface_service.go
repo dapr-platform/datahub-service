@@ -12,7 +12,6 @@
 package basic_library
 
 import (
-	"log/slog"
 	"context"
 	"datahub-service/service/database"
 	"datahub-service/service/datasource"
@@ -22,6 +21,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -47,6 +48,11 @@ func NewInterfaceService(db *gorm.DB, datasourceManager datasource.DataSourceMan
 		executor:          executor,
 		schemaService:     schemaService,
 	}
+}
+
+// GetSchemaService 获取SchemaService实例
+func (s *InterfaceService) GetSchemaService() *database.SchemaService {
+	return s.schemaService
 }
 
 // InterfaceTestResult 接口测试结果
@@ -155,13 +161,16 @@ func (s *InterfaceService) DeleteDataInterface(interfaceData *models.DataInterfa
 	if err := s.db.First(&existing, "id = ?", interfaceData.ID).Error; err != nil {
 		return errors.New("接口不存在")
 	}
-	s.db.Where("interface_id = ?", interfaceData.ID).Delete(&models.InterfaceField{})
-	s.db.Where("interface_id = ?", interfaceData.ID).Delete(&models.InterfaceStatus{})
-	s.db.Where("interface_id = ?", interfaceData.ID).Delete(&models.InterfaceStatus{})
+
+	// 删除关联的清洗规则
+	s.db.Where("interface_id = ?", interfaceData.ID).Delete(&models.CleansingRule{})
+
+	// 删除表结构
 	err := s.schemaService.ManageTableSchema(interfaceData.ID, "drop_table", interfaceData.BasicLibrary.NameEn, interfaceData.NameEn, []models.TableField{})
 	if err != nil {
 		return fmt.Errorf("删除表结构失败: %w", err)
 	}
+
 	return s.db.Delete(interfaceData).Error
 }
 
@@ -170,13 +179,303 @@ func (s *InterfaceService) GetDataInterface(id string) (*models.DataInterface, e
 	var interfaceData models.DataInterface
 	err := s.db.Preload("BasicLibrary").
 		Preload("DataSource").
-		Preload("Fields").
 		Preload("CleanRules").
 		First(&interfaceData, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
 	return &interfaceData, nil
+}
+
+// GetDataInterfaceWithSync 获取数据接口详情并同步字段配置
+func (s *InterfaceService) GetDataInterfaceWithSync(id string) (*models.DataInterface, error) {
+	// 先获取接口基本信息
+	interfaceData, err := s.GetDataInterface(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果表已创建，检查并同步字段配置
+	if interfaceData.IsTableCreated {
+		synced, err := s.syncTableFieldsConfig(interfaceData)
+		if err != nil {
+			slog.Warn("同步表字段配置失败", "interface_id", id, "error", err)
+			// 同步失败不影响返回，只记录警告
+		} else if synced {
+			// 如果有同步，重新加载接口数据
+			interfaceData, err = s.GetDataInterface(id)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return interfaceData, nil
+}
+
+// syncTableFieldsConfig 同步表字段配置
+func (s *InterfaceService) syncTableFieldsConfig(interfaceData *models.DataInterface) (bool, error) {
+	schemaName := interfaceData.BasicLibrary.NameEn
+	tableName := interfaceData.NameEn
+
+	// 检查表是否存在
+	exists, err := s.schemaService.CheckTableExists(schemaName, tableName)
+	if err != nil {
+		return false, fmt.Errorf("检查表存在性失败: %w", err)
+	}
+	if !exists {
+		return false, nil
+	}
+
+	// 从数据库获取实际字段
+	actualColumns, err := s.schemaService.GetTableColumns(schemaName, tableName)
+	if err != nil {
+		return false, fmt.Errorf("获取表字段失败: %w", err)
+	}
+
+	// 从配置中提取现有字段
+	existingFields := s.extractFieldsFromConfig(interfaceData.TableFieldsConfig)
+
+	// 构建现有字段映射
+	existingFieldMap := make(map[string]models.TableField)
+	for _, field := range existingFields {
+		existingFieldMap[field.NameEn] = field
+	}
+
+	// 转换数据库列为字段，并合并配置
+	mergedFields := s.mergeFieldsWithConfig(actualColumns, existingFieldMap)
+
+	// 比较字段配置是否一致
+	if s.isFieldsConfigSame(interfaceData.TableFieldsConfig, mergedFields) {
+		return false, nil // 字段一致，无需同步
+	}
+
+	slog.Info("检测到表字段配置不一致，开始同步",
+		"interface_id", interfaceData.ID,
+		"schema", schemaName,
+		"table", tableName,
+		"existing_fields", len(existingFields),
+		"actual_columns", len(actualColumns))
+
+	// 更新字段配置
+	fieldsData := make(models.JSONB)
+	for i, field := range mergedFields {
+		fieldsData[fmt.Sprintf("field_%d", i)] = field
+	}
+
+	updates := map[string]interface{}{
+		"table_fields_config": fieldsData,
+		"updated_at":          time.Now(),
+	}
+
+	if err := s.db.Model(&models.DataInterface{}).Where("id = ?", interfaceData.ID).Updates(updates).Error; err != nil {
+		return false, fmt.Errorf("更新字段配置失败: %w", err)
+	}
+
+	slog.Info("表字段配置同步完成", "interface_id", interfaceData.ID, "fields_count", len(mergedFields))
+
+	return true, nil
+}
+
+// extractFieldsFromConfig 从配置中提取字段
+func (s *InterfaceService) extractFieldsFromConfig(configJSON models.JSONB) []models.TableField {
+	var fields []models.TableField
+
+	if len(configJSON) == 0 {
+		return fields
+	}
+
+	for i := 0; i < len(configJSON); i++ {
+		key := fmt.Sprintf("field_%d", i)
+		if fieldData, exists := configJSON[key]; exists {
+			var field models.TableField
+			fieldBytes, _ := json.Marshal(fieldData)
+			if err := json.Unmarshal(fieldBytes, &field); err != nil {
+				continue
+			}
+			fields = append(fields, field)
+		}
+	}
+
+	return fields
+}
+
+// mergeFieldsWithConfig 合并数据库字段与现有配置
+func (s *InterfaceService) mergeFieldsWithConfig(actualColumns []database.ColumnDefinition, existingFieldMap map[string]models.TableField) []models.TableField {
+	mergedFields := make([]models.TableField, 0, len(actualColumns))
+
+	for _, col := range actualColumns {
+		// 基于数据库实际字段创建字段对象
+		field := models.TableField{
+			NameEn:       col.Name,
+			NameZh:       s.extractChineseFromComment(col.Comment),
+			DataType:     s.normalizeDataType(col.DataType),
+			IsPrimaryKey: col.IsPrimaryKey,
+			IsUnique:     col.IsUnique,
+			IsNullable:   col.IsNullable,
+			Description:  col.Comment,
+			OrderNum:     col.OrdinalPosition,
+		}
+
+		// 处理默认值
+		if col.DefaultValue != nil {
+			if defaultStr, ok := col.DefaultValue.(string); ok {
+				field.DefaultValue = defaultStr
+			}
+		}
+
+		// 如果配置中存在该字段，合并配置信息
+		if existingField, exists := existingFieldMap[col.Name]; exists {
+			// 保留原有的 OrderNum、NameZh（如果更有意义）、IsIncrementField 等配置
+			if existingField.OrderNum > 0 {
+				field.OrderNum = existingField.OrderNum
+			}
+			if existingField.NameZh != "" && existingField.NameZh != col.Name {
+				field.NameZh = existingField.NameZh
+			}
+			field.IsIncrementField = existingField.IsIncrementField
+
+			// 如果配置中的描述更详细，使用配置中的
+			if existingField.Description != "" && len(existingField.Description) > len(col.Comment) {
+				field.Description = existingField.Description
+			}
+		}
+
+		mergedFields = append(mergedFields, field)
+	}
+
+	// 按 OrderNum 排序，如果 OrderNum 相同或为0，则按 OrdinalPosition 排序
+	sort.SliceStable(mergedFields, func(i, j int) bool {
+		if mergedFields[i].OrderNum != 0 && mergedFields[j].OrderNum != 0 {
+			if mergedFields[i].OrderNum != mergedFields[j].OrderNum {
+				return mergedFields[i].OrderNum < mergedFields[j].OrderNum
+			}
+		}
+		return mergedFields[i].NameEn < mergedFields[j].NameEn
+	})
+
+	// 重新分配 OrderNum
+	for i := range mergedFields {
+		mergedFields[i].OrderNum = i + 1
+	}
+
+	return mergedFields
+}
+
+// convertColumnsToTableFields 将数据库列定义转换为TableField
+func (s *InterfaceService) convertColumnsToTableFields(columns []database.ColumnDefinition) []models.TableField {
+	fields := make([]models.TableField, 0, len(columns))
+
+	for _, col := range columns {
+		field := models.TableField{
+			NameEn:       col.Name,
+			NameZh:       s.extractChineseFromComment(col.Comment),
+			DataType:     s.normalizeDataType(col.DataType),
+			IsPrimaryKey: col.IsPrimaryKey,
+			IsUnique:     col.IsUnique,
+			IsNullable:   col.IsNullable,
+			Description:  col.Comment,
+			OrderNum:     col.OrdinalPosition,
+		}
+
+		// 处理默认值
+		if col.DefaultValue != nil {
+			if defaultStr, ok := col.DefaultValue.(string); ok {
+				field.DefaultValue = defaultStr
+			}
+		}
+
+		fields = append(fields, field)
+	}
+
+	return fields
+}
+
+// extractChineseFromComment 从注释中提取中文名称
+func (s *InterfaceService) extractChineseFromComment(comment string) string {
+	if comment == "" {
+		return ""
+	}
+
+	// 尝试提取 "中文名 - 描述" 格式中的中文名
+	parts := strings.Split(comment, " - ")
+	if len(parts) > 0 {
+		return strings.TrimSpace(parts[0])
+	}
+
+	return comment
+}
+
+// normalizeDataType 规范化数据类型
+func (s *InterfaceService) normalizeDataType(dataType string) string {
+	// 移除类型中的长度限制，如 varchar(255) -> varchar
+	if idx := strings.Index(dataType, "("); idx > 0 {
+		dataType = dataType[:idx]
+	}
+
+	// 统一类型名称
+	typeMap := map[string]string{
+		"character varying":           "varchar",
+		"double precision":            "double",
+		"timestamp without time zone": "timestamp",
+		"timestamp with time zone":    "timestamp",
+	}
+
+	if normalized, exists := typeMap[dataType]; exists {
+		return normalized
+	}
+
+	return dataType
+}
+
+// isFieldsConfigSame 比较字段配置是否一致
+func (s *InterfaceService) isFieldsConfigSame(configJSON models.JSONB, actualFields []models.TableField) bool {
+	if len(configJSON) == 0 {
+		return len(actualFields) == 0
+	}
+
+	// 从配置中提取字段
+	var configFields []models.TableField
+	for i := 0; i < len(configJSON); i++ {
+		key := fmt.Sprintf("field_%d", i)
+		if fieldData, exists := configJSON[key]; exists {
+			var field models.TableField
+			fieldBytes, _ := json.Marshal(fieldData)
+			if err := json.Unmarshal(fieldBytes, &field); err != nil {
+				continue
+			}
+			configFields = append(configFields, field)
+		}
+	}
+
+	// 比较字段数量
+	if len(configFields) != len(actualFields) {
+		return false
+	}
+
+	// 构建实际字段映射
+	actualFieldMap := make(map[string]models.TableField)
+	for _, field := range actualFields {
+		actualFieldMap[field.NameEn] = field
+	}
+
+	// 逐个比较字段
+	for _, configField := range configFields {
+		actualField, exists := actualFieldMap[configField.NameEn]
+		if !exists {
+			return false
+		}
+
+		// 比较关键属性
+		if configField.DataType != actualField.DataType ||
+			configField.IsPrimaryKey != actualField.IsPrimaryKey ||
+			configField.IsNullable != actualField.IsNullable ||
+			configField.IsUnique != actualField.IsUnique {
+			return false
+		}
+	}
+
+	return true
 }
 func (s *InterfaceService) UpdateDataInterfaceTableCreated(id string, isTableCreated bool) error {
 	var interfaceData models.DataInterface
@@ -205,7 +504,7 @@ func (s *InterfaceService) GetDataInterfaces(libraryID string, page, pageSize in
 	// 分页查询，预加载关联数据
 	offset := (page - 1) * pageSize
 	err := query.Preload("BasicLibrary").Preload("DataSource").
-		Preload("Fields").Preload("CleanRules").
+		Preload("CleanRules").
 		Offset(offset).Limit(pageSize).Find(&interfaces).Error
 
 	return interfaces, total, err
@@ -531,77 +830,6 @@ func (s *InterfaceService) updateInterfaceStatus(interfaceID, status string, las
 	return s.db.Model(&statusRecord).Updates(updates).Error
 }
 
-// InferInterfaceFields 推断接口字段结构
-func (s *InterfaceService) InferInterfaceFields(dataSourceID, tableName string, sampleData interface{}) ([]map[string]interface{}, error) {
-	// TODO: 实现字段推断逻辑
-	// 这里应该根据数据源类型和样本数据自动推断字段结构
-
-	// 模拟推断结果
-	inferredFields := []map[string]interface{}{
-		{
-			"name_zh":        "用户ID",
-			"name_en":        "user_id",
-			"data_type":      "integer",
-			"is_primary_key": true,
-			"is_nullable":    false,
-			"description":    "用户唯一标识",
-			"order_num":      1,
-		},
-		{
-			"name_zh":        "用户名",
-			"name_en":        "username",
-			"data_type":      "varchar",
-			"is_primary_key": false,
-			"is_nullable":    false,
-			"description":    "用户名称",
-			"order_num":      2,
-		},
-		{
-			"name_zh":        "创建时间",
-			"name_en":        "created_at",
-			"data_type":      "timestamp",
-			"is_primary_key": false,
-			"is_nullable":    false,
-			"description":    "记录创建时间",
-			"order_num":      3,
-		},
-	}
-
-	return inferredFields, nil
-}
-
-// CreateInterfaceFields 创建接口字段
-func (s *InterfaceService) CreateInterfaceFields(interfaceID string, fields []map[string]interface{}) error {
-	// 删除现有字段
-	if err := s.db.Where("interface_id = ?", interfaceID).Delete(&models.InterfaceField{}).Error; err != nil {
-		return err
-	}
-
-	// 创建新字段
-	for _, fieldData := range fields {
-		field := models.InterfaceField{
-			InterfaceID:  interfaceID,
-			NameZh:       fieldData["name_zh"].(string),
-			NameEn:       fieldData["name_en"].(string),
-			DataType:     fieldData["data_type"].(string),
-			IsPrimaryKey: fieldData["is_primary_key"].(bool),
-			IsNullable:   fieldData["is_nullable"].(bool),
-			Description:  fieldData["description"].(string),
-			OrderNum:     fieldData["order_num"].(int),
-		}
-
-		if defaultValue, exists := fieldData["default_value"]; exists && defaultValue != nil {
-			field.DefaultValue = defaultValue.(string)
-		}
-
-		if err := s.db.Create(&field).Error; err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // UpdateInterfaceFields 更新接口字段配置
 func (s *InterfaceService) UpdateInterfaceFields(interfaceID string, fields []models.TableField, updateTable bool) error {
 	// 验证和修正字段配置
@@ -663,33 +891,6 @@ func (s *InterfaceService) UpdateInterfaceFields(interfaceID string, fields []mo
 		}
 	}
 
-	// 删除旧的接口字段记录
-	if err := s.db.Where("interface_id = ?", interfaceID).Delete(&models.InterfaceField{}).Error; err != nil {
-		return fmt.Errorf("删除旧字段记录失败: %w", err)
-	}
-
-	// 创建新的接口字段记录
-	for _, field := range fields {
-		interfaceField := models.InterfaceField{
-			InterfaceID:      interfaceID,
-			NameZh:           field.NameZh,
-			NameEn:           field.NameEn,
-			DataType:         field.DataType,
-			IsPrimaryKey:     field.IsPrimaryKey,
-			IsUnique:         field.IsUnique,
-			IsNullable:       field.IsNullable,
-			DefaultValue:     field.DefaultValue,
-			Description:      field.Description,
-			OrderNum:         field.OrderNum,
-			CheckConstraint:  field.CheckConstraint,
-			IsIncrementField: field.IsIncrementField,
-		}
-
-		if err := s.db.Create(&interfaceField).Error; err != nil {
-			return fmt.Errorf("创建字段记录失败: %w", err)
-		}
-	}
-
 	return nil
 }
 
@@ -701,7 +902,7 @@ func (s *InterfaceService) parseTableFields(tableFieldsConfig models.JSONB) ([]m
 	if tableFieldsConfig == nil {
 		return fields, nil
 	}
-	
+
 	// 检查是否有 fields 字段
 	if fieldsData, exists := tableFieldsConfig["fields"]; exists {
 		// 将 fields 转换为字段列表
@@ -755,8 +956,6 @@ func (s *InterfaceService) parseTableFields(tableFieldsConfig models.JSONB) ([]m
 			}
 		}
 	}
-
-
 
 	return fields, nil
 }
@@ -835,14 +1034,14 @@ func (s *InterfaceService) ImportCSVData(interfaceID string, csvContent string) 
 		return nil, fmt.Errorf("接口表尚未创建，请先配置字段并创建表")
 	}
 
-	// 3. 获取字段配置
-	fields := interfaceData.Fields
+	// 3. 从 TableFieldsConfig 获取字段配置
+	fields := s.extractFieldsFromConfig(interfaceData.TableFieldsConfig)
 	if len(fields) == 0 {
 		return nil, fmt.Errorf("接口字段配置为空")
 	}
 
 	// 4. 构建字段名到字段配置的映射
-	fieldMap := make(map[string]models.InterfaceField)
+	fieldMap := make(map[string]models.TableField)
 	for _, field := range fields {
 		fieldMap[field.NameEn] = field
 	}
@@ -983,7 +1182,7 @@ func (s *InterfaceService) ImportCSVData(interfaceID string, csvContent string) 
 }
 
 // convertCSVValue 转换CSV值为合适的数据类型
-func (s *InterfaceService) convertCSVValue(value string, field models.InterfaceField, rowNum int) (interface{}, error) {
+func (s *InterfaceService) convertCSVValue(value string, field models.TableField, rowNum int) (interface{}, error) {
 	// 如果值为空且字段可为空，返回nil
 	if value == "" {
 		if field.IsNullable {

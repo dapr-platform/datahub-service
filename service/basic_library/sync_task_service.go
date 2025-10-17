@@ -19,7 +19,6 @@ import (
 	"datahub-service/service/meta"
 	"datahub-service/service/models"
 	"fmt"
-	"log"
 	"log/slog"
 	"time"
 
@@ -250,7 +249,7 @@ func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTas
 
 	// 注意：草稿状态的任务不会自动添加到调度器
 	// 需要手动激活任务后才会加入调度
-	log.Printf("任务已创建 [任务ID: %s, 状态: %s, 触发类型: %s]", task.ID, task.Status, task.TriggerType)
+	slog.Info("任务已创建 [任务ID: %s, 状态: %s, 触发类型: %s]", task.ID, task.Status, task.TriggerType)
 
 	return task, nil
 }
@@ -434,7 +433,7 @@ func (s *SyncTaskService) GetSyncTaskList(ctx context.Context, req *GetSyncTaskL
 	for i := range tasks {
 		if err := s.loadLibraryInfo(&tasks[i]); err != nil {
 			// 记录错误但不阻塞
-			fmt.Printf("加载库信息失败: %v\n", err)
+			slog.Error("加载库信息失败: %v\n", err.Error())
 		}
 	}
 
@@ -609,32 +608,32 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 
 	// 处理状态变化（激活/暂停）
 	if statusChanged {
-		log.Printf("任务状态变化: %s -> %s [任务ID: %s]", oldStatus, newStatus, taskID)
+		slog.Info("任务状态变化: %s -> %s [任务ID: %s]", oldStatus, newStatus, taskID)
 
 		switch newStatus {
 		case meta.SyncTaskStatusActive:
 			// 激活任务：添加到调度器
 			if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
 				if err := s.AddScheduledTask(&task); err != nil {
-					log.Printf("添加任务到调度器失败 [%s]: %v", taskID, err)
+					slog.Error("添加任务到调度器失败 [%s]: %v", taskID, err.Error())
 				} else {
-					log.Printf("任务已激活并添加到调度器 [任务ID: %s]", taskID)
+					slog.Info("任务已激活并添加到调度器 [任务ID: %s]", taskID)
 				}
 			}
 		case meta.SyncTaskStatusPaused:
 			// 暂停任务：从调度器移除
 			if err := s.RemoveScheduledTask(taskID); err != nil {
-				log.Printf("从调度器移除任务失败 [%s]: %v", taskID, err)
+				slog.Error("从调度器移除任务失败 [%s]: %v", taskID, err.Error())
 			} else {
-				log.Printf("任务已暂停并从调度器移除 [任务ID: %s]", taskID)
+				slog.Info("任务已暂停并从调度器移除 [任务ID: %s]", taskID)
 			}
 		}
 	} else if scheduleChanged {
 		// 如果只是修改了调度配置（未改变状态），重新加载调度器
 		if err := s.ReloadScheduledTasks(); err != nil {
-			log.Printf("重新加载调度器失败: %v", err)
+			slog.Error("重新加载调度器失败: %v", err.Error())
 		} else {
-			log.Printf("调度配置已更新，调度器已重新加载 [任务ID: %s]", taskID)
+			slog.Info("调度配置已更新，调度器已重新加载 [任务ID: %s]", taskID)
 		}
 	}
 
@@ -905,14 +904,14 @@ func (s *SyncTaskService) CancelSyncTask(ctx context.Context, taskID string) err
 	// 如果任务正在运行，需要调用同步引擎取消当前执行
 	if task.ExecutionStatus == meta.SyncExecutionStatusRunning {
 		// 注意：这里需要调用同步引擎取消任务
-		fmt.Printf("停止运行中的任务: %s\n", taskID)
+		slog.Info("停止运行中的任务: %s\n", taskID)
 		// 更新执行状态
 		s.updateTaskExecutionStatus(taskID, meta.SyncExecutionStatusFailed, "任务被暂停")
 	}
 
 	// 从调度器中移除任务
 	if err := s.RemoveScheduledTask(taskID); err != nil {
-		log.Printf("从调度器移除任务失败 [%s]: %v", taskID, err)
+		slog.Error("从调度器移除任务失败 [%s]: %v", taskID, err.Error())
 	}
 
 	return nil
@@ -1298,9 +1297,9 @@ func (s *SyncTaskService) ActivateSyncTask(ctx context.Context, taskID string) e
 	if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
 		task.Status = meta.SyncTaskStatusActive
 		if err := s.AddScheduledTask(&task); err != nil {
-			log.Printf("添加任务到调度器失败 [%s]: %v", taskID, err)
+			slog.Error("添加任务到调度器失败 [%s]: %v", taskID, err.Error())
 		} else {
-			log.Printf("任务已激活并添加到调度器 [任务ID: %s, 触发类型: %s]", taskID, task.TriggerType)
+			slog.Info("任务已激活并添加到调度器 [任务ID: %s, 触发类型: %s]", taskID, task.TriggerType)
 		}
 	}
 
@@ -1321,7 +1320,7 @@ func (s *SyncTaskService) ResumeSyncTask(ctx context.Context, taskID string) err
 func (s *SyncTaskService) SetDistributedLock(lock distributed_lock.DistributedLock) {
 	s.distributedLock = lock
 	if lock != nil {
-		log.Println("基础库同步任务服务已启用分布式锁")
+		slog.Info("基础库同步任务服务已启用分布式锁")
 	}
 }
 
@@ -1331,7 +1330,7 @@ func (s *SyncTaskService) StartScheduler() error {
 		return fmt.Errorf("调度器已经启动")
 	}
 
-	log.Println("启动基础库同步任务调度器")
+	slog.Info("启动基础库同步任务调度器")
 
 	// 启动cron调度器
 	s.cron.Start()
@@ -1342,12 +1341,12 @@ func (s *SyncTaskService) StartScheduler() error {
 
 	// 加载现有的调度任务
 	if err := s.loadScheduledTasks(); err != nil {
-		log.Printf("加载调度任务失败: %v", err)
+		slog.Error("加载调度任务失败: %v", err.Error())
 		return err
 	}
 
 	s.schedulerStarted = true
-	log.Println("基础库同步任务调度器启动完成")
+	slog.Info("基础库同步任务调度器启动完成")
 	return nil
 }
 
@@ -1357,7 +1356,7 @@ func (s *SyncTaskService) StopScheduler() {
 		return
 	}
 
-	log.Println("停止基础库同步任务调度器")
+	slog.Info("停止基础库同步任务调度器")
 
 	s.cancel()
 
@@ -1370,7 +1369,7 @@ func (s *SyncTaskService) StopScheduler() {
 	}
 
 	s.schedulerStarted = false
-	log.Println("基础库同步任务调度器已停止")
+	slog.Info("基础库同步任务调度器已停止")
 }
 
 // loadScheduledTasks 加载调度任务
@@ -1383,11 +1382,11 @@ func (s *SyncTaskService) loadScheduledTasks() error {
 
 	for _, task := range tasks {
 		if err := s.addTaskToScheduler(&task); err != nil {
-			log.Printf("添加任务到调度器失败 [%s]: %v", task.ID, err)
+			slog.Error("添加任务到调度器失败 [%s]: %v", task.ID, err.Error())
 		}
 	}
 
-	log.Printf("加载了 %d 个调度任务", len(tasks))
+	slog.Info("加载了 %d 个调度任务", len(tasks))
 	return nil
 }
 
@@ -1406,7 +1405,7 @@ func (s *SyncTaskService) addTaskToScheduler(task *models.SyncTask) error {
 			return fmt.Errorf("添加Cron任务失败: %w", err)
 		}
 
-		log.Printf("添加Cron任务: %s [%s]", task.ID, task.CronExpression)
+		slog.Info("添加Cron任务: %s [%s]", task.ID, task.CronExpression)
 
 	case "once":
 		if task.ScheduledTime != nil && task.ScheduledTime.After(time.Now()) {
@@ -1422,12 +1421,12 @@ func (s *SyncTaskService) addTaskToScheduler(task *models.SyncTask) error {
 				}
 			}()
 
-			log.Printf("添加单次任务: %s [%s]", task.ID, task.ScheduledTime.Format("2006-01-02 15:04:05"))
+			slog.Info("添加单次任务: %s [%s]", task.ID, task.ScheduledTime.Format("2006-01-02 15:04:05"))
 		}
 
 	case "interval":
 		// 间隔任务由intervalChecker处理
-		log.Printf("添加间隔任务: %s [%d秒]", task.ID, task.IntervalSeconds)
+		slog.Info("添加间隔任务: %s [%d秒]", task.ID, task.IntervalSeconds)
 	}
 
 	return nil
@@ -1449,7 +1448,7 @@ func (s *SyncTaskService) runIntervalChecker() {
 func (s *SyncTaskService) checkIntervalTasks() {
 	tasks, err := s.getShouldExecuteNowTasks(s.ctx)
 	if err != nil {
-		log.Printf("获取间隔任务失败: %v", err)
+		slog.Error("获取间隔任务失败: %v", err.Error())
 		return
 	}
 
@@ -1462,7 +1461,7 @@ func (s *SyncTaskService) checkIntervalTasks() {
 
 // executeScheduledTask 执行调度任务（带分布式锁）
 func (s *SyncTaskService) executeScheduledTask(taskID string) {
-	log.Printf("执行调度任务: %s", taskID)
+	slog.Info("执行调度任务: %s", taskID)
 
 	// 如果有分布式锁，使用锁保护执行
 	if s.distributedLock != nil {
@@ -1472,19 +1471,19 @@ func (s *SyncTaskService) executeScheduledTask(taskID string) {
 		// 尝试获取锁
 		locked, err := s.distributedLock.TryLock(s.ctx, lockKey, lockTTL)
 		if err != nil {
-			log.Printf("获取分布式锁失败 [%s]: %v", taskID, err)
+			slog.Error("获取分布式锁失败 [%s]: %v", taskID, err.Error())
 			return
 		}
 
 		if !locked {
-			log.Printf("任务正在其他实例执行，跳过 [%s]", taskID)
+			slog.Error("任务正在其他实例执行，跳过 [%s]", taskID)
 			return
 		}
 
 		// 确保执行完毕后释放锁
 		defer func() {
 			if unlockErr := s.distributedLock.Unlock(s.ctx, lockKey); unlockErr != nil {
-				log.Printf("释放分布式锁失败 [%s]: %v", taskID, unlockErr)
+				slog.Error("释放分布式锁失败 [%s]: %v", taskID, unlockErr.Error())
 			}
 		}()
 	}
@@ -1492,23 +1491,23 @@ func (s *SyncTaskService) executeScheduledTask(taskID string) {
 	// 获取任务详情
 	task, err := s.GetSyncTaskByID(s.ctx, taskID)
 	if err != nil {
-		log.Printf("获取任务失败 [%s]: %v", taskID, err)
+		slog.Error("获取任务失败 [%s]: %v", taskID, err.Error())
 		return
 	}
 
 	// 检查任务是否可以执行
 	if !task.CanStart() {
-		log.Printf("任务不能执行 [%s]: 状态=%s", taskID, task.Status)
+		slog.Error("任务不能执行 [%s]: 状态=%s", taskID, task.Status)
 		return
 	}
 
 	// 直接调用启动任务方法
 	if err := s.StartSyncTask(s.ctx, taskID); err != nil {
-		log.Printf("启动调度任务失败 [%s]: %v", taskID, err)
+		slog.Error("启动调度任务失败 [%s]: %v", taskID, err.Error())
 		return
 	}
 
-	log.Printf("调度任务已启动 [%s]", taskID)
+	slog.Info("调度任务已启动 [%s]", taskID)
 }
 
 // AddScheduledTask 添加调度任务

@@ -22,10 +22,10 @@
 package utils
 
 import (
-	"log/slog"
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -404,14 +404,14 @@ func (cp *ConnectionPool) Stop() error {
 	// 关闭所有数据库连接池
 	for name, pool := range cp.dbPools {
 		if err := pool.Close(); err != nil {
-			fmt.Printf("关闭数据库连接池 %s 失败: %v\n", name, err)
+			slog.Error("关闭数据库连接池失败", "name", name, "error", err)
 		}
 	}
 
 	// 关闭所有Redis连接池
 	for name, pool := range cp.redisPools {
 		if err := pool.Close(); err != nil {
-			fmt.Printf("关闭Redis连接池 %s 失败: %v\n", name, err)
+			slog.Error("关闭Redis连接池失败", "name", name, "error", err)
 		}
 	}
 
@@ -420,7 +420,7 @@ func (cp *ConnectionPool) Stop() error {
 		if transport, ok := client.Transport.(*http.Transport); ok {
 			transport.CloseIdleConnections()
 		}
-		fmt.Printf("关闭HTTP客户端 %s\n", name)
+		slog.Info("关闭HTTP客户端", "name", name)
 	}
 
 	return nil

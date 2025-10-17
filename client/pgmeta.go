@@ -16,7 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -259,62 +259,64 @@ type ErrorResponse struct {
 // makeRequest 发送HTTP请求
 func (c *PgMetaClient) makeRequest(method, path string, body interface{}) ([]byte, error) {
 	fullURL := c.BaseURL + path
-	log.Printf("[DEBUG] PgMetaClient.makeRequest - 开始请求: %s %s", method, fullURL)
-	log.Printf("[DEBUG] PgMetaClient.makeRequest - pg header: %s", c.PgHeader)
+	slog.Debug("PgMetaClient.makeRequest - 开始请求",
+		"method", method,
+		"url", fullURL)
+	slog.Debug("PgMetaClient.makeRequest - pg header", "pg_header", c.PgHeader)
 
 	var reqBody io.Reader
 	if body != nil {
 		jsonBody, err := json.Marshal(body)
 		if err != nil {
-			log.Printf("[ERROR] PgMetaClient.makeRequest - 序列化请求体失败: %v", err)
+			slog.Error("PgMetaClient.makeRequest - 序列化请求体失败", "error", err)
 			return nil, fmt.Errorf("序列化请求体失败: %w", err)
 		}
 		reqBody = bytes.NewBuffer(jsonBody)
-		log.Printf("[DEBUG] PgMetaClient.makeRequest - 请求体: %s", string(jsonBody))
+		slog.Debug("PgMetaClient.makeRequest - 请求体", "body", string(jsonBody))
 	}
 
 	req, err := http.NewRequest(method, fullURL, reqBody)
 	if err != nil {
-		log.Printf("[ERROR] PgMetaClient.makeRequest - 创建请求失败: %v", err)
+		slog.Error("PgMetaClient.makeRequest - 创建请求失败", "error", err)
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("pg", c.PgHeader)
 
-	log.Printf("[DEBUG] PgMetaClient.makeRequest - 发送HTTP请求...")
+	slog.Debug("PgMetaClient.makeRequest - 发送HTTP请求")
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		log.Printf("[ERROR] PgMetaClient.makeRequest - 发送请求失败: %v", err)
+		slog.Error("PgMetaClient.makeRequest - 发送请求失败", "error", err)
 		return nil, fmt.Errorf("发送请求失败: %w", err)
 	}
 	defer resp.Body.Close()
 
-	log.Printf("[DEBUG] PgMetaClient.makeRequest - 响应状态码: %d", resp.StatusCode)
+	slog.Debug("PgMetaClient.makeRequest - 响应状态码", "status_code", resp.StatusCode)
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("[ERROR] PgMetaClient.makeRequest - 读取响应失败: %v", err)
+		slog.Error("PgMetaClient.makeRequest - 读取响应失败", "error", err)
 		return nil, fmt.Errorf("读取响应失败: %w", err)
 	}
 
-	log.Printf("[DEBUG] PgMetaClient.makeRequest - 响应体长度: %d bytes", len(respBody))
+	slog.Debug("PgMetaClient.makeRequest - 响应体长度", "length_bytes", len(respBody))
 	if len(respBody) > 0 && len(respBody) < 1000 {
-		log.Printf("[DEBUG] PgMetaClient.makeRequest - 响应体内容: %s", string(respBody))
+		slog.Debug("PgMetaClient.makeRequest - 响应体内容", "content", string(respBody))
 	}
 
 	if resp.StatusCode >= 400 {
-		log.Printf("[ERROR] PgMetaClient.makeRequest - HTTP错误状态: %d", resp.StatusCode)
+		slog.Error("PgMetaClient.makeRequest - HTTP错误状态", "status_code", resp.StatusCode)
 		var errResp ErrorResponse
 		if err := json.Unmarshal(respBody, &errResp); err == nil {
-			log.Printf("[ERROR] PgMetaClient.makeRequest - 解析到API错误: %s", errResp.Error)
+			slog.Error("PgMetaClient.makeRequest - 解析到API错误", "error_msg", errResp.Error)
 			return nil, fmt.Errorf("API错误 [%d]: %s", resp.StatusCode, errResp.Error)
 		}
-		log.Printf("[ERROR] PgMetaClient.makeRequest - 原始错误响应: %s", string(respBody))
+		slog.Error("PgMetaClient.makeRequest - 原始错误响应", "response", string(respBody))
 		return nil, fmt.Errorf("HTTP错误 [%d]: %s", resp.StatusCode, string(respBody))
 	}
 
-	log.Printf("[DEBUG] PgMetaClient.makeRequest - 请求成功完成")
+	slog.Debug("PgMetaClient.makeRequest - 请求成功完成")
 	return respBody, nil
 }
 

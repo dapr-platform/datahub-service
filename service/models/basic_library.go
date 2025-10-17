@@ -53,10 +53,9 @@ type DataInterface struct {
 	ParseConfig       JSONB     `json:"parse_config" gorm:"type:jsonb"`
 	TableFieldsConfig JSONB     `json:"table_fields_config" gorm:"type:jsonb"`
 	// 关联关系
-	BasicLibrary BasicLibrary     `json:"basic_library,omitempty" gorm:"foreignKey:LibraryID"`
-	DataSource   DataSource       `json:"data_source,omitempty" gorm:"foreignKey:DataSourceID"`
-	Fields       []InterfaceField `json:"fields,omitempty" gorm:"foreignKey:InterfaceID"`
-	CleanRules   []CleansingRule  `json:"clean_rules,omitempty" gorm:"foreignKey:InterfaceID"`
+	BasicLibrary BasicLibrary    `json:"basic_library,omitempty" gorm:"foreignKey:LibraryID"`
+	DataSource   DataSource      `json:"data_source,omitempty" gorm:"foreignKey:DataSourceID"`
+	CleanRules   []CleansingRule `json:"clean_rules,omitempty" gorm:"foreignKey:InterfaceID"`
 }
 
 // DataSource 数据源模型
@@ -77,38 +76,6 @@ type DataSource struct {
 	UpdatedBy        string    `json:"updated_by" gorm:"not null;default:'system';size:100"`
 	// 关联关系
 	BasicLibrary BasicLibrary `json:"basic_library,omitempty" gorm:"foreignKey:LibraryID"`
-}
-
-// InterfaceField 接口字段模型
-type InterfaceField struct {
-	ID               string    `json:"id" gorm:"primaryKey;type:varchar(36)"`
-	InterfaceID      string    `json:"interface_id" gorm:"not null;type:varchar(36);index"`
-	NameZh           string    `json:"name_zh" gorm:"not null;size:255"`
-	NameEn           string    `json:"name_en" gorm:"not null;size:255"`
-	DataType         string    `json:"data_type" gorm:"not null;size:50"`
-	IsPrimaryKey     bool      `json:"is_primary_key" gorm:"not null;default:false"`
-	IsUnique         bool      `json:"is_unique" gorm:"not null;default:false"`
-	IsNullable       bool      `json:"is_nullable" gorm:"not null;default:true"`
-	DefaultValue     string    `json:"default_value" gorm:"size:255"`
-	Description      string    `json:"description" gorm:"size:1000"`
-	OrderNum         int       `json:"order_num" gorm:"not null"`
-	CheckConstraint  string    `json:"check_constraint" gorm:"size:255"`
-	IsIncrementField bool      `json:"is_increment_field" gorm:"not null;default:false"` // 是否为增量字段，增量更新时根据这个字段判断条件
-	CreatedAt        time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
-	CreatedBy        string    `json:"created_by" gorm:"not null;default:'system';size:100"`
-	UpdatedAt        time.Time `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
-	UpdatedBy        string    `json:"updated_by" gorm:"not null;default:'system';size:100"`
-}
-
-// BeforeCreate GORM钩子，创建前生成UUID
-func (if_ *InterfaceField) BeforeCreate(tx *gorm.DB) error {
-	if if_.ID == "" {
-		if_.ID = uuid.New().String()
-	}
-	if if_.CreatedBy == "" {
-		if_.CreatedBy = "system"
-	}
-	return nil
 }
 
 // CleansingRule 数据清洗规则模型

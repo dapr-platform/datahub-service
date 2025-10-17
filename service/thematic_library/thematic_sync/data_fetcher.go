@@ -12,6 +12,7 @@
 package thematic_sync
 
 import (
+	"context"
 	"datahub-service/service/models"
 	"fmt"
 	"log/slog"
@@ -42,15 +43,61 @@ func (df *DataFetcher) FetchSourceData(request *SyncRequest, result *SyncExecuti
 	sqlConfigs, hasSQLConfig := df.parseSQLQueryConfigs(request)
 	if hasSQLConfig && len(sqlConfigs) > 0 {
 		// SQL模式：直接执行SQL查询获取数据
-		fmt.Printf("[DEBUG] 使用SQL查询模式，查询数量: %d\n", len(sqlConfigs))
+		slog.Debug("使用SQL查询模式", "queryCount", len(sqlConfigs))
 		return df.fetchDataFromSQLQueries(sqlConfigs, result)
 	}
 
 	// 接口模式：从基础库的数据接口获取数据
-	fmt.Println("[DEBUG] 使用接口查询模式")
+	slog.Debug("使用接口查询模式")
 	sourceConfigs, err := df.parseSourceConfigs(request)
 	if err != nil {
 		return nil, fmt.Errorf("解析源库配置失败: %w", err)
+	}
+
+	// 调试：打印解析后的源库配置
+	slog.Debug("解析源库配置完成", "count", len(sourceConfigs))
+	for i, config := range sourceConfigs {
+		slog.Debug("源库配置", "index", i, "libraryID", config.LibraryID, "interfaceID", config.InterfaceID)
+		if config.IncrementalConfig != nil {
+			slog.Debug("增量配置", "index", i, "enabled", config.IncrementalConfig.Enabled,
+				"field", config.IncrementalConfig.IncrementalField,
+				"fieldType", config.IncrementalConfig.FieldType,
+				"lastSyncValue", config.IncrementalConfig.LastSyncValue,
+				"initialValue", config.IncrementalConfig.InitialValue)
+		} else {
+			slog.Debug("无增量配置", "index", i)
+		}
+	}
+
+	// 从请求配置中获取字段映射规则
+	var fieldMappingRules interface{}
+	if rules, exists := request.Config["field_mapping_rules"]; exists {
+		fieldMappingRules = rules
+		slog.Debug("获取到字段映射规则", "rules", rules)
+	} else {
+		slog.Debug("未找到字段映射规则配置")
+	}
+
+	// 为启用增量同步的配置从主题表查询最大值
+	for i := range sourceConfigs {
+		if sourceConfigs[i].IncrementalConfig != nil && sourceConfigs[i].IncrementalConfig.Enabled {
+			// 从主题表查询增量字段的最大值（基础表字段名 -> 主题表字段名）
+			maxValue, err := df.queryMaxIncrementalValueFromThematicTable(
+				request.TargetInterfaceID,
+				sourceConfigs[i].IncrementalConfig.IncrementalField,
+				fieldMappingRules,
+			)
+			if err != nil {
+				slog.Warn("从主题表查询增量最大值失败", "error", err, "interfaceID", request.TargetInterfaceID, "sourceField", sourceConfigs[i].IncrementalConfig.IncrementalField)
+				// 继续使用配置中的值或初始值
+			} else if maxValue != "" {
+				// 使用从主题表查询到的最大值
+				slog.Debug("从主题表查询到增量最大值", "sourceField", sourceConfigs[i].IncrementalConfig.IncrementalField, "maxValue", maxValue)
+				sourceConfigs[i].IncrementalConfig.LastSyncValue = maxValue
+			} else {
+				slog.Debug("主题表为空，使用初始值", "sourceField", sourceConfigs[i].IncrementalConfig.IncrementalField, "initialValue", sourceConfigs[i].IncrementalConfig.InitialValue)
+			}
+		}
 	}
 
 	// 直接查询每个源接口的数据
@@ -168,9 +215,11 @@ func (df *DataFetcher) FetchDataFromInterfaceWithConfig(libraryID, interfaceID s
 
 	// 检查是否启用增量同步
 	if config.IncrementalConfig != nil && config.IncrementalConfig.Enabled {
+		slog.Debug("启用增量同步", "table", fullTableName, "incrementalField", config.IncrementalConfig.IncrementalField)
 		return df.fetchIncrementalDataWithPrimaryKey(fullTableName, batchSize, config.IncrementalConfig, primaryKeyFields)
 	}
 
+	slog.Debug("未启用增量同步，执行全量查询", "table", fullTableName)
 	return df.fetchDataInBatchesWithPrimaryKey(fullTableName, batchSize, primaryKeyFields)
 }
 
@@ -184,10 +233,10 @@ func (df *DataFetcher) fetchDataInBatchesWithPrimaryKey(fullTableName string, ba
 	if len(primaryKeyFields) > 0 {
 		orderByField := primaryKeyFields[0]
 		orderByClause = fmt.Sprintf(" ORDER BY \"%s\"", orderByField)
-		fmt.Printf("[DEBUG] 开始分批获取数据，表: %s, 批次大小: %d, 排序字段: %s\n", fullTableName, batchSize, orderByField)
+		slog.Debug("开始分批获取数据", "table", fullTableName, "batchSize", batchSize, "orderByField", orderByField)
 	} else {
 		orderByClause = "" // 没有主键时不使用排序
-		fmt.Printf("[DEBUG] 开始分批获取数据，表: %s, 批次大小: %d, 无排序字段\n", fullTableName, batchSize)
+		slog.Debug("开始分批获取数据", "table", fullTableName, "batchSize", batchSize, "orderBy", "无")
 	}
 
 	for {
@@ -238,7 +287,7 @@ func (df *DataFetcher) fetchDataInBatchesWithPrimaryKey(fullTableName string, ba
 			break
 		}
 
-		fmt.Printf("[DEBUG] 获取批次数据 offset: %d, 记录数: %d\n", offset, len(batchRecords))
+		slog.Debug("获取批次数据", "offset", offset, "recordCount", len(batchRecords))
 
 		allRecords = append(allRecords, batchRecords...)
 
@@ -259,7 +308,7 @@ func (df *DataFetcher) fetchDataInBatches(fullTableName string, batchSize int) (
 	var allRecords []map[string]interface{}
 	offset := 0
 
-	fmt.Printf("[DEBUG] 开始分批获取数据，表: %s, 批次大小: %d\n", fullTableName, batchSize)
+	slog.Debug("开始分批获取数据", "table", fullTableName, "batchSize", batchSize)
 
 	for {
 		// 构建分页查询SQL - 注意：这个方法已废弃，应该使用fetchDataInBatchesWithPrimaryKey
@@ -309,7 +358,7 @@ func (df *DataFetcher) fetchDataInBatches(fullTableName string, batchSize int) (
 			break
 		}
 
-		fmt.Printf("[DEBUG] 获取批次数据 offset: %d, 记录数: %d\n", offset, len(batchRecords))
+		slog.Debug("获取批次数据", "offset", offset, "recordCount", len(batchRecords))
 
 		allRecords = append(allRecords, batchRecords...)
 
@@ -366,6 +415,42 @@ func (df *DataFetcher) parseSourceConfigs(request *SyncRequest) ([]SourceLibrary
 					if params, exists := configMap["parameters"]; exists {
 						if paramsMap, ok := params.(map[string]interface{}); ok {
 							config.Parameters = paramsMap
+						}
+					}
+
+					// 解析增量配置 - 关键修复点
+					if incrementalRaw, exists := configMap["incremental_config"]; exists {
+						if incrementalMap, ok := incrementalRaw.(map[string]interface{}); ok {
+							incrementalConfig := &IncrementalConfig{
+								Enabled:            df.getBoolFromMap(incrementalMap, "enabled"),
+								IncrementalField:   df.getStringFromMap(incrementalMap, "incremental_field"),
+								FieldType:          df.getStringFromMap(incrementalMap, "field_type"),
+								CompareOperator:    df.getStringFromMap(incrementalMap, "compare_operator"),
+								LastSyncValue:      df.getStringFromMap(incrementalMap, "last_sync_value"),
+								InitialValue:       df.getStringFromMap(incrementalMap, "initial_value"),
+								MaxLookbackHours:   df.getIntFromMap(incrementalMap, "max_lookback_hours"),
+								CheckDeletedField:  df.getStringFromMap(incrementalMap, "check_deleted_field"),
+								DeletedValue:       df.getStringFromMap(incrementalMap, "deleted_value"),
+								BatchSize:          df.getIntFromMap(incrementalMap, "batch_size"),
+								SyncDeletedRecords: df.getBoolFromMap(incrementalMap, "sync_deleted_records"),
+								TimestampFormat:    df.getStringFromMap(incrementalMap, "timestamp_format"),
+								TimeZone:           df.getStringFromMap(incrementalMap, "timezone"),
+							}
+
+							// 设置默认值
+							if incrementalConfig.CompareOperator == "" {
+								incrementalConfig.CompareOperator = ">"
+							}
+							if incrementalConfig.BatchSize == 0 {
+								incrementalConfig.BatchSize = 1000
+							}
+							if incrementalConfig.TimeZone == "" {
+								incrementalConfig.TimeZone = "Asia/Shanghai"
+							}
+
+							config.IncrementalConfig = incrementalConfig
+							slog.Debug("解析到增量配置", "libraryID", config.LibraryID, "interfaceID", config.InterfaceID,
+								"enabled", incrementalConfig.Enabled, "field", incrementalConfig.IncrementalField)
 						}
 					}
 
@@ -525,9 +610,9 @@ func (df *DataFetcher) fetchIncrementalDataWithPrimaryKey(fullTableName string, 
 	}
 
 	if orderByField != "" {
-		fmt.Printf("[DEBUG] 开始增量同步，表: %s, 增量字段: %s, 排序字段: %s\n", fullTableName, config.IncrementalField, orderByField)
+		slog.Debug("开始增量同步", "table", fullTableName, "incrementalField", config.IncrementalField, "orderByField", orderByField)
 	} else {
-		fmt.Printf("[DEBUG] 开始增量同步，表: %s, 增量字段: %s, 无排序字段\n", fullTableName, config.IncrementalField)
+		slog.Debug("开始增量同步", "table", fullTableName, "incrementalField", config.IncrementalField, "orderBy", "无")
 	}
 
 	// 构建增量查询条件
@@ -597,7 +682,7 @@ func (df *DataFetcher) fetchIncrementalDataWithPrimaryKey(fullTableName string, 
 			break
 		}
 
-		fmt.Printf("[DEBUG] 获取增量批次数据 offset: %d, 记录数: %d\n", offset, len(batchRecords))
+		slog.Debug("获取增量批次数据", "offset", offset, "recordCount", len(batchRecords))
 
 		allRecords = append(allRecords, batchRecords...)
 
@@ -615,7 +700,7 @@ func (df *DataFetcher) fetchIncrementalDataWithPrimaryKey(fullTableName string, 
 
 // fetchIncrementalData 获取增量数据
 func (df *DataFetcher) fetchIncrementalData(fullTableName string, batchSize int, config *IncrementalConfig) ([]map[string]interface{}, error) {
-	fmt.Printf("[DEBUG] 开始增量同步，表: %s, 增量字段: %s\n", fullTableName, config.IncrementalField)
+	slog.Debug("开始增量同步", "table", fullTableName, "incrementalField", config.IncrementalField)
 
 	// 构建增量查询条件
 	whereCondition, err := df.buildIncrementalCondition(config)
@@ -684,7 +769,7 @@ func (df *DataFetcher) fetchIncrementalData(fullTableName string, batchSize int,
 			break
 		}
 
-		fmt.Printf("[DEBUG] 获取增量批次数据 offset: %d, 记录数: %d\n", offset, len(batchRecords))
+		slog.Debug("获取增量批次数据", "offset", offset, "recordCount", len(batchRecords))
 
 		allRecords = append(allRecords, batchRecords...)
 
@@ -705,14 +790,18 @@ func (df *DataFetcher) buildIncrementalCondition(config *IncrementalConfig) (str
 	if config.LastSyncValue == "" {
 		// 首次同步，使用初始值
 		if config.InitialValue != "" {
-			return fmt.Sprintf("%s %s '%s'", config.IncrementalField, config.CompareOperator, config.InitialValue), nil
+			condition := fmt.Sprintf("%s %s '%s'", config.IncrementalField, config.CompareOperator, config.InitialValue)
+			slog.Debug("首次增量同步使用初始值", "condition", condition)
+			return condition, nil
 		}
 		// 没有初始值，返回空条件（获取所有数据）
+		slog.Debug("首次增量同步无初始值，获取所有数据")
 		return "", nil
 	}
 
 	// 构建基础增量条件
 	condition := fmt.Sprintf("%s %s '%s'", config.IncrementalField, config.CompareOperator, config.LastSyncValue)
+	slog.Debug("构建增量查询条件", "condition", condition, "lastSyncValue", config.LastSyncValue)
 
 	// 如果配置了回溯时间，添加回溯条件
 	if config.MaxLookbackHours > 0 && config.FieldType == "timestamp" {
@@ -890,10 +979,10 @@ func (df *DataFetcher) fetchDataFromSQLQueries(sqlConfigs []*SQLQueryConfig, res
 	var sourceRecords []SourceRecordInfo
 
 	for i, sqlConfig := range sqlConfigs {
-		fmt.Printf("[DEBUG] 执行第 %d/%d 个SQL查询\n", i+1, len(sqlConfigs))
+		slog.Debug("执行SQL查询", "index", i+1, "total", len(sqlConfigs))
 
 		// 使用SQL执行器执行查询
-		records, err := df.sqlQueryExecutor.ExecuteQuery(nil, sqlConfig)
+		records, err := df.sqlQueryExecutor.ExecuteQuery(context.TODO(), sqlConfig)
 		if err != nil {
 			return nil, fmt.Errorf("执行SQL查询失败 [查询%d]: %w", i+1, err)
 		}
@@ -917,11 +1006,11 @@ func (df *DataFetcher) fetchDataFromSQLQueries(sqlConfigs []*SQLQueryConfig, res
 			sourceRecords = append(sourceRecords, sourceRecord)
 		}
 
-		fmt.Printf("[DEBUG] SQL查询 %d 返回记录数: %d\n", i+1, len(records))
+		slog.Debug("SQL查询返回记录", "index", i+1, "recordCount", len(records))
 	}
 
 	result.SourceRecordCount = int64(len(sourceRecords))
-	fmt.Printf("[DEBUG] SQL查询模式总记录数: %d\n", len(sourceRecords))
+	slog.Debug("SQL查询模式总记录数", "total", len(sourceRecords))
 
 	return sourceRecords, nil
 }
@@ -939,4 +1028,163 @@ func (df *DataFetcher) generateRecordIDForSQL(queryIndex, recordIndex int, recor
 
 	// 使用索引生成ID
 	return fmt.Sprintf("sql_query_%d_record_%d", queryIndex, recordIndex)
+}
+
+// getBoolFromMap 从map中获取布尔值
+func (df *DataFetcher) getBoolFromMap(m map[string]interface{}, key string) bool {
+	if value, exists := m[key]; exists {
+		if boolVal, ok := value.(bool); ok {
+			return boolVal
+		}
+		// 尝试从字符串转换
+		strVal := fmt.Sprintf("%v", value)
+		return strVal == "true" || strVal == "1" || strVal == "yes"
+	}
+	return false
+}
+
+// getIntFromMap 从map中获取整数值
+func (df *DataFetcher) getIntFromMap(m map[string]interface{}, key string) int {
+	if value, exists := m[key]; exists {
+		if intVal, ok := value.(int); ok {
+			return intVal
+		}
+		if floatVal, ok := value.(float64); ok {
+			return int(floatVal)
+		}
+		// 尝试从字符串转换
+		strVal := fmt.Sprintf("%v", value)
+		var result int
+		if _, err := fmt.Sscanf(strVal, "%d", &result); err == nil {
+			return result
+		}
+	}
+	return 0
+}
+
+// queryMaxIncrementalValueFromThematicTable 从主题表查询增量字段的最大值
+// sourceIncrementalField: 基础表中的增量字段名
+// 返回: 主题表中对应字段的最大值
+func (df *DataFetcher) queryMaxIncrementalValueFromThematicTable(thematicInterfaceID, sourceIncrementalField string, fieldMappingRules interface{}) (string, error) {
+	// 获取主题接口信息
+	var thematicInterface models.ThematicInterface
+	if err := df.db.Preload("ThematicLibrary").First(&thematicInterface, "id = ?", thematicInterfaceID).Error; err != nil {
+		return "", fmt.Errorf("获取主题接口信息失败: %w", err)
+	}
+
+	// 验证主题库信息
+	if thematicInterface.ThematicLibrary.NameEn == "" {
+		return "", fmt.Errorf("主题库英文名为空")
+	}
+	if thematicInterface.NameEn == "" {
+		return "", fmt.Errorf("主题接口英文名为空")
+	}
+
+	// 构建主题表名：主题库的name_en作为schema，主题接口的name_en作为表名
+	schema := thematicInterface.ThematicLibrary.NameEn
+	tableName := thematicInterface.NameEn
+	fullTableName := fmt.Sprintf("\"%s\".\"%s\"", schema, tableName)
+
+	// 根据字段映射规则找到主题表中的对应字段名
+	targetFieldName := df.findTargetFieldByMapping(sourceIncrementalField, fieldMappingRules)
+	if targetFieldName == "" {
+		// 如果没有找到映射，尝试直接使用源字段名
+		targetFieldName = sourceIncrementalField
+		slog.Debug("未找到字段映射，使用源字段名", "sourceField", sourceIncrementalField, "targetField", targetFieldName)
+	} else {
+		slog.Debug("找到字段映射", "sourceField", sourceIncrementalField, "targetField", targetFieldName)
+	}
+
+	// 检查目标字段是否存在于主题接口配置中
+	fieldExists := false
+	if len(thematicInterface.TableFieldsConfig) > 0 {
+		for _, fieldConfig := range thematicInterface.TableFieldsConfig {
+			if fieldConfig.(map[string]interface{})["name_en"] == targetFieldName {
+				fieldExists = true
+				break
+			}
+		}
+
+	}
+
+	if !fieldExists {
+		slog.Warn("目标字段不存在于主题接口配置中", "targetField", targetFieldName, "interfaceID", thematicInterfaceID)
+		// 仍然尝试查询，以防字段配置不完整但表中存在该字段
+	}
+
+	// 构建查询SQL，获取增量字段的最大值
+	sql := fmt.Sprintf("SELECT MAX(\"%s\") as max_value FROM %s", targetFieldName, fullTableName)
+	slog.Debug("查询主题表增量最大值", "sql", sql, "sourceField", sourceIncrementalField, "targetField", targetFieldName)
+
+	// 执行查询，直接使用string类型接收
+	var maxValue string
+	row := df.db.Raw(sql).Row()
+	if err := row.Scan(&maxValue); err != nil {
+		// 如果扫描失败，可能是NULL值或其他错误
+		if err.Error() == "sql: Scan error on column index 0, name \"max_value\": converting NULL to string is unsupported" {
+			slog.Debug("主题表为空或字段值全为NULL", "table", fullTableName, "field", targetFieldName)
+			return "", nil
+		}
+		return "", fmt.Errorf("查询增量最大值失败: %w", err)
+	}
+
+	// 处理空值
+	if maxValue == "" {
+		slog.Debug("主题表为空或字段值全为NULL", "table", fullTableName, "field", targetFieldName)
+		return "", nil
+	}
+
+	slog.Debug("查询到增量最大值", "table", fullTableName, "sourceField", sourceIncrementalField, "targetField", targetFieldName, "maxValue", maxValue)
+	return maxValue, nil
+}
+
+// findTargetFieldByMapping 根据字段映射规则查找目标字段名
+func (df *DataFetcher) findTargetFieldByMapping(sourceField string, fieldMappingRules interface{}) string {
+	if fieldMappingRules == nil {
+		slog.Debug("字段映射规则为空", "sourceField", sourceField)
+		return ""
+	}
+
+	slog.Debug("开始查找字段映射", "sourceField", sourceField, "rulesType", fmt.Sprintf("%T", fieldMappingRules))
+
+	// models.JSONB 实际上是 map[string]interface{} 的别名
+	// 需要先转换为 map[string]interface{}
+	var rulesMap map[string]interface{}
+
+	// 尝试直接转换为 map[string]interface{}
+	if rm, ok := fieldMappingRules.(map[string]interface{}); ok {
+		rulesMap = rm
+	} else if jsonb, ok := fieldMappingRules.(models.JSONB); ok {
+		// models.JSONB 类型
+		rulesMap = map[string]interface{}(jsonb)
+	} else {
+		slog.Debug("字段映射规则类型不支持", "type", fmt.Sprintf("%T", fieldMappingRules))
+		return ""
+	}
+
+	// 解析 FieldMappingRules 结构
+	if mappings, exists := rulesMap["mappings"]; exists {
+		slog.Debug("找到mappings配置", "mappingsType", fmt.Sprintf("%T", mappings))
+		if mappingSlice, ok := mappings.([]interface{}); ok {
+			slog.Debug("mappings是数组", "length", len(mappingSlice))
+			for i, mapping := range mappingSlice {
+				if mappingMap, ok := mapping.(map[string]interface{}); ok {
+					src := df.getStringFromMap(mappingMap, "source_field")
+					target := df.getStringFromMap(mappingMap, "target_field")
+					slog.Debug("检查映射", "index", i, "sourceField", src, "targetField", target, "匹配", src == sourceField)
+					if src == sourceField {
+						slog.Debug("找到字段映射", "sourceField", sourceField, "targetField", target)
+						return target
+					}
+				}
+			}
+		} else {
+			slog.Debug("mappings不是数组类型", "type", fmt.Sprintf("%T", mappings))
+		}
+	} else {
+		slog.Debug("mappings配置不存在")
+	}
+
+	slog.Debug("未找到字段映射", "sourceField", sourceField)
+	return ""
 }

@@ -14,6 +14,7 @@ package controllers
 import (
 	"datahub-service/service"
 	"datahub-service/service/basic_library"
+	"datahub-service/service/database"
 	"datahub-service/service/models"
 	"net/http"
 	"strconv"
@@ -693,6 +694,34 @@ func (c *BasicLibraryController) GetDataSourceList(w http.ResponseWriter, r *htt
 	render.JSON(w, r, SuccessResponse("获取数据源列表成功", response))
 }
 
+// GetDataInterface 获取数据接口详情
+// @Summary 获取数据接口详情
+// @Description 根据ID获取数据接口详细信息，自动同步数据库实际字段到配置
+// @Tags 数据基础库
+// @Produce json
+// @Param id path string true "接口ID" example:"550e8400-e29b-41d4-a716-446655440000"
+// @Success 200 {object} APIResponse{data=models.DataInterface} "获取成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 404 {object} APIResponse "接口不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /basic-libraries/interfaces/{id} [get]
+func (c *BasicLibraryController) GetDataInterface(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	// 获取接口详情（包含字段同步）
+	interfaceData, err := c.service.GetDataInterfaceWithSync(id)
+	if err != nil {
+		render.JSON(w, r, NotFoundResponse("数据接口不存在", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取数据接口详情成功", interfaceData))
+}
+
 // GetDataInterfaceList 获取数据接口列表
 // @Summary 获取数据接口列表
 // @Description 分页获取数据接口列表，支持多种过滤条件
@@ -992,4 +1021,221 @@ func (c *BasicLibraryController) ImportCSV(w http.ResponseWriter, r *http.Reques
 	}
 
 	render.JSON(w, r, SuccessResponse("CSV导入完成", result))
+}
+
+// TableColumnsResponse 表字段响应结构
+type TableColumnsResponse struct {
+	List []database.ColumnDefinition `json:"list"`
+}
+
+// GetInterfaceTableColumns 获取接口表的字段信息
+// @Summary 获取接口表字段
+// @Description 从数据库动态获取接口对应表的字段信息，包含字段名、类型、约束等完整信息
+// @Tags 数据基础库
+// @Produce json
+// @Param id path string true "接口ID" example:"550e8400-e29b-41d4-a716-446655440000"
+// @Success 200 {object} APIResponse{data=[]database.ColumnDefinition} "返回表字段列表"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /basic-libraries/interfaces/{id}/table-columns [get]
+func (c *BasicLibraryController) GetInterfaceTableColumns(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	// 获取接口信息
+	interfaceData, err := c.service.GetDataInterface(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取接口信息失败", err))
+		return
+	}
+
+	// 检查表是否已创建
+	if !interfaceData.IsTableCreated {
+		render.JSON(w, r, BadRequestResponse("接口表尚未创建", nil))
+		return
+	}
+
+	// 从数据库获取表字段信息
+	schemaService := c.service.GetInterfaceService().GetSchemaService()
+	columns, err := schemaService.GetTableColumns(interfaceData.BasicLibrary.NameEn, interfaceData.NameEn)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取表字段信息失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取表字段信息成功", columns))
+}
+
+// TableIndexesResponse 表索引响应结构
+type TableIndexesResponse struct {
+	List []database.IndexDefinition `json:"list"`
+}
+
+// GetInterfaceTableIndexes 获取接口表的索引信息
+// @Summary 获取接口表索引
+// @Description 从数据库获取接口对应表的索引信息，包含索引名称、类型、包含的列等
+// @Tags 数据基础库
+// @Produce json
+// @Param id path string true "接口ID" example:"550e8400-e29b-41d4-a716-446655440000"
+// @Success 200 {object} APIResponse{data=[]database.IndexDefinition} "返回索引列表"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /basic-libraries/interfaces/{id}/table-indexes [get]
+func (c *BasicLibraryController) GetInterfaceTableIndexes(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	// 获取接口信息
+	interfaceData, err := c.service.GetDataInterface(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取接口信息失败", err))
+		return
+	}
+
+	// 检查表是否已创建
+	if !interfaceData.IsTableCreated {
+		render.JSON(w, r, BadRequestResponse("接口表尚未创建", nil))
+		return
+	}
+
+	// 从数据库获取索引信息
+	schemaService := c.service.GetInterfaceService().GetSchemaService()
+	indexes, err := schemaService.GetTableIndexes(interfaceData.BasicLibrary.NameEn, interfaceData.NameEn)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取索引信息失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取索引信息成功", indexes))
+}
+
+// CreateInterfaceTableIndexRequest 创建索引请求结构
+type CreateInterfaceTableIndexRequest struct {
+	InterfaceID string   `json:"interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	IndexName   string   `json:"index_name" validate:"required" example:"idx_user_email"`
+	Columns     []string `json:"columns" validate:"required" example:"email,created_at"`
+	IsUnique    bool     `json:"is_unique" example:"false"`
+	IndexType   string   `json:"index_type" example:"btree"` // btree, hash, gin, gist, etc.
+}
+
+// CreateInterfaceTableIndex 为接口表创建索引
+// @Summary 创建接口表索引
+// @Description 为接口对应的数据表创建索引，支持普通索引、唯一索引，支持多种索引类型（btree、hash、gin、gist等）
+// @Tags 数据基础库
+// @Accept json
+// @Produce json
+// @Param request body CreateInterfaceTableIndexRequest true "创建索引请求"
+// @Success 200 {object} APIResponse{data=nil} "创建成功"
+// @Failure 400 {object} APIResponse "请求参数错误或表未创建"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /basic-libraries/interfaces/create-table-index [post]
+func (c *BasicLibraryController) CreateInterfaceTableIndex(w http.ResponseWriter, r *http.Request) {
+	var req CreateInterfaceTableIndexRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.InterfaceID == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	if req.IndexName == "" {
+		render.JSON(w, r, BadRequestResponse("索引名称不能为空", nil))
+		return
+	}
+
+	if len(req.Columns) == 0 {
+		render.JSON(w, r, BadRequestResponse("索引列不能为空", nil))
+		return
+	}
+
+	// 获取接口信息
+	interfaceData, err := c.service.GetDataInterface(req.InterfaceID)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取接口信息失败", err))
+		return
+	}
+
+	// 检查表是否已创建
+	if !interfaceData.IsTableCreated {
+		render.JSON(w, r, BadRequestResponse("接口表尚未创建", nil))
+		return
+	}
+
+	// 创建索引
+	schemaService := c.service.GetInterfaceService().GetSchemaService()
+	err = schemaService.CreateIndex(
+		interfaceData.BasicLibrary.NameEn,
+		interfaceData.NameEn,
+		req.IndexName,
+		req.Columns,
+		req.IsUnique,
+		req.IndexType,
+	)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("创建索引失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("创建索引成功", nil))
+}
+
+// DropInterfaceTableIndexRequest 删除索引请求结构
+type DropInterfaceTableIndexRequest struct {
+	InterfaceID string `json:"interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	IndexName   string `json:"index_name" validate:"required" example:"idx_user_email"`
+}
+
+// DropInterfaceTableIndex 删除接口表索引
+// @Summary 删除接口表索引
+// @Description 删除接口对应数据表的指定索引
+// @Tags 数据基础库
+// @Accept json
+// @Produce json
+// @Param request body DropInterfaceTableIndexRequest true "删除索引请求"
+// @Success 200 {object} APIResponse{data=nil} "删除成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /basic-libraries/interfaces/drop-table-index [post]
+func (c *BasicLibraryController) DropInterfaceTableIndex(w http.ResponseWriter, r *http.Request) {
+	var req DropInterfaceTableIndexRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.InterfaceID == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	if req.IndexName == "" {
+		render.JSON(w, r, BadRequestResponse("索引名称不能为空", nil))
+		return
+	}
+
+	// 获取接口信息
+	interfaceData, err := c.service.GetDataInterface(req.InterfaceID)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取接口信息失败", err))
+		return
+	}
+
+	// 删除索引
+	schemaService := c.service.GetInterfaceService().GetSchemaService()
+	err = schemaService.DropIndex(interfaceData.BasicLibrary.NameEn, req.IndexName)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("删除索引失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("删除索引成功", nil))
 }

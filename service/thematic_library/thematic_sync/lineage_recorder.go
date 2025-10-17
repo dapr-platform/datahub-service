@@ -14,6 +14,7 @@ package thematic_sync
 import (
 	"datahub-service/service/models"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,7 +36,7 @@ func (lr *LineageRecorder) RecordLineage(sourceRecords []SourceRecordInfo, proce
 	// 获取目标主题接口的主键字段
 	targetPrimaryKeys, err := lr.getThematicPrimaryKeyFields(request.TargetInterfaceID)
 	if err != nil {
-		fmt.Printf("[DEBUG] 获取目标主键字段失败: %v, 不使用排序\n", err)
+		slog.Debug("获取目标主键字段失败，不使用排序", "error", err)
 		targetPrimaryKeys = []string{}
 	}
 

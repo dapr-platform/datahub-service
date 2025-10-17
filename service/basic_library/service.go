@@ -17,7 +17,7 @@ import (
 	"datahub-service/service/models"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"gorm.io/gorm"
 )
@@ -56,7 +56,7 @@ func NewService(db *gorm.DB, eventListener models.EventListener) *Service {
 
 // ProcessDBChangeEvent 处理数据库变更事件
 func (s *Service) ProcessDBChangeEvent(changeData map[string]interface{}) error {
-	log.Println("ProcessDBChangeEvent", changeData)
+	slog.Debug("ProcessDBChangeEvent", "change_data", changeData)
 	// 根据事件类型获取 schema 名称
 	switch changeData["type"] {
 	case "INSERT":
@@ -66,14 +66,14 @@ func (s *Service) ProcessDBChangeEvent(changeData map[string]interface{}) error 
 				schemaName := nameEn.(string)
 				err := database.CreateSchema(s.db, schemaName)
 				if err != nil {
-					log.Println("CreateSchema error", err)
+					slog.Error("CreateSchema error", "error", err)
 					return err
 				}
 			} else if code, exists := newData["code"]; exists {
 				schemaName := code.(string)
 				err := database.CreateSchema(s.db, schemaName)
 				if err != nil {
-					log.Println("CreateSchema error", err)
+					slog.Error("CreateSchema error", "error", err)
 					return err
 				}
 			}
@@ -86,14 +86,14 @@ func (s *Service) ProcessDBChangeEvent(changeData map[string]interface{}) error 
 				schemaName := nameEn.(string)
 				err := database.DeleteSchema(s.db, schemaName)
 				if err != nil {
-					log.Println("DeleteSchema error", err)
+					slog.Error("DeleteSchema error", "error", err)
 					return err
 				}
 			} else if code, exists := oldData["code"]; exists {
 				schemaName := code.(string)
 				err := database.DeleteSchema(s.db, schemaName)
 				if err != nil {
-					log.Println("DeleteSchema error", err)
+					slog.Error("DeleteSchema error", "error", err)
 					return err
 				}
 			}
@@ -256,7 +256,7 @@ func (s *Service) GetDataInterfaceList(page, pageSize int, libraryID, dataSource
 	// 分页查询，预加载关联数据
 	offset := (page - 1) * pageSize
 	err := query.Preload("BasicLibrary").Preload("DataSource").
-		Preload("Fields").Preload("CleanRules").
+		Preload("CleanRules").
 		Order("created_at DESC").
 		Offset(offset).Limit(pageSize).Find(&interfaces).Error
 
@@ -331,6 +331,11 @@ func (s *Service) DeleteDataInterface(interfaceData *models.DataInterface) error
 // GetDataInterface 获取数据接口详情
 func (s *Service) GetDataInterface(id string) (*models.DataInterface, error) {
 	return s.interfaceService.GetDataInterface(id)
+}
+
+// GetDataInterfaceWithSync 获取数据接口详情并同步字段配置
+func (s *Service) GetDataInterfaceWithSync(id string) (*models.DataInterface, error) {
+	return s.interfaceService.GetDataInterfaceWithSync(id)
 }
 
 // GetDataInterfaces 获取数据接口列表

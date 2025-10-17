@@ -12,9 +12,9 @@
 package thematic_sync
 
 import (
-	"log/slog"
 	"datahub-service/service/models"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -66,7 +66,7 @@ func (fm *FieldMapper) ApplyFieldMapping(
 	// 解析字段映射规则
 	mappingRules, err := fm.parseFieldMappingRules(fieldMappingRules)
 	if err != nil {
-		fmt.Printf("[DEBUG] 解析字段映射规则失败: %v，使用默认映射\n", err)
+		slog.Debug("解析字段映射规则失败，使用默认映射", "error", err)
 		mappingRules = nil
 	}
 
@@ -75,14 +75,13 @@ func (fm *FieldMapper) ApplyFieldMapping(
 	for i, sourceRecord := range sourceRecords {
 		mappedRecord, err := fm.mapSingleRecord(sourceRecord, targetFields, mappingRules)
 		if err != nil {
-			fmt.Printf("[WARNING] 映射记录 %d 失败: %v\n", i, err)
+			slog.Warn("映射记录失败", "index", i, "error", err)
 			continue
 		}
 		mappedRecords = append(mappedRecords, mappedRecord)
 	}
 
-	fmt.Printf("[DEBUG] 字段映射完成，源记录数: %d，映射后记录数: %d\n",
-		len(sourceRecords), len(mappedRecords))
+	slog.Debug("字段映射完成", "sourceCount", len(sourceRecords), "mappedCount", len(mappedRecords))
 
 	return mappedRecords, nil
 }
@@ -121,10 +120,9 @@ func (fm *FieldMapper) getTargetFieldsConfig(targetInterfaceID string) (map[stri
 		}
 	}
 
-	slog.Debug("获取目标字段配置，字段数", "count", len(targetFields))
+	slog.Debug("获取目标字段配置", "count", len(targetFields))
 	for fieldName, fieldInfo := range targetFields {
-		fmt.Printf("[DEBUG] 目标字段: %s (类型: %s, 主键: %v, 可空: %v)\n",
-			fieldName, fieldInfo.DataType, fieldInfo.IsPrimaryKey, fieldInfo.IsNullable)
+		slog.Debug("目标字段", "field", fieldName, "dataType", fieldInfo.DataType, "isPrimaryKey", fieldInfo.IsPrimaryKey, "isNullable", fieldInfo.IsNullable)
 	}
 
 	return targetFields, nil
@@ -168,9 +166,9 @@ func (fm *FieldMapper) parseFieldMappingRules(fieldMappingRules interface{}) (ma
 		}
 	}
 
-	slog.Debug("解析字段映射规则，规则数", "count", len(mappingRules))
+	slog.Debug("解析字段映射规则", "count", len(mappingRules))
 	for source, target := range mappingRules {
-		fmt.Printf("[DEBUG] 映射规则: %s -> %s\n", source, target)
+		slog.Debug("映射规则", "source", source, "target", target)
 	}
 
 	return mappingRules, nil
@@ -230,7 +228,7 @@ func (fm *FieldMapper) mapSingleRecord(
 				if defaultValue != nil {
 					value = defaultValue
 					found = true
-					slog.Debug("为必需字段 %s 使用系统默认值", "value", targetFieldName, defaultValue)
+					slog.Debug("为必需字段使用系统默认值", "field", targetFieldName, "value", defaultValue)
 				} else {
 					// 无法提供默认值的必需字段
 					missingFields = append(missingFields, targetFieldName)
@@ -245,7 +243,7 @@ func (fm *FieldMapper) mapSingleRecord(
 		// 5. 数据类型转换
 		convertedValue, err := fm.convertFieldValue(value, targetFieldInfo.DataType)
 		if err != nil {
-			fmt.Printf("[WARNING] 字段 %s 类型转换失败: %v，使用原值\n", targetFieldName, err)
+			slog.Warn("字段类型转换失败，使用原值", "field", targetFieldName, "error", err)
 			convertedValue = value
 		}
 

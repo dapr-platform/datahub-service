@@ -909,7 +909,180 @@ const docTemplate = `{
                 }
             }
         },
+        "/basic-libraries/interfaces/create-table-index": {
+            "post": {
+                "description": "为接口对应的数据表创建索引，支持普通索引、唯一索引，支持多种索引类型（btree、hash、gin、gist等）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "创建接口表索引",
+                "parameters": [
+                    {
+                        "description": "创建索引请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.CreateInterfaceTableIndexRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误或表未创建",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-libraries/interfaces/drop-table-index": {
+            "post": {
+                "description": "删除接口对应数据表的指定索引",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "删除接口表索引",
+                "parameters": [
+                    {
+                        "description": "删除索引请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.DropInterfaceTableIndexRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/basic-libraries/interfaces/{id}": {
+            "get": {
+                "description": "根据ID获取数据接口详细信息，自动同步数据库实际字段到配置",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "获取数据接口详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.DataInterface"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "接口不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
             "delete": {
                 "description": "删除数据接口",
                 "produces": [
@@ -943,6 +1116,118 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-libraries/interfaces/{id}/table-columns": {
+            "get": {
+                "description": "从数据库动态获取接口对应表的字段信息，包含字段名、类型、约束等完整信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "获取接口表字段",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "返回表字段列表",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/database.ColumnDefinition"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-libraries/interfaces/{id}/table-indexes": {
+            "get": {
+                "description": "从数据库获取接口对应表的索引信息，包含索引名称、类型、包含的列等",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据基础库"
+                ],
+                "summary": "获取接口表索引",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "返回索引列表",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/database.IndexDefinition"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -8676,6 +8961,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/thematic-interfaces/create-table-index": {
+            "post": {
+                "description": "为主题接口对应的数据表创建索引，支持普通索引、唯一索引，支持多种索引类型（btree、hash、gin、gist等），视图类型不支持",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题接口"
+                ],
+                "summary": "创建主题接口表索引",
+                "parameters": [
+                    {
+                        "description": "创建索引请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.CreateThematicInterfaceTableIndexRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误、视图类型不支持或表未创建",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/thematic-interfaces/create-view": {
             "post": {
                 "description": "为主题接口创建数据库视图，支持CREATE OR REPLACE VIEW语法",
@@ -8715,6 +9058,64 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-interfaces/drop-table-index": {
+            "post": {
+                "description": "删除主题接口对应数据表的指定索引",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题接口"
+                ],
+                "summary": "删除主题接口表索引",
+                "parameters": [
+                    {
+                        "description": "删除索引请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.DropThematicInterfaceTableIndexRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -8816,7 +9217,7 @@ const docTemplate = `{
         },
         "/thematic-interfaces/{id}": {
             "get": {
-                "description": "根据ID获取主题接口详细信息",
+                "description": "根据ID获取主题接口详细信息，自动同步数据库实际字段到配置",
                 "produces": [
                     "application/json"
                 ],
@@ -8835,7 +9236,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "获取成功",
                         "schema": {
                             "allOf": [
                                 {
@@ -8852,14 +9253,20 @@ const docTemplate = `{
                             ]
                         }
                     },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
                     "404": {
-                        "description": "Not Found",
+                        "description": "主题接口不存在",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "服务器内部错误",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -9009,6 +9416,118 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-interfaces/{id}/table-columns": {
+            "get": {
+                "description": "从数据库动态获取主题接口对应表或视图的字段信息，包含字段名、类型、约束等完整信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题接口"
+                ],
+                "summary": "获取主题接口表字段",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "主题接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "返回表字段列表",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/database.ColumnDefinition"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误或表未创建",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/thematic-interfaces/{id}/table-indexes": {
+            "get": {
+                "description": "从数据库获取主题接口对应表的索引信息，包含索引名称、类型、包含的列等（视图类型不支持）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "主题接口"
+                ],
+                "summary": "获取主题接口表索引",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "主题接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "返回索引列表",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/database.IndexDefinition"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误、表未创建或视图类型不支持",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -10566,6 +11085,80 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.CreateInterfaceTableIndexRequest": {
+            "type": "object",
+            "required": [
+                "columns",
+                "index_name",
+                "interface_id"
+            ],
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "email",
+                        "created_at"
+                    ]
+                },
+                "index_name": {
+                    "type": "string",
+                    "example": "idx_user_email"
+                },
+                "index_type": {
+                    "description": "btree, hash, gin, gist, etc.",
+                    "type": "string",
+                    "example": "btree"
+                },
+                "interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "is_unique": {
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
+        "controllers.CreateThematicInterfaceTableIndexRequest": {
+            "type": "object",
+            "required": [
+                "columns",
+                "index_name",
+                "interface_id"
+            ],
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "order_id",
+                        "created_at"
+                    ]
+                },
+                "index_name": {
+                    "type": "string",
+                    "example": "idx_order_created_at"
+                },
+                "index_type": {
+                    "description": "btree, hash, gin, gist, etc.",
+                    "type": "string",
+                    "example": "btree"
+                },
+                "interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "is_unique": {
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
         "controllers.CreateThematicInterfaceViewRequest": {
             "type": "object",
             "required": [
@@ -11082,6 +11675,40 @@ const docTemplate = `{
                 },
                 "domain": {
                     "type": "string"
+                }
+            }
+        },
+        "controllers.DropInterfaceTableIndexRequest": {
+            "type": "object",
+            "required": [
+                "index_name",
+                "interface_id"
+            ],
+            "properties": {
+                "index_name": {
+                    "type": "string",
+                    "example": "idx_user_email"
+                },
+                "interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                }
+            }
+        },
+        "controllers.DropThematicInterfaceTableIndexRequest": {
+            "type": "object",
+            "required": [
+                "index_name",
+                "interface_id"
+            ],
+            "properties": {
+                "index_name": {
+                    "type": "string",
+                    "example": "idx_order_created_at"
+                },
+                "interface_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 }
             }
         },
@@ -12458,6 +13085,70 @@ const docTemplate = `{
                 },
                 "operations": {
                     "type": "integer"
+                }
+            }
+        },
+        "database.ColumnDefinition": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "data_type": {
+                    "type": "string"
+                },
+                "default_value": {},
+                "is_nullable": {
+                    "type": "boolean"
+                },
+                "is_primary_key": {
+                    "type": "boolean"
+                },
+                "is_unique": {
+                    "type": "boolean"
+                },
+                "max_length": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "numeric_precision": {
+                    "type": "integer"
+                },
+                "numeric_scale": {
+                    "type": "integer"
+                },
+                "ordinal_position": {
+                    "type": "integer"
+                }
+            }
+        },
+        "database.IndexDefinition": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "definition": {
+                    "description": "索引定义SQL",
+                    "type": "string"
+                },
+                "index_type": {
+                    "description": "btree, hash, gist, gin, etc.",
+                    "type": "string"
+                },
+                "is_primary": {
+                    "type": "boolean"
+                },
+                "is_unique": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -15735,12 +16426,6 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "fields": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.InterfaceField"
-                    }
-                },
                 "id": {
                     "type": "string"
                 },
@@ -15922,63 +16607,6 @@ const docTemplate = `{
                 "subscriber_type": {
                     "description": "user/application",
                     "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.InterfaceField": {
-            "type": "object",
-            "properties": {
-                "check_constraint": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "data_type": {
-                    "type": "string"
-                },
-                "default_value": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "interface_id": {
-                    "type": "string"
-                },
-                "is_increment_field": {
-                    "description": "是否为增量字段，增量更新时根据这个字段判断条件",
-                    "type": "boolean"
-                },
-                "is_nullable": {
-                    "type": "boolean"
-                },
-                "is_primary_key": {
-                    "type": "boolean"
-                },
-                "is_unique": {
-                    "type": "boolean"
-                },
-                "name_en": {
-                    "type": "string"
-                },
-                "name_zh": {
-                    "type": "string"
-                },
-                "order_num": {
-                    "type": "integer"
                 },
                 "updated_at": {
                     "type": "string"
@@ -17763,7 +18391,26 @@ const docTemplate = `{
                     }
                 },
                 "schedule_config": {
-                    "$ref": "#/definitions/thematic_library.ScheduleConfig"
+                    "description": "调度和规则配置",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/thematic_library.ScheduleConfig"
+                        }
+                    ]
+                },
+                "source_libraries": {
+                    "description": "数据源配置 - 两种模式二选一\n模式1: 接口模式 - 从基础库的数据接口获取数据",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.SourceLibraryConfig"
+                    }
+                },
+                "sql_queries": {
+                    "description": "模式2: SQL模式 - 直接执行SQL查询获取数据（优先级更高）",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/thematic_library.SQLQueryConfig"
+                    }
                 },
                 "status": {
                     "type": "string"

@@ -48,9 +48,18 @@ type CreateThematicSyncTaskRequest struct {
 
 // UpdateThematicSyncTaskRequest 更新主题同步任务请求
 type UpdateThematicSyncTaskRequest struct {
-	TaskName          string             `json:"task_name"`
-	Description       string             `json:"description"`
-	Status            string             `json:"status"`
+	TaskName    string `json:"task_name"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+
+	// 数据源配置 - 两种模式二选一
+	// 模式1: 接口模式 - 从基础库的数据接口获取数据
+	SourceLibraries []SourceLibraryConfig `json:"source_libraries,omitempty"`
+
+	// 模式2: SQL模式 - 直接执行SQL查询获取数据（优先级更高）
+	SQLQueries []SQLQueryConfig `json:"sql_queries,omitempty"`
+
+	// 调度和规则配置
 	ScheduleConfig    *ScheduleConfig    `json:"schedule_config,omitempty"`
 	KeyMatchingRules  *KeyMatchingRules  `json:"key_matching_rules,omitempty"`
 	FieldMappingRules *FieldMappingRules `json:"field_mapping_rules,omitempty"`

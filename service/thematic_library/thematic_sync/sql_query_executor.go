@@ -14,6 +14,7 @@ package thematic_sync
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -65,9 +66,7 @@ func (sqe *SQLQueryExecutor) ExecuteQuery(ctx context.Context, config *SQLQueryC
 	}
 
 	// 执行查询
-	fmt.Printf("[DEBUG] 执行SQL查询: %s\n", sqlQuery)
-	fmt.Printf("[DEBUG] 查询参数: %v\n", args)
-	fmt.Printf("[DEBUG] 超时时间: %d秒, 最大行数: %d\n", timeout, maxRows)
+	slog.Debug("执行SQL查询", "sql", sqlQuery, "args", args, "timeout", timeout, "maxRows", maxRows)
 
 	// 使用GORM执行原始SQL查询
 	var results []map[string]interface{}
@@ -95,7 +94,7 @@ func (sqe *SQLQueryExecutor) ExecuteQuery(ctx context.Context, config *SQLQueryC
 	for rows.Next() {
 		// 检查是否已达到最大行数
 		if len(results) >= maxRows {
-			fmt.Printf("[WARNING] 查询结果超过最大行数限制(%d)，停止获取\n", maxRows)
+			slog.Warn("查询结果超过最大行数限制，停止获取", "maxRows", maxRows)
 			break
 		}
 
@@ -124,7 +123,7 @@ func (sqe *SQLQueryExecutor) ExecuteQuery(ctx context.Context, config *SQLQueryC
 		return nil, fmt.Errorf("遍历结果集失败: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] SQL查询完成，返回记录数: %d\n", len(results))
+	slog.Debug("SQL查询完成", "recordCount", len(results))
 
 	return results, nil
 }
@@ -135,7 +134,7 @@ func (sqe *SQLQueryExecutor) ExecuteMultipleQueries(ctx context.Context, configs
 	var allResults []map[string]interface{}
 
 	for i, config := range configs {
-		fmt.Printf("[DEBUG] 执行第 %d/%d 个SQL查询\n", i+1, len(configs))
+		slog.Debug("执行SQL查询", "index", i+1, "total", len(configs))
 
 		results, err := sqe.ExecuteQuery(ctx, config)
 		if err != nil {
@@ -145,7 +144,7 @@ func (sqe *SQLQueryExecutor) ExecuteMultipleQueries(ctx context.Context, configs
 		allResults = append(allResults, results...)
 	}
 
-	fmt.Printf("[DEBUG] 多个SQL查询完成，总记录数: %d\n", len(allResults))
+	slog.Debug("多个SQL查询完成", "totalRecords", len(allResults))
 
 	return allResults, nil
 }

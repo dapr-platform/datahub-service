@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"log/slog"
 )
 
 // PostgRESTClient PostgREST HTTP客户端
@@ -186,7 +187,7 @@ func (c *PostgRESTClient) getInitialToken() error {
 	}
 
 	if !tokenResp.Success {
-		fmt.Printf("Token获取失败: 服务器返回success=false, 响应: %v", tokenResp)
+		slog.Error("Token获取失败: 服务器返回success=false, 响应: %v", tokenResp)
 		return fmt.Errorf("Token获取失败: 服务器返回success=false")
 	}
 

@@ -13,7 +13,7 @@ package thematic_sync
 
 import (
 	"datahub-service/service/models"
-	"fmt"
+	"log/slog"
 	"testing"
 
 	"gorm.io/gorm"
@@ -175,10 +175,8 @@ func TestFieldMapping(t *testing.T) {
 		t.Errorf("第二条记录不应该包含字段: address")
 	}
 
-	fmt.Printf("字段映射测试通过！\n")
-	fmt.Printf("源记录数: %d，映射后记录数: %d\n", len(sourceRecords), len(mappedRecords))
-	fmt.Printf("映射后记录1: %+v\n", record1)
-	fmt.Printf("映射后记录2: %+v\n", record2)
+	slog.Info("字段映射测试通过", "sourceCount", len(sourceRecords), "mappedCount", len(mappedRecords))
+	slog.Debug("映射后记录", "record1", record1, "record2", record2)
 }
 
 // TestFieldMappingWithEmptySource 测试空源数据的字段映射
@@ -210,7 +208,7 @@ func TestFieldMappingWithEmptySource(t *testing.T) {
 		t.Errorf("期望映射后记录数为0，实际为%d", len(mappedRecords))
 	}
 
-	fmt.Printf("空源数据字段映射测试通过！\n")
+	slog.Info("空源数据字段映射测试通过")
 }
 
 // TestFieldMappingWithMissingFields 测试缺少字段的字段映射
@@ -262,5 +260,5 @@ func TestFieldMappingWithMissingFields(t *testing.T) {
 		t.Errorf("name字段不应该存在")
 	}
 
-	fmt.Printf("缺少字段的字段映射测试通过！\n")
+	slog.Info("缺少字段的字段映射测试通过")
 }

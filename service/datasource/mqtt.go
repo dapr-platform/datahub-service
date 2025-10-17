@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"log/slog"
 
 	"datahub-service/service/models"
 
@@ -283,13 +284,13 @@ func (m *MQTTDataSource) Start(ctx context.Context) error {
 		if token := m.client.Subscribe(topic, m.qos, m.messageHandler); token.Wait() && token.Error() != nil {
 			return fmt.Errorf("订阅主题 %s 失败: %v", topic, token.Error())
 		}
-		fmt.Printf("MQTT数据源已订阅主题: %s\n", topic)
+		slog.Info("MQTT数据源已订阅主题: %s\n", topic)
 	}
 
 	// 启动消息处理协程
 	go m.processMessages()
 
-	fmt.Printf("MQTT数据源已启动，连接到: %s:%d，客户端ID: %s\n", m.broker, m.port, m.clientID)
+	slog.Info("MQTT数据源已启动，连接到: %s:%d，客户端ID: %s\n", m.broker, m.port, m.clientID)
 	return nil
 }
 
@@ -316,19 +317,19 @@ func (m *MQTTDataSource) messageHandler(client mqtt.Client, msg mqtt.Message) {
 		// 消息发送成功
 	default:
 		// 通道满了，记录警告但不阻塞
-		fmt.Printf("MQTT数据源消息通道已满，丢弃消息: %s\n", msg.Topic())
+		slog.Error("MQTT数据源消息通道已满，丢弃消息: %s\n", msg.Topic())
 	}
 }
 
 // connectionLostHandler 连接丢失处理器
 func (m *MQTTDataSource) connectionLostHandler(client mqtt.Client, err error) {
-	fmt.Printf("MQTT连接丢失: %v，尝试重连...\n", err)
+	slog.Error("MQTT连接丢失: %v，尝试重连...\n", err.Error())
 	m.reconnectCount++
 }
 
 // onConnectHandler 连接成功处理器
 func (m *MQTTDataSource) onConnectHandler(client mqtt.Client) {
-	fmt.Printf("MQTT连接成功，重连次数: %d\n", m.reconnectCount)
+	slog.Info("MQTT连接成功，重连次数: %d\n", m.reconnectCount)
 	m.reconnectCount = 0
 }
 
@@ -764,7 +765,7 @@ func (m *MQTTDataSource) Stop(ctx context.Context) error {
 	m.subscribers = make([]chan MQTTMessage, 0)
 	m.subscribersMu.Unlock()
 
-	fmt.Printf("MQTT数据源已停止\n")
+	slog.Info("MQTT数据源已停止\n")
 	return nil
 }
 

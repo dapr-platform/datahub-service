@@ -143,7 +143,7 @@ func (dp *DataProcessor) FetchDataFromSourceWithSyncStrategy(ctx context.Context
 		// 如果有增量参数，使用增量请求构建器
 		if incrementalField, exists := parameters["incremental_field"]; exists {
 			incrementalParams := &datasource.IncrementalParams{
-				LastSyncTime:   parameters["last_sync_time"],
+				LastSyncValue:  parameters["last_sync_value"],
 				IncrementalKey: cast.ToString(incrementalField),
 				ComparisonType: cast.ToString(parameters["comparison_type"]),
 				BatchSize:      cast.ToInt(parameters["batch_size"]),
@@ -473,16 +473,23 @@ func (dp *DataProcessor) FetchBatchDataFromSourceWithStrategy(ctx context.Contex
 
 	// 根据同步策略和数据源类型构建不同的请求
 	var executeRequest *datasource.ExecuteRequest
+	slog.Debug("FetchBatchDataFromSourceWithStrategy - 根据策略构建请求", "sync_strategy", syncStrategy, "datasource_category", dataSource.Category)
+
 	switch syncStrategy {
 	case "incremental":
+		slog.Debug("FetchBatchDataFromSourceWithStrategy - 增量同步策略")
+
 		// 增量同步：检查是否有增量参数
 		if incrementalField, exists := allParams["incremental_field"]; exists {
+			slog.Debug("FetchBatchDataFromSourceWithStrategy - 找到增量字段", "incremental_field", incrementalField)
+
 			incrementalParams := &datasource.IncrementalParams{
-				LastSyncTime:   allParams["last_sync_time"],
+				LastSyncValue:  allParams["last_sync_value"],
 				IncrementalKey: cast.ToString(incrementalField),
 				ComparisonType: cast.ToString(allParams["comparison_type"]),
 				BatchSize:      cast.ToInt(allParams["batch_size"]),
 			}
+
 			if incrementalParams.ComparisonType == "" {
 				incrementalParams.ComparisonType = "gt"
 			}
@@ -493,32 +500,50 @@ func (dp *DataProcessor) FetchBatchDataFromSourceWithStrategy(ctx context.Contex
 				}
 			}
 
+			slog.Debug("FetchBatchDataFromSourceWithStrategy - 增量参数",
+				"last_sync_value", incrementalParams.LastSyncValue,
+				"incremental_key", incrementalParams.IncrementalKey,
+				"comparison_type", incrementalParams.ComparisonType,
+				"batch_size", incrementalParams.BatchSize)
+
 			executeRequest, err = queryBuilder.BuildIncrementalRequest("sync", incrementalParams)
 		} else {
+			slog.Debug("FetchBatchDataFromSourceWithStrategy - 没有增量参数，退化为全量分页同步")
 			// 没有增量参数，使用普通分页同步请求
 			executeRequest, err = queryBuilder.BuildSyncRequestWithPagination("full", allParams, pageParams)
 		}
+
 	case "full":
+		slog.Debug("FetchBatchDataFromSourceWithStrategy - 全量同步策略")
+
 		// 全量同步：根据数据源类型构建请求
 		switch dataSource.Category {
 		case meta.DataSourceCategoryDatabase:
+			slog.Debug("FetchBatchDataFromSourceWithStrategy - 数据库全量同步，使用分页")
 			// 数据库类型：使用带分页的同步请求
 			executeRequest, err = queryBuilder.BuildSyncRequestWithPagination("full", allParams, pageParams)
+
 		case meta.DataSourceCategoryAPI:
 			// API类型：检查是否有分页配置
 			interfaceConfig := interfaceInfo.GetInterfaceConfig()
 			if paginationEnabled := cast.ToBool(interfaceConfig[meta.DataInterfaceConfigFieldPaginationEnabled]); paginationEnabled {
+				slog.Debug("FetchBatchDataFromSourceWithStrategy - API全量同步，使用分页")
 				// 使用带分页的API同步请求
 				executeRequest, err = queryBuilder.BuildSyncRequestWithPagination("full", allParams, pageParams)
 			} else {
+				slog.Debug("FetchBatchDataFromSourceWithStrategy - API全量同步，不使用分页")
 				// 没有分页配置，使用普通同步请求
 				executeRequest, err = queryBuilder.BuildSyncRequest("full", allParams)
 			}
+
 		default:
+			slog.Debug("FetchBatchDataFromSourceWithStrategy - 其他类型，使用测试请求")
 			// 其他类型：使用普通测试请求
 			executeRequest, err = queryBuilder.BuildTestRequest(allParams)
 		}
+
 	default:
+		slog.Debug("FetchBatchDataFromSourceWithStrategy - 默认策略，使用全量同步")
 		// 默认使用全量同步
 		executeRequest, err = queryBuilder.BuildSyncRequestWithPagination("full", allParams, pageParams)
 	}

@@ -16,7 +16,7 @@ import (
 	"datahub-service/service/models"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"sync"
@@ -130,7 +130,10 @@ func (s *EventService) AddSSEConnection(userName, connectionID, clientIP string)
 	}
 	s.db.Create(connection)
 
-	log.Printf("SSE连接已建立: 用户=%s, 连接ID=%s, IP=%s", userName, connectionID, clientIP)
+	slog.Info("SSE连接已建立",
+		"user_name", userName,
+		"connection_id", connectionID,
+		"client_ip", clientIP)
 	return client
 }
 
@@ -153,7 +156,9 @@ func (s *EventService) RemoveSSEConnection(userName, connectionID string) {
 				Where("connection_id = ?", connectionID).
 				Update("is_active", false)
 
-			log.Printf("SSE连接已断开: 用户=%s, 连接ID=%s", userName, connectionID)
+			slog.Info("SSE连接已断开",
+				"user_name", userName,
+				"connection_id", connectionID)
 		}
 	}
 }
@@ -165,13 +170,13 @@ func (s *EventService) SendEventToUser(userName string, event *models.SSEEvent) 
 	s.mu.RUnlock()
 
 	if !exists {
-		log.Printf("用户 %s 没有活跃的SSE连接", userName)
+		slog.Warn("用户没有活跃的SSE连接", "user_name", userName)
 		return fmt.Errorf("用户 %s 没有活跃的SSE连接", userName)
 	}
 
 	// 保存事件到数据库
 	if err := s.db.Create(event).Error; err != nil {
-		log.Printf("保存SSE事件失败: %v", err)
+		slog.Error("保存SSE事件失败", "error", err)
 		return err
 	}
 
@@ -179,9 +184,13 @@ func (s *EventService) SendEventToUser(userName string, event *models.SSEEvent) 
 	for _, client := range userConnections {
 		select {
 		case client.Channel <- event:
-			log.Printf("事件已发送到用户 %s 的连接 %s", userName, client.ID)
+			slog.Debug("事件已发送到用户的连接",
+				"user_name", userName,
+				"connection_id", client.ID)
 		default:
-			log.Printf("用户 %s 的连接 %s 事件队列已满，跳过发送", userName, client.ID)
+			slog.Warn("用户的连接事件队列已满，跳过发送",
+				"user_name", userName,
+				"connection_id", client.ID)
 		}
 	}
 
@@ -195,7 +204,7 @@ func (s *EventService) BroadcastEvent(event *models.SSEEvent) error {
 
 	// 保存事件到数据库
 	if err := s.db.Create(event).Error; err != nil {
-		log.Printf("保存广播事件失败: %v", err)
+		slog.Error("保存广播事件失败", "error", err)
 		return err
 	}
 
@@ -206,9 +215,13 @@ func (s *EventService) BroadcastEvent(event *models.SSEEvent) error {
 
 			select {
 			case client.Channel <- &eventCopy:
-				log.Printf("广播事件已发送到用户 %s 的连接 %s", userName, client.ID)
+				slog.Debug("广播事件已发送到用户的连接",
+					"user_name", userName,
+					"connection_id", client.ID)
 			default:
-				log.Printf("用户 %s 的连接 %s 事件队列已满，跳过广播", userName, client.ID)
+				slog.Warn("用户的连接事件队列已满，跳过广播",
+					"user_name", userName,
+					"connection_id", client.ID)
 			}
 		}
 	}
@@ -225,7 +238,7 @@ func (s *EventService) RegisterDBEventProcessor(processor models.DBEventProcesso
 	s.dbEventProcessors[processor.TableName()] = processor
 	s.mu.Unlock()
 
-	log.Printf("数据库事件监听器已创建: %s", processor.TableName())
+	slog.Info("数据库事件监听器已创建", "table_name", processor.TableName())
 	s.checkTableTrigger(processor.TableName())
 	return nil
 }
@@ -252,18 +265,18 @@ func (s *EventService) startDBListener() {
 	// 创建PostgreSQL监听器
 	s.dbListener = pq.NewListener(connStr, 10*time.Second, time.Minute, func(ev pq.ListenerEventType, err error) {
 		if err != nil {
-			log.Printf("PostgreSQL监听器事件: %v, 错误: %v", ev, err)
+			slog.Error("PostgreSQL监听器事件", "event", ev, "error", err)
 		}
-		log.Printf("PostgreSQL监听器事件: %v, 错误: %v", ev, err)
+		slog.Error("PostgreSQL监听器事件", "event", ev, "error", err)
 	})
 
 	// 监听数据库通知
 	if err := s.dbListener.Listen("datahub_changes"); err != nil {
-		log.Printf("监听数据库通知失败: %v", err)
+		slog.Error("监听数据库通知失败", "error", err)
 		return
 	}
 
-	log.Println("数据库监听器已启动")
+	slog.Info("数据库监听器已启动")
 
 	// 处理数据库通知
 	for {
@@ -273,7 +286,7 @@ func (s *EventService) startDBListener() {
 				s.handleDBNotification(notification)
 			}
 		case <-s.ctx.Done():
-			log.Println("数据库监听器已停止")
+			slog.Info("数据库监听器已停止")
 			return
 		}
 	}
@@ -283,7 +296,7 @@ func (s *EventService) startDBListener() {
 func (s *EventService) handleDBNotification(notification *pq.Notification) {
 	var changeData map[string]interface{}
 	if err := json.Unmarshal([]byte(notification.Extra), &changeData); err != nil {
-		log.Printf("解析数据库通知失败: %v", err)
+		slog.Error("解析数据库通知失败", "error", err)
 		return
 	}
 
@@ -291,11 +304,11 @@ func (s *EventService) handleDBNotification(notification *pq.Notification) {
 	eventType, _ := changeData["type"].(string)
 	recordID, _ := changeData["record_id"].(string)
 
-	log.Printf("收到数据库变更通知: 表=%s, 类型=%s, 记录ID=%s", tableName, eventType, recordID)
+	slog.Info("收到数据库变更通知", "table_name", tableName, "event_type", eventType, "record_id", recordID)
 
 	processor, ok := s.dbEventProcessors[tableName]
 	if !ok {
-		log.Printf("未找到匹配的事件处理器: %s", tableName)
+		slog.Error("未找到匹配的事件处理器", "table_name", tableName)
 		return
 	}
 
@@ -323,7 +336,7 @@ func (s *EventService) startEventProcessor() {
 		case <-ticker.C:
 			s.cleanupInactiveConnections()
 		case <-s.ctx.Done():
-			log.Println("事件处理器已停止")
+			slog.Info("事件处理器已停止")
 			return
 		}
 	}
@@ -339,7 +352,7 @@ func (s *EventService) cleanupInactiveConnections() {
 			select {
 			case <-client.Done:
 				delete(userConnections, connectionID)
-				log.Printf("清理已断开的连接: 用户=%s, 连接ID=%s", userName, connectionID)
+				slog.Info("清理已断开的连接", "user_name", userName, "connection_id", connectionID)
 			default:
 				// 连接仍然活跃
 			}
@@ -369,7 +382,7 @@ func (s *EventService) Stop() {
 	s.connections = make(map[string]map[string]*SSEClient)
 	s.mu.Unlock()
 
-	log.Println("事件服务已停止")
+	slog.Info("事件服务已停止")
 }
 
 // checkDatabaseTriggers 检查数据库触发器
@@ -381,7 +394,7 @@ func (s *EventService) checkDatabaseTriggers() {
 
 	for _, tableName := range requiredTables {
 		if err := s.checkTableTrigger(tableName); err != nil {
-			log.Printf("检查表 %s 的触发器失败: %v", tableName, err)
+			slog.Error("检查表 %s 的触发器失败", "table_name", tableName, "error", err)
 		}
 	}
 }
@@ -392,7 +405,7 @@ func (s *EventService) checkTableTrigger(tableName string) error {
 	if err != nil {
 		return fmt.Errorf("获取触发器列表失败: %v", err)
 	}
-	log.Println("triggers", triggers)
+	slog.Info("triggers", "triggers", triggers)
 
 	// 检查是否存在对应的触发器
 	triggerName := tableName + "_notify"
@@ -401,18 +414,18 @@ func (s *EventService) checkTableTrigger(tableName string) error {
 	for _, trigger := range triggers {
 		if trigger.Name == triggerName && trigger.TableName == tableName && trigger.Activation == activation {
 			found = true
-			log.Printf("表 %s 的触发器 %s 已存在", tableName, triggerName)
+			slog.Info("表 %s 的触发器 %s 已存在", "table_name", tableName, "trigger_name", triggerName)
 
 			break
 		}
 	}
 
 	if !found {
-		log.Printf("警告: 表 %s 缺少触发器 %s，正在创建...", tableName, triggerName)
+		slog.Warn("警告: 表 %s 缺少触发器 %s，正在创建...", "table_name", tableName, "trigger_name", triggerName)
 		if err := s.createTableTrigger(tableName, activation); err != nil {
 			return fmt.Errorf("创建表 %s 的触发器失败: %v", tableName, err)
 		}
-		log.Printf("成功创建表 %s 的触发器 %s", tableName, triggerName)
+		slog.Info("成功创建表 %s 的触发器 %s", "table_name", tableName, "trigger_name", triggerName)
 	}
 
 	return nil
@@ -512,7 +525,7 @@ $$ LANGUAGE plpgsql;`
 		return fmt.Errorf("执行创建函数SQL失败: %v", err)
 	}
 
-	log.Println("数据库通知函数 notify_datahub_changes() 已创建")
+	slog.Info("数据库通知函数 notify_datahub_changes() 已创建")
 	s.functionCreated = true
 	return nil
 }
@@ -572,7 +585,7 @@ func (s *EventService) getTriggersViaDapr() ([]TriggerInfo, error) {
 		return nil, fmt.Errorf("解析响应失败: %v", err)
 	}
 
-	log.Printf("通过 Dapr 获取到 %d 个触发器", len(triggers))
+	slog.Info("通过 Dapr 获取到 %d 个触发器", "count", len(triggers))
 	return triggers, nil
 }
 
@@ -605,7 +618,7 @@ func (s *EventService) getTriggersViaHTTP() ([]TriggerInfo, error) {
 		return nil, fmt.Errorf("解析响应失败: %v", err)
 	}
 
-	log.Printf("通过 HTTP 获取到 %d 个触发器", len(triggers))
+	slog.Info("通过 HTTP 获取到 %d 个触发器", "count", len(triggers))
 	return triggers, nil
 }
 

@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"log/slog"
 
 	"gorm.io/gorm"
 )
@@ -16,7 +17,7 @@ func AutoMigrateView(db *gorm.DB) error {
 			if err := db.Exec(viewSQL).Error; err != nil {
 				return fmt.Errorf("创建视图 %s 失败: %v", name, err)
 			}
-			fmt.Printf("成功创建视图: %s\n", name)
+			slog.Info("成功创建视图: %s\n", name)
 		}
 	}
 

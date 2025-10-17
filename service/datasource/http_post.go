@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"datahub-service/service/models"
+	"log/slog"
 )
 
 // HTTPPostDataSource HTTP POST数据源实现
@@ -143,7 +144,7 @@ func (h *HTTPPostDataSource) Start(ctx context.Context) error {
 		return fmt.Errorf("注册HTTP POST数据源失败: %v", err)
 	}
 
-	fmt.Printf("HTTP POST数据源已启动，URL后缀: %s\n", h.suffix)
+	slog.Info("HTTP POST数据源已启动，URL后缀: %s\n", h.suffix)
 	return nil
 }
 
@@ -211,7 +212,7 @@ func (h *HTTPPostDataSource) HandleWebhook(w http.ResponseWriter, r *http.Reques
 		// 数据发送成功
 	default:
 		// 通道满了，记录警告但不阻塞
-		fmt.Printf("HTTP POST数据源数据通道已满，丢弃数据\n")
+		slog.Error("HTTP POST数据源数据通道已满，丢弃数据\n")
 	}
 
 	// 返回成功响应
@@ -429,7 +430,7 @@ func (h *HTTPPostDataSource) Stop(ctx context.Context) error {
 	h.subscribers = make([]chan map[string]interface{}, 0)
 	h.subscribersMu.Unlock()
 
-	fmt.Printf("HTTP POST数据源已停止\n")
+	slog.Info("HTTP POST数据源已停止\n")
 	return nil
 }
 

@@ -109,7 +109,7 @@ func NewInterfaceInfoProvider(db *gorm.DB) *InterfaceInfoProvider {
 func (p *InterfaceInfoProvider) GetBasicLibraryInterface(interfaceID string) (InterfaceInfo, error) {
 	var dataInterface models.DataInterface
 	err := p.db.Preload("BasicLibrary").
-		Preload("DataSource").Preload("Fields").Preload("CleanRules").
+		Preload("DataSource").Preload("CleanRules").
 		First(&dataInterface, "id = ?", interfaceID).Error
 	if err != nil {
 		return nil, err

@@ -320,6 +320,60 @@ definitions:
         description: 完整的Key值，仅返回一次
         type: string
     type: object
+  controllers.CreateInterfaceTableIndexRequest:
+    properties:
+      columns:
+        example:
+        - email
+        - created_at
+        items:
+          type: string
+        type: array
+      index_name:
+        example: idx_user_email
+        type: string
+      index_type:
+        description: btree, hash, gin, gist, etc.
+        example: btree
+        type: string
+      interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      is_unique:
+        example: false
+        type: boolean
+    required:
+    - columns
+    - index_name
+    - interface_id
+    type: object
+  controllers.CreateThematicInterfaceTableIndexRequest:
+    properties:
+      columns:
+        example:
+        - order_id
+        - created_at
+        items:
+          type: string
+        type: array
+      index_name:
+        example: idx_order_created_at
+        type: string
+      index_type:
+        description: btree, hash, gin, gist, etc.
+        example: btree
+        type: string
+      interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      is_unique:
+        example: false
+        type: boolean
+    required:
+    - columns
+    - index_name
+    - interface_id
+    type: object
   controllers.CreateThematicInterfaceViewRequest:
     properties:
       interface_id:
@@ -669,6 +723,30 @@ definitions:
         type: integer
       domain:
         type: string
+    type: object
+  controllers.DropInterfaceTableIndexRequest:
+    properties:
+      index_name:
+        example: idx_user_email
+        type: string
+      interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    required:
+    - index_name
+    - interface_id
+    type: object
+  controllers.DropThematicInterfaceTableIndexRequest:
+    properties:
+      index_name:
+        example: idx_order_created_at
+        type: string
+      interface_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    required:
+    - index_name
+    - interface_id
     type: object
   controllers.ErrorRateStatistics:
     properties:
@@ -1622,6 +1700,49 @@ definitions:
         type: string
       operations:
         type: integer
+    type: object
+  database.ColumnDefinition:
+    properties:
+      comment:
+        type: string
+      data_type:
+        type: string
+      default_value: {}
+      is_nullable:
+        type: boolean
+      is_primary_key:
+        type: boolean
+      is_unique:
+        type: boolean
+      max_length:
+        type: integer
+      name:
+        type: string
+      numeric_precision:
+        type: integer
+      numeric_scale:
+        type: integer
+      ordinal_position:
+        type: integer
+    type: object
+  database.IndexDefinition:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      definition:
+        description: 索引定义SQL
+        type: string
+      index_type:
+        description: btree, hash, gist, gin, etc.
+        type: string
+      is_primary:
+        type: boolean
+      is_unique:
+        type: boolean
+      name:
+        type: string
     type: object
   governance.CleansingRuleListResponse:
     properties:
@@ -3921,10 +4042,6 @@ definitions:
         type: string
       description:
         type: string
-      fields:
-        items:
-          $ref: '#/definitions/models.InterfaceField'
-        type: array
       id:
         type: string
       interface_config:
@@ -4046,44 +4163,6 @@ definitions:
       subscriber_type:
         description: user/application
         type: string
-      updated_at:
-        type: string
-      updated_by:
-        type: string
-    type: object
-  models.InterfaceField:
-    properties:
-      check_constraint:
-        type: string
-      created_at:
-        type: string
-      created_by:
-        type: string
-      data_type:
-        type: string
-      default_value:
-        type: string
-      description:
-        type: string
-      id:
-        type: string
-      interface_id:
-        type: string
-      is_increment_field:
-        description: 是否为增量字段，增量更新时根据这个字段判断条件
-        type: boolean
-      is_nullable:
-        type: boolean
-      is_primary_key:
-        type: boolean
-      is_unique:
-        type: boolean
-      name_en:
-        type: string
-      name_zh:
-        type: string
-      order_num:
-        type: integer
       updated_at:
         type: string
       updated_by:
@@ -5314,7 +5393,21 @@ definitions:
           $ref: '#/definitions/models.QualityRuleConfig'
         type: array
       schedule_config:
-        $ref: '#/definitions/thematic_library.ScheduleConfig'
+        allOf:
+        - $ref: '#/definitions/thematic_library.ScheduleConfig'
+        description: 调度和规则配置
+      source_libraries:
+        description: |-
+          数据源配置 - 两种模式二选一
+          模式1: 接口模式 - 从基础库的数据接口获取数据
+        items:
+          $ref: '#/definitions/thematic_library.SourceLibraryConfig'
+        type: array
+      sql_queries:
+        description: '模式2: SQL模式 - 直接执行SQL查询获取数据（优先级更高）'
+        items:
+          $ref: '#/definitions/thematic_library.SQLQueryConfig'
+        type: array
       status:
         type: string
       task_name:
@@ -5965,6 +6058,179 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 删除数据接口
+      tags:
+      - 数据基础库
+    get:
+      description: 根据ID获取数据接口详细信息，自动同步数据库实际字段到配置
+      parameters:
+      - description: 接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DataInterface'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 接口不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取数据接口详情
+      tags:
+      - 数据基础库
+  /basic-libraries/interfaces/{id}/table-columns:
+    get:
+      description: 从数据库动态获取接口对应表的字段信息，包含字段名、类型、约束等完整信息
+      parameters:
+      - description: 接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 返回表字段列表
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/database.ColumnDefinition'
+                  type: array
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取接口表字段
+      tags:
+      - 数据基础库
+  /basic-libraries/interfaces/{id}/table-indexes:
+    get:
+      description: 从数据库获取接口对应表的索引信息，包含索引名称、类型、包含的列等
+      parameters:
+      - description: 接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 返回索引列表
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/database.IndexDefinition'
+                  type: array
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取接口表索引
+      tags:
+      - 数据基础库
+  /basic-libraries/interfaces/create-table-index:
+    post:
+      consumes:
+      - application/json
+      description: 为接口对应的数据表创建索引，支持普通索引、唯一索引，支持多种索引类型（btree、hash、gin、gist等）
+      parameters:
+      - description: 创建索引请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateInterfaceTableIndexRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 请求参数错误或表未创建
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建接口表索引
+      tags:
+      - 数据基础库
+  /basic-libraries/interfaces/drop-table-index:
+    post:
+      consumes:
+      - application/json
+      description: 删除接口对应数据表的指定索引
+      parameters:
+      - description: 删除索引请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.DropInterfaceTableIndexRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除接口表索引
       tags:
       - 数据基础库
   /basic-libraries/reload-datasource/{id}:
@@ -10896,7 +11162,7 @@ paths:
       tags:
       - 主题接口
     get:
-      description: 根据ID获取主题接口详细信息
+      description: 根据ID获取主题接口详细信息，自动同步数据库实际字段到配置
       parameters:
       - description: 主题接口ID
         in: path
@@ -10907,7 +11173,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: 获取成功
           schema:
             allOf:
             - $ref: '#/definitions/controllers.APIResponse'
@@ -10915,12 +11181,16 @@ paths:
                 data:
                   $ref: '#/definitions/models.ThematicInterface'
               type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
         "404":
-          description: Not Found
+          description: 主题接口不存在
           schema:
             $ref: '#/definitions/controllers.APIResponse'
         "500":
-          description: Internal Server Error
+          description: 服务器内部错误
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取主题接口详情
@@ -10995,6 +11265,74 @@ paths:
       summary: 删除主题接口视图
       tags:
       - 主题接口视图
+  /thematic-interfaces/{id}/table-columns:
+    get:
+      description: 从数据库动态获取主题接口对应表或视图的字段信息，包含字段名、类型、约束等完整信息
+      parameters:
+      - description: 主题接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 返回表字段列表
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/database.ColumnDefinition'
+                  type: array
+              type: object
+        "400":
+          description: 请求参数错误或表未创建
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取主题接口表字段
+      tags:
+      - 主题接口
+  /thematic-interfaces/{id}/table-indexes:
+    get:
+      description: 从数据库获取主题接口对应表的索引信息，包含索引名称、类型、包含的列等（视图类型不支持）
+      parameters:
+      - description: 主题接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 返回索引列表
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/database.IndexDefinition'
+                  type: array
+              type: object
+        "400":
+          description: 请求参数错误、表未创建或视图类型不支持
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取主题接口表索引
+      tags:
+      - 主题接口
   /thematic-interfaces/{id}/view-sql:
     get:
       description: 获取主题接口的视图SQL语句
@@ -11031,6 +11369,41 @@ paths:
       summary: 获取主题接口视图SQL
       tags:
       - 主题接口视图
+  /thematic-interfaces/create-table-index:
+    post:
+      consumes:
+      - application/json
+      description: 为主题接口对应的数据表创建索引，支持普通索引、唯一索引，支持多种索引类型（btree、hash、gin、gist等），视图类型不支持
+      parameters:
+      - description: 创建索引请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateThematicInterfaceTableIndexRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 请求参数错误、视图类型不支持或表未创建
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 创建主题接口表索引
+      tags:
+      - 主题接口
   /thematic-interfaces/create-view:
     post:
       consumes:
@@ -11061,6 +11434,41 @@ paths:
       summary: 创建主题接口视图
       tags:
       - 主题接口视图
+  /thematic-interfaces/drop-table-index:
+    post:
+      consumes:
+      - application/json
+      description: 删除主题接口对应数据表的指定索引
+      parameters:
+      - description: 删除索引请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.DropThematicInterfaceTableIndexRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 删除主题接口表索引
+      tags:
+      - 主题接口
   /thematic-interfaces/update-fields:
     post:
       consumes:

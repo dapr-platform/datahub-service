@@ -17,7 +17,7 @@ import (
 	"datahub-service/service/models"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"gorm.io/gorm"
@@ -81,9 +81,11 @@ func (s *DatasourceService) CreateDataSource(dataSource *models.DataSource) erro
 	if dataSource.Status == "active" {
 		ctx := context.Background()
 		if err := s.datasourceManager.Register(ctx, dataSource); err != nil {
-			log.Printf("警告：数据源 %s 创建成功但注册到管理器失败: %v", dataSource.ID, err)
+			slog.Warn("警告：数据源创建成功但注册到管理器失败",
+				"datasource_id", dataSource.ID,
+				"error", err)
 		} else {
-			log.Printf("数据源 %s 创建并注册到管理器成功", dataSource.ID)
+			slog.Info("数据源创建并注册到管理器成功", "datasource_id", dataSource.ID)
 		}
 	}
 
@@ -153,24 +155,26 @@ func (s *DatasourceService) UpdateDataSource(id string, updates map[string]inter
 	// 如果状态从激活变为非激活，从管理器移除
 	if originalStatus == "active" && newStatus != "active" {
 		if err := s.datasourceManager.Remove(id); err != nil {
-			log.Printf("警告：从管理器移除数据源 %s 失败: %v", id, err)
+			slog.Warn("警告：从管理器移除数据源失败", "datasource_id", id, "error", err)
 		} else {
-			log.Printf("数据源 %s 已从管理器移除", id)
+			slog.Info("数据源已从管理器移除", "datasource_id", id)
 		}
 	} else if newStatus == "active" {
 		// 如果状态为激活，重新注册到管理器（先移除再注册）
 		if originalStatus == "active" {
 			// 先移除现有的
 			if err := s.datasourceManager.Remove(id); err != nil {
-				log.Printf("警告：移除旧数据源实例 %s 失败: %v", id, err)
+				slog.Warn("警告：移除旧数据源实例失败", "datasource_id", id, "error", err)
 			}
 		}
 
 		// 注册新的实例
 		if err := s.datasourceManager.Register(ctx, &dataSource); err != nil {
-			log.Printf("警告：数据源 %s 更新成功但重新注册到管理器失败: %v", id, err)
+			slog.Warn("警告：数据源更新成功但重新注册到管理器失败",
+				"datasource_id", id,
+				"error", err)
 		} else {
-			log.Printf("数据源 %s 更新并重新注册到管理器成功", id)
+			slog.Info("数据源更新并重新注册到管理器成功", "datasource_id", id)
 		}
 	}
 
@@ -189,9 +193,9 @@ func (s *DatasourceService) DeleteDataSource(dataSource *models.DataSource) erro
 
 	// 先从管理器移除数据源
 	if err := s.datasourceManager.Remove(dataSource.ID); err != nil {
-		log.Printf("警告：从管理器移除数据源 %s 失败: %v", dataSource.ID, err)
+		slog.Warn("警告：从管理器移除数据源失败", "datasource_id", dataSource.ID, "error", err)
 	} else {
-		log.Printf("数据源 %s 已从管理器移除", dataSource.ID)
+		slog.Info("数据源已从管理器移除", "datasource_id", dataSource.ID)
 	}
 
 	// 删除相关的状态记录
@@ -202,7 +206,7 @@ func (s *DatasourceService) DeleteDataSource(dataSource *models.DataSource) erro
 		return err
 	}
 
-	log.Printf("数据源 %s 删除成功", dataSource.ID)
+	slog.Info("数据源删除成功", "datasource_id", dataSource.ID)
 	return nil
 }
 

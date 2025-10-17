@@ -12,9 +12,9 @@
 package thematic_sync
 
 import (
-	"log/slog"
 	"datahub-service/service/models"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -107,7 +107,7 @@ func (dw *DataWriter) writeDataToTable(processedRecords []map[string]interface{}
 	// 获取字段配置信息（包括类型和约束）
 	fieldConfigs, err := dw.getFieldConfigsFromInterface(&thematicInterface)
 	if err != nil {
-		fmt.Printf("[WARNING] 获取字段配置信息失败: %v，使用默认转换\n", err)
+		slog.Warn("获取字段配置信息失败，使用默认转换", "error", err)
 		fieldConfigs = make(map[string]FieldConfig)
 	}
 
@@ -157,7 +157,7 @@ func (dw *DataWriter) writeBatch(fullTableName string, primaryKeyFields []string
 		// 过滤并验证字段：只保留有效的字段
 		validRecord := dw.filterValidFields(record)
 		if len(validRecord) == 0 {
-			fmt.Printf("[WARNING] 记录中没有有效字段，跳过写入\n")
+			slog.Warn("记录中没有有效字段，跳过写入")
 			continue
 		}
 
@@ -238,9 +238,9 @@ func (dw *DataWriter) getFieldTypesFromInterface(thematicInterface *models.Thema
 		}
 	}
 
-	slog.Debug("获取字段类型信息，字段数", "count", len(fieldTypes))
+	slog.Debug("获取字段类型信息", "count", len(fieldTypes))
 	for fieldName, fieldType := range fieldTypes {
-		fmt.Printf("[DEBUG] 字段类型: %s -> %s\n", fieldName, fieldType)
+		slog.Debug("字段类型", "field", fieldName, "type", fieldType)
 	}
 
 	return fieldTypes, nil
@@ -274,10 +274,9 @@ func (dw *DataWriter) getFieldConfigsFromInterface(thematicInterface *models.The
 		}
 	}
 
-	slog.Debug("获取字段配置信息，字段数", "count", len(fieldConfigs))
+	slog.Debug("获取字段配置信息", "count", len(fieldConfigs))
 	for fieldName, config := range fieldConfigs {
-		fmt.Printf("[DEBUG] 字段配置: %s (类型: %s, 主键: %v, 可空: %v)\n",
-			fieldName, config.DataType, config.IsPrimaryKey, config.IsNullable)
+		slog.Debug("字段配置", "field", fieldName, "dataType", config.DataType, "isPrimaryKey", config.IsPrimaryKey, "isNullable", config.IsNullable)
 	}
 
 	return fieldConfigs, nil
@@ -325,7 +324,7 @@ func (dw *DataWriter) writeBatchWithConfigs(fullTableName string, primaryKeyFiel
 		// 过滤并验证字段：只保留有效的字段
 		validRecord := dw.filterValidFields(record)
 		if len(validRecord) == 0 {
-			fmt.Printf("[WARNING] 记录中没有有效字段，跳过写入\n")
+			slog.Warn("记录中没有有效字段，跳过写入")
 			continue
 		}
 
@@ -434,7 +433,7 @@ func (dw *DataWriter) writeBatchWithTypes(fullTableName string, primaryKeyFields
 		// 过滤并验证字段：只保留有效的字段
 		validRecord := dw.filterValidFields(record)
 		if len(validRecord) == 0 {
-			fmt.Printf("[WARNING] 记录中没有有效字段，跳过写入\n")
+			slog.Warn("记录中没有有效字段，跳过写入")
 			continue
 		}
 
@@ -696,14 +695,14 @@ func (dw *DataWriter) ensureRequiredFields(record map[string]interface{}, fieldT
 				// 根据字段类型转换默认值
 				convertedValue := dw.convertValueByFieldType(defaultValue, fieldType)
 				record[fieldName] = convertedValue
-				fmt.Printf("[DEBUG] 为必需字段 %s 添加默认值: %v (类型: %s)\n", fieldName, convertedValue, fieldType)
+				slog.Debug("为必需字段添加默认值", "field", fieldName, "value", convertedValue, "type", fieldType)
 			}
 		} else if record[fieldName] == nil {
 			// 字段存在但值为nil，也需要设置默认值
 			if fieldType, hasType := fieldTypes[fieldName]; hasType {
 				convertedValue := dw.convertValueByFieldType(defaultValue, fieldType)
 				record[fieldName] = convertedValue
-				fmt.Printf("[DEBUG] 为空值字段 %s 设置默认值: %v (类型: %s)\n", fieldName, convertedValue, fieldType)
+				slog.Debug("为空值字段设置默认值", "field", fieldName, "value", convertedValue, "type", fieldType)
 			}
 		}
 	}
@@ -736,9 +735,9 @@ func (dw *DataWriter) ensureRequiredFieldsByConfig(record map[string]interface{}
 				if defaultValue != nil {
 					convertedValue := dw.convertValueByFieldType(defaultValue, config.DataType)
 					record[fieldName] = convertedValue
-					fmt.Printf("[DEBUG] 为必需字段 %s 设置默认值: %v (类型: %s)\n", fieldName, convertedValue, config.DataType)
+					//slog.Debug("为必需字段设置默认值", "field", fieldName, "value", convertedValue, "type", config.DataType)
 				} else {
-					fmt.Printf("[WARNING] 必需字段 %s 无法提供默认值，可能导致数据库约束错误\n", fieldName)
+					slog.Warn("必需字段无法提供默认值，可能导致数据库约束错误", "field", fieldName)
 				}
 			}
 		}
@@ -827,7 +826,7 @@ func (dw *DataWriter) filterValidFields(record map[string]interface{}) map[strin
 
 		// 检查字段名是否包含危险字符
 		if dw.containsDangerousChars(k) {
-			fmt.Printf("[WARNING] 字段名包含危险字符，跳过: %s\n", k)
+			slog.Warn("字段名包含危险字符，跳过", "field", k)
 			continue
 		}
 

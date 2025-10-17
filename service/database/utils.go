@@ -2,7 +2,7 @@ package database
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 
 	"gorm.io/gorm"
 )
@@ -14,7 +14,7 @@ func CheckSchemaExists(db *gorm.DB, schemaName string) bool {
 }
 
 func CreateSchema(db *gorm.DB, schemaName string) error {
-	log.Printf("开始创建 schema: %s", schemaName)
+	slog.Info("开始创建 schema", "schema_name", schemaName)
 
 	// 1. 创建 schema (使用双引号避免保留关键字问题)
 	createSchemaSQL := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS \"%s\";", schemaName)
@@ -29,22 +29,22 @@ func CreateSchema(db *gorm.DB, schemaName string) error {
 		ON CONFLICT (schema_name) DO NOTHING;`
 
 	if err := db.Exec(insertConfigSQL, schemaName, schemaName).Error; err != nil {
-		log.Printf("插入 postgrest.schema_config 记录失败: %v", err)
+		slog.Error("插入 postgrest.schema_config 记录失败", "error", err)
 		// 不返回错误，因为 schema 已经创建成功
 	}
 
-	log.Printf("成功创建 schema: %s", schemaName)
+	slog.Info("成功创建 schema", "schema_name", schemaName)
 	return nil
 }
 
 // deleteSchema 删除 schema 和 postgrest 配置
 func DeleteSchema(db *gorm.DB, schemaName string) error {
-	log.Printf("开始删除 schema: %s", schemaName)
+	slog.Info("开始删除 schema", "schema_name", schemaName)
 
 	// 1. 从 postgrest.schema_config 表中删除记录
 	deleteConfigSQL := "DELETE FROM postgrest.schema_config WHERE schema_name = ?;"
 	if err := db.Exec(deleteConfigSQL, schemaName).Error; err != nil {
-		log.Printf("删除 postgrest.schema_config 记录失败: %v", err)
+		slog.Error("删除 postgrest.schema_config 记录失败", "error", err)
 		// 继续执行 schema 删除
 	}
 
@@ -54,13 +54,15 @@ func DeleteSchema(db *gorm.DB, schemaName string) error {
 		return fmt.Errorf("删除 schema %s 失败: %v", schemaName, err)
 	}
 
-	log.Printf("成功删除 schema: %s", schemaName)
+	slog.Info("成功删除 schema", "schema_name", schemaName)
 	return nil
 }
 
 // UpdateUserSchemas 更新用户的schema权限
 func UpdateUserSchemas(db *gorm.DB, userName, newSchemas string) error {
-	log.Printf("开始更新用户 %s 的 schema 权限: %s", userName, newSchemas)
+	slog.Info("开始更新用户的 schema 权限",
+		"user_name", userName,
+		"new_schemas", newSchemas)
 
 	// 调用 postgrest.update_user_schemas 函数
 	sql := `SELECT postgrest.update_user_schemas($1, $2)`
@@ -70,13 +72,13 @@ func UpdateUserSchemas(db *gorm.DB, userName, newSchemas string) error {
 		return fmt.Errorf("调用 postgrest.update_user_schemas 失败: %v", err)
 	}
 
-	log.Printf("用户 schema 权限更新结果: %s", result)
+	slog.Info("用户 schema 权限更新结果", "result", result)
 	return nil
 }
 
 // DeletePostgRESTUser 调用PostgREST的delete_user函数删除用户
 func DeletePostgRESTUser(db *gorm.DB, userName string) error {
-	log.Printf("开始删除 PostgREST 用户: %s", userName)
+	slog.Info("开始删除 PostgREST 用户", "user_name", userName)
 
 	// 调用 postgrest.delete_user 函数
 	sql := `SELECT postgrest.delete_user($1, true)`
@@ -86,6 +88,6 @@ func DeletePostgRESTUser(db *gorm.DB, userName string) error {
 		return fmt.Errorf("调用 postgrest.delete_user 失败: %v", err)
 	}
 
-	log.Printf("PostgREST 用户删除结果: %s", result)
+	slog.Info("PostgREST 用户删除结果", "result", result)
 	return nil
 }

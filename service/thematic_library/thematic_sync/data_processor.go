@@ -62,7 +62,7 @@ func (dp *DataProcessor) ProcessData(sourceRecords []SourceRecordInfo, request *
 	// 4. 更新增量同步值（如果启用了增量同步）
 	err = dp.updateIncrementalValues(sourceRecords, request)
 	if err != nil {
-		fmt.Printf("[WARNING] 更新增量同步值失败: %v\n", err)
+		slog.Warn("更新增量同步值失败", "error", err)
 	}
 
 	return governedRecords, governanceResult, nil
@@ -98,8 +98,7 @@ func (dp *DataProcessor) applyFieldMapping(mergedRecords []map[string]interface{
 	// 	Message:     fmt.Sprintf("字段映射完成，处理记录数: %d", len(mappedRecords)),
 	// }
 
-	fmt.Printf("[DEBUG] 字段映射完成，原记录数: %d，映射后记录数: %d\n",
-		len(mergedRecords), len(mappedRecords))
+	slog.Debug("字段映射完成", "sourceCount", len(mergedRecords), "mappedCount", len(mappedRecords))
 
 	return mappedRecords, nil
 }
@@ -112,7 +111,7 @@ func (dp *DataProcessor) MergeData(sourceRecords []SourceRecordInfo, request *Sy
 	// 获取目标主题接口的主键字段
 	targetPrimaryKeys, err := dp.getThematicPrimaryKeyFields(request.TargetInterfaceID)
 	if err != nil {
-		fmt.Printf("[DEBUG] 获取目标主键字段失败: %v, 不使用排序\n", err)
+		slog.Debug("获取目标主键字段失败，不使用排序", "error", err)
 		targetPrimaryKeys = []string{}
 	}
 	if len(targetPrimaryKeys) > 0 {
@@ -350,8 +349,7 @@ func (dp *DataProcessor) updateIncrementalValues(sourceRecords []SourceRecordInf
 								if maxValue != "" {
 									// 更新增量配置中的LastSyncValue
 									incrementalMap["last_sync_value"] = maxValue
-									fmt.Printf("[DEBUG] 更新增量同步值 - 库: %s, 接口: %s, 字段: %s, 值: %s\n",
-										libraryID, interfaceID, incrementalField, maxValue)
+									slog.Debug("更新增量同步值", "library", libraryID, "interface", interfaceID, "field", incrementalField, "value", maxValue)
 								}
 							}
 						}
@@ -379,9 +377,7 @@ func (dp *DataProcessor) updateIncrementalValues(sourceRecords []SourceRecordInf
 					if maxValue != "" {
 						// 更新增量配置中的LastSyncValue
 						sourceConfigs[i].IncrementalConfig.LastSyncValue = maxValue
-						fmt.Printf("[DEBUG] 更新增量同步值 - 库: %s, 接口: %s, 字段: %s, 值: %s\n",
-							config.LibraryID, config.InterfaceID,
-							config.IncrementalConfig.IncrementalField, maxValue)
+						slog.Debug("更新增量同步值", "library", config.LibraryID, "interface", config.InterfaceID, "field", config.IncrementalConfig.IncrementalField, "value", maxValue)
 					}
 				}
 			}

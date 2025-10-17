@@ -242,7 +242,7 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 		default:
 			method = "GET"
 		}
-		fmt.Printf("[DEBUG] executeHTTPRequest - 根据Operation推断HTTP方法: %s (Operation: %s)\n", method, request.Operation)
+		slog.Debug("executeHTTPRequest - 根据Operation推断HTTP方法: %s (Operation: %s)\n", method, request.Operation)
 	}
 
 	// 准备请求体
@@ -329,7 +329,7 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 				for key, value := range headers {
 					if strValue, ok := value.(string); ok {
 						httpReq.Header.Set(key, strValue)
-						fmt.Printf("[DEBUG] executeHTTPRequest - 设置额外头部: %s = %s\n", key, strValue)
+						slog.Debug("executeHTTPRequest - 设置额外头部: %s = %s\n", key, strValue)
 					}
 				}
 			}
@@ -390,7 +390,7 @@ func (h *HTTPAuthDataSource) Stop(ctx context.Context) error {
 	if ds != nil && ds.ScriptEnabled && ds.Script != "" {
 		if err := h.executeStopScript(ctx); err != nil {
 			// 记录错误但不阻止停止流程
-			fmt.Printf("停止脚本执行失败: %v\n", err)
+			slog.Error("停止脚本执行失败: %v\n", err.Error())
 		}
 	}
 
@@ -1123,11 +1123,11 @@ func (h *HTTPAuthDataSource) refreshSession() {
 	h.mu.RUnlock()
 
 	if !hasSession || sessionId == nil {
-		fmt.Printf("数据源 %s 没有活跃会话，跳过刷新\n", h.GetID())
+		slog.Error("数据源 %s 没有活跃会话，跳过刷新\n", h.GetID())
 		return
 	}
 
-	fmt.Printf("开始刷新数据源 %s 的会话\n", h.GetID())
+	slog.Info("开始刷新数据源 %s 的会话\n", h.GetID())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -1140,7 +1140,7 @@ func (h *HTTPAuthDataSource) refreshSession() {
 	if h.scriptExecutor != nil {
 		result, err := h.scriptExecutor.Execute(ctx, ds.Script, params)
 		if err != nil {
-			fmt.Printf("数据源 %s 会话刷新失败: %v\n", h.GetID(), err)
+			slog.Error("数据源 %s 会话刷新失败: %v\n", h.GetID(), err.Error())
 		} else {
 			// 更新会话数据
 			if resultMap, ok := result.(map[string]interface{}); ok {
@@ -1150,7 +1150,7 @@ func (h *HTTPAuthDataSource) refreshSession() {
 				}
 				h.sessionData["lastRefreshTime"] = time.Now().Format(time.RFC3339)
 				h.mu.Unlock()
-				fmt.Printf("数据源 %s 会话刷新成功\n", h.GetID())
+				slog.Info("数据源 %s 会话刷新成功\n", h.GetID())
 			}
 		}
 	}

@@ -486,7 +486,7 @@ func (c *ConfigManager) watchConfigFile(watcher *ConfigWatcher) {
 					// 重新加载配置
 					go func() {
 						if err := c.ReloadConfig(); err != nil {
-							fmt.Printf("重新加载配置失败: %v\n", err)
+							slog.Error("重新加载配置失败: %v\n", err.Error())
 						}
 					}()
 				}
@@ -686,7 +686,7 @@ func (c *ConfigManager) notifyConfigChange(oldConfig, newConfig *ApplicationConf
 	for _, notifier := range c.changeNotifiers {
 		go func(n ConfigChangeNotifier) {
 			if err := n.OnConfigChanged(oldConfig, newConfig, changes); err != nil {
-				fmt.Printf("通知配置变更失败: %v\n", err)
+				slog.Error("通知配置变更失败: %v\n", err.Error())
 			}
 		}(notifier)
 	}

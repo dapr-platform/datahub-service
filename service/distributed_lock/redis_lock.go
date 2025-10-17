@@ -14,7 +14,7 @@ package distributed_lock
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -74,7 +74,10 @@ func NewRedisLock() (*RedisLock, error) {
 	hostname, _ := os.Hostname()
 	instanceID := fmt.Sprintf("%s:%d", hostname, os.Getpid())
 
-	log.Printf("Redis分布式锁初始化成功 [实例ID: %s, Redis: %s:%s]", instanceID, host, port)
+	slog.Info("Redis分布式锁初始化成功",
+		"instance_id", instanceID,
+		"redis_host", host,
+		"redis_port", port)
 
 	return &RedisLock{
 		client:     client,
@@ -95,7 +98,10 @@ func (r *RedisLock) TryLock(ctx context.Context, key string, ttl time.Duration) 
 	}
 
 	if result {
-		log.Printf("[分布式锁] 成功获取锁 [key=%s, ttl=%v, instance=%s]", key, ttl, r.instanceID)
+		slog.Debug("分布式锁: 成功获取锁",
+			"key", key,
+			"ttl", ttl,
+			"instance", r.instanceID)
 	}
 
 	return result, nil
@@ -121,9 +127,13 @@ func (r *RedisLock) Unlock(ctx context.Context, key string) error {
 	}
 
 	if result.(int64) == 1 {
-		log.Printf("[分布式锁] 成功释放锁 [key=%s, instance=%s]", key, r.instanceID)
+		slog.Debug("分布式锁: 成功释放锁",
+			"key", key,
+			"instance", r.instanceID)
 	} else {
-		log.Printf("[分布式锁] 锁不存在或已被其他实例持有 [key=%s, instance=%s]", key, r.instanceID)
+		slog.Warn("分布式锁: 锁不存在或已被其他实例持有",
+			"key", key,
+			"instance", r.instanceID)
 	}
 
 	return nil
@@ -149,7 +159,10 @@ func (r *RedisLock) Refresh(ctx context.Context, key string, ttl time.Duration) 
 	}
 
 	if result.(int64) == 1 {
-		log.Printf("[分布式锁] 成功刷新锁 [key=%s, ttl=%v, instance=%s]", key, ttl, r.instanceID)
+		slog.Debug("分布式锁: 成功刷新锁",
+			"key", key,
+			"ttl", ttl,
+			"instance", r.instanceID)
 		return nil
 	}
 
@@ -203,14 +216,14 @@ func (e *LockExecutor) ExecuteWithLock(ctx context.Context, key string, ttl time
 	}
 
 	if !locked {
-		log.Printf("[分布式锁] 锁已被其他实例持有，跳过执行 [key=%s]", key)
+		slog.Debug("分布式锁: 锁已被其他实例持有，跳过执行", "key", key)
 		return nil // 不是错误，只是被其他实例执行了
 	}
 
 	// 确保函数执行完毕后释放锁
 	defer func() {
 		if unlockErr := e.lock.Unlock(ctx, key); unlockErr != nil {
-			log.Printf("[分布式锁] 释放锁失败 [key=%s, error=%v]", key, unlockErr)
+			slog.Error("分布式锁: 释放锁失败", "key", key, "error", unlockErr)
 		}
 	}()
 
@@ -227,7 +240,7 @@ func (e *LockExecutor) ExecuteWithLockAndRefresh(ctx context.Context, key string
 	}
 
 	if !locked {
-		log.Printf("[分布式锁] 锁已被其他实例持有，跳过执行 [key=%s]", key)
+		slog.Debug("分布式锁: 锁已被其他实例持有，跳过执行", "key", key)
 		return nil
 	}
 
@@ -246,7 +259,7 @@ func (e *LockExecutor) ExecuteWithLockAndRefresh(ctx context.Context, key string
 				return
 			case <-ticker.C:
 				if refreshErr := e.lock.Refresh(ctx, key, ttl); refreshErr != nil {
-					log.Printf("[分布式锁] 续期失败 [key=%s, error=%v]", key, refreshErr)
+					slog.Error("分布式锁: 续期失败", "key", key, "error", refreshErr)
 				}
 			}
 		}
@@ -255,7 +268,7 @@ func (e *LockExecutor) ExecuteWithLockAndRefresh(ctx context.Context, key string
 	// 确保函数执行完毕后释放锁
 	defer func() {
 		if unlockErr := e.lock.Unlock(ctx, key); unlockErr != nil {
-			log.Printf("[分布式锁] 释放锁失败 [key=%s, error=%v]", key, unlockErr)
+			slog.Error("分布式锁: 释放锁失败", "key", key, "error", unlockErr)
 		}
 	}()
 

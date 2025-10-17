@@ -14,8 +14,12 @@ package thematic_library
 import (
 	"datahub-service/service/database"
 	"datahub-service/service/models"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"sort"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -35,6 +39,11 @@ func NewService(db *gorm.DB) *Service {
 		schemaService: schemaService,
 	}
 	return service
+}
+
+// GetSchemaService 获取SchemaService实例
+func (s *Service) GetSchemaService() *database.SchemaService {
+	return s.schemaService
 }
 
 // CreateThematicLibrary 创建数据主题库
@@ -320,6 +329,304 @@ func (s *Service) GetThematicInterface(id string) (*models.ThematicInterface, er
 		return nil, err
 	}
 	return &thematicInterface, nil
+}
+
+// GetThematicInterfaceWithSync 获取主题接口详情并同步字段配置
+func (s *Service) GetThematicInterfaceWithSync(id string) (*models.ThematicInterface, error) {
+	// 先获取接口基本信息
+	interfaceData, err := s.GetThematicInterface(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果表已创建，检查并同步字段配置
+	if interfaceData.IsTableCreated || interfaceData.IsViewCreated {
+		synced, err := s.syncTableFieldsConfig(interfaceData)
+		if err != nil {
+			slog.Warn("同步表字段配置失败", "interface_id", id, "error", err)
+			// 同步失败不影响返回，只记录警告
+		} else if synced {
+			// 如果有同步，重新加载接口数据
+			interfaceData, err = s.GetThematicInterface(id)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return interfaceData, nil
+}
+
+// syncTableFieldsConfig 同步表字段配置
+func (s *Service) syncTableFieldsConfig(interfaceData *models.ThematicInterface) (bool, error) {
+	schemaName := interfaceData.ThematicLibrary.NameEn
+	tableName := interfaceData.NameEn
+
+	// 检查表或视图是否存在
+	var exists bool
+	var err error
+	if interfaceData.Type == "view" {
+		exists, err = s.schemaService.CheckViewExists(schemaName, tableName)
+	} else {
+		exists, err = s.schemaService.CheckTableExists(schemaName, tableName)
+	}
+	if err != nil {
+		return false, fmt.Errorf("检查表/视图存在性失败: %w", err)
+	}
+	if !exists {
+		return false, nil
+	}
+
+	// 从数据库获取实际字段
+	actualColumns, err := s.schemaService.GetTableColumns(schemaName, tableName)
+	if err != nil {
+		return false, fmt.Errorf("获取表字段失败: %w", err)
+	}
+
+	// 从配置中提取现有字段
+	existingFields := s.extractFieldsFromConfig(interfaceData.TableFieldsConfig)
+
+	// 构建现有字段映射
+	existingFieldMap := make(map[string]models.TableField)
+	for _, field := range existingFields {
+		existingFieldMap[field.NameEn] = field
+	}
+
+	// 转换数据库列为字段，并合并配置
+	mergedFields := s.mergeFieldsWithConfig(actualColumns, existingFieldMap)
+
+	// 比较字段配置是否一致
+	if s.isFieldsConfigSame(interfaceData.TableFieldsConfig, mergedFields) {
+		return false, nil // 字段一致，无需同步
+	}
+
+	slog.Info("检测到主题接口表字段配置不一致，开始同步",
+		"interface_id", interfaceData.ID,
+		"schema", schemaName,
+		"table", tableName,
+		"type", interfaceData.Type,
+		"existing_fields", len(existingFields),
+		"actual_columns", len(actualColumns))
+
+	// 更新字段配置
+	fieldsData := make(models.JSONB)
+	for i, field := range mergedFields {
+		fieldsData[fmt.Sprintf("field_%d", i)] = field
+	}
+
+	updates := map[string]interface{}{
+		"table_fields_config": fieldsData,
+		"updated_at":          time.Now(),
+	}
+
+	if err := s.db.Model(&models.ThematicInterface{}).Where("id = ?", interfaceData.ID).Updates(updates).Error; err != nil {
+		return false, fmt.Errorf("更新字段配置失败: %w", err)
+	}
+
+	slog.Info("主题接口表字段配置同步完成", "interface_id", interfaceData.ID, "fields_count", len(mergedFields))
+
+	return true, nil
+}
+
+// extractFieldsFromConfig 从配置中提取字段
+func (s *Service) extractFieldsFromConfig(configJSON models.JSONB) []models.TableField {
+	var fields []models.TableField
+
+	if len(configJSON) == 0 {
+		return fields
+	}
+
+	for i := 0; i < len(configJSON); i++ {
+		key := fmt.Sprintf("field_%d", i)
+		if fieldData, exists := configJSON[key]; exists {
+			var field models.TableField
+			fieldBytes, _ := json.Marshal(fieldData)
+			if err := json.Unmarshal(fieldBytes, &field); err != nil {
+				continue
+			}
+			fields = append(fields, field)
+		}
+	}
+
+	return fields
+}
+
+// mergeFieldsWithConfig 合并数据库字段与现有配置
+func (s *Service) mergeFieldsWithConfig(actualColumns []database.ColumnDefinition, existingFieldMap map[string]models.TableField) []models.TableField {
+	mergedFields := make([]models.TableField, 0, len(actualColumns))
+
+	for _, col := range actualColumns {
+		// 基于数据库实际字段创建字段对象
+		field := models.TableField{
+			NameEn:       col.Name,
+			NameZh:       s.extractChineseFromComment(col.Comment),
+			DataType:     s.normalizeDataType(col.DataType),
+			IsPrimaryKey: col.IsPrimaryKey,
+			IsUnique:     col.IsUnique,
+			IsNullable:   col.IsNullable,
+			Description:  col.Comment,
+			OrderNum:     col.OrdinalPosition,
+		}
+
+		// 处理默认值
+		if col.DefaultValue != nil {
+			if defaultStr, ok := col.DefaultValue.(string); ok {
+				field.DefaultValue = defaultStr
+			}
+		}
+
+		// 如果配置中存在该字段，合并配置信息
+		if existingField, exists := existingFieldMap[col.Name]; exists {
+			// 保留原有的 OrderNum、NameZh（如果更有意义）、IsIncrementField 等配置
+			if existingField.OrderNum > 0 {
+				field.OrderNum = existingField.OrderNum
+			}
+			if existingField.NameZh != "" && existingField.NameZh != col.Name {
+				field.NameZh = existingField.NameZh
+			}
+			field.IsIncrementField = existingField.IsIncrementField
+
+			// 如果配置中的描述更详细，使用配置中的
+			if existingField.Description != "" && len(existingField.Description) > len(col.Comment) {
+				field.Description = existingField.Description
+			}
+		}
+
+		mergedFields = append(mergedFields, field)
+	}
+
+	// 按 OrderNum 排序，如果 OrderNum 相同或为0，则按字段名排序
+	sort.SliceStable(mergedFields, func(i, j int) bool {
+		if mergedFields[i].OrderNum != 0 && mergedFields[j].OrderNum != 0 {
+			if mergedFields[i].OrderNum != mergedFields[j].OrderNum {
+				return mergedFields[i].OrderNum < mergedFields[j].OrderNum
+			}
+		}
+		return mergedFields[i].NameEn < mergedFields[j].NameEn
+	})
+
+	// 重新分配 OrderNum
+	for i := range mergedFields {
+		mergedFields[i].OrderNum = i + 1
+	}
+
+	return mergedFields
+}
+
+// convertColumnsToTableFields 将数据库列定义转换为TableField
+func (s *Service) convertColumnsToTableFields(columns []database.ColumnDefinition) []models.TableField {
+	fields := make([]models.TableField, 0, len(columns))
+
+	for _, col := range columns {
+		field := models.TableField{
+			NameEn:       col.Name,
+			NameZh:       s.extractChineseFromComment(col.Comment),
+			DataType:     s.normalizeDataType(col.DataType),
+			IsPrimaryKey: col.IsPrimaryKey,
+			IsUnique:     col.IsUnique,
+			IsNullable:   col.IsNullable,
+			Description:  col.Comment,
+			OrderNum:     col.OrdinalPosition,
+		}
+
+		// 处理默认值
+		if col.DefaultValue != nil {
+			if defaultStr, ok := col.DefaultValue.(string); ok {
+				field.DefaultValue = defaultStr
+			}
+		}
+
+		fields = append(fields, field)
+	}
+
+	return fields
+}
+
+// extractChineseFromComment 从注释中提取中文名称
+func (s *Service) extractChineseFromComment(comment string) string {
+	if comment == "" {
+		return ""
+	}
+
+	// 尝试提取 "中文名 - 描述" 格式中的中文名
+	parts := strings.Split(comment, " - ")
+	if len(parts) > 0 {
+		return strings.TrimSpace(parts[0])
+	}
+
+	return comment
+}
+
+// normalizeDataType 规范化数据类型
+func (s *Service) normalizeDataType(dataType string) string {
+	// 移除类型中的长度限制，如 varchar(255) -> varchar
+	if idx := strings.Index(dataType, "("); idx > 0 {
+		dataType = dataType[:idx]
+	}
+
+	// 统一类型名称
+	typeMap := map[string]string{
+		"character varying":           "varchar",
+		"double precision":            "double",
+		"timestamp without time zone": "timestamp",
+		"timestamp with time zone":    "timestamp",
+	}
+
+	if normalized, exists := typeMap[dataType]; exists {
+		return normalized
+	}
+
+	return dataType
+}
+
+// isFieldsConfigSame 比较字段配置是否一致
+func (s *Service) isFieldsConfigSame(configJSON models.JSONB, actualFields []models.TableField) bool {
+	if len(configJSON) == 0 {
+		return len(actualFields) == 0
+	}
+
+	// 从配置中提取字段
+	var configFields []models.TableField
+	for i := 0; i < len(configJSON); i++ {
+		key := fmt.Sprintf("field_%d", i)
+		if fieldData, exists := configJSON[key]; exists {
+			var field models.TableField
+			fieldBytes, _ := json.Marshal(fieldData)
+			if err := json.Unmarshal(fieldBytes, &field); err != nil {
+				continue
+			}
+			configFields = append(configFields, field)
+		}
+	}
+
+	// 比较字段数量
+	if len(configFields) != len(actualFields) {
+		return false
+	}
+
+	// 构建实际字段映射
+	actualFieldMap := make(map[string]models.TableField)
+	for _, field := range actualFields {
+		actualFieldMap[field.NameEn] = field
+	}
+
+	// 逐个比较字段
+	for _, configField := range configFields {
+		actualField, exists := actualFieldMap[configField.NameEn]
+		if !exists {
+			return false
+		}
+
+		// 比较关键属性
+		if configField.DataType != actualField.DataType ||
+			configField.IsPrimaryKey != actualField.IsPrimaryKey ||
+			configField.IsNullable != actualField.IsNullable ||
+			configField.IsUnique != actualField.IsUnique {
+			return false
+		}
+	}
+
+	return true
 }
 
 // GetThematicInterfaces 获取主题接口列表

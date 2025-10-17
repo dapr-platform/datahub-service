@@ -14,7 +14,7 @@ package database
 import (
 	"datahub-service/service/models"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -22,14 +22,13 @@ import (
 
 // AutoMigrate 自动迁移数据库表结构
 func AutoMigrate(db *gorm.DB) error {
-	log.Println("开始数据库迁移...")
+	slog.Info("开始数据库迁移...")
 
 	// 数据基础库相关表
-	log.Println("正在迁移数据基础库相关表...")
+	slog.Info("正在迁移数据基础库相关表...")
 	err := db.AutoMigrate(
 		&models.BasicLibrary{},
 		&models.DataInterface{},
-		&models.InterfaceField{},
 		&models.DataSource{},
 		&models.CleansingRule{},
 		&models.DataSourceStatus{},
@@ -37,14 +36,14 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.SyncTask{},
 	)
 	if err != nil {
-		log.Printf("数据基础库表迁移失败: %v", err)
+		slog.Error("数据基础库表迁移失败", "error", err)
 		return err
 	}
-	log.Println("数据基础库表迁移完成")
+	slog.Info("数据基础库表迁移完成")
 
 	// 数据主题库相关表
-	log.Println("正在迁移数据主题库相关表...")
-	log.Printf("迁移表: ThematicLibrary, ThematicInterface, ThematicSyncTask, ThematicSyncExecution, ThematicDataLineage, DataFlowGraph, FlowNode")
+	slog.Info("正在迁移数据主题库相关表...")
+	slog.Info("迁移表: ThematicLibrary, ThematicInterface, ThematicSyncTask, ThematicSyncExecution, ThematicDataLineage, DataFlowGraph, FlowNode")
 	err = db.AutoMigrate(
 		&models.ThematicLibrary{},
 		&models.ThematicInterface{},
@@ -55,28 +54,28 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.FlowNode{},
 	)
 	if err != nil {
-		log.Printf("数据主题库表迁移失败: %v", err)
+		slog.Error("数据主题库表迁移失败", "error", err)
 		return err
 	}
-	log.Println("数据主题库表迁移完成")
+	slog.Info("数据主题库表迁移完成")
 
 	// 验证主题库表是否创建成功
 	if db.Migrator().HasTable(&models.ThematicLibrary{}) {
-		log.Println("✅ thematic_libraries 表创建成功")
+		slog.Info("✅ thematic_libraries 表创建成功")
 	} else {
-		log.Println("❌ thematic_libraries 表创建失败")
+		slog.Warn("❌ thematic_libraries 表创建失败")
 	}
 
 	if db.Migrator().HasTable(&models.ThematicInterface{}) {
-		log.Println("✅ thematic_interfaces 表创建成功")
+		slog.Info("✅ thematic_interfaces 表创建成功")
 	} else {
-		log.Println("❌ thematic_interfaces 表创建失败")
+		slog.Warn("❌ thematic_interfaces 表创建失败")
 	}
 
 	// 访问控制相关表已移除，改为使用PostgREST RBAC
 
 	// 数据治理相关表
-	log.Println("正在迁移数据治理相关表...")
+	slog.Info("正在迁移数据治理相关表...")
 	err = db.AutoMigrate(
 		&models.QualityRuleTemplate{},
 		&models.Metadata{},
@@ -92,13 +91,13 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.DataLineage{},
 	)
 	if err != nil {
-		log.Printf("数据治理表迁移失败: %v", err)
+		slog.Error("数据治理表迁移失败", "error", err)
 		return err
 	}
-	log.Println("数据治理表迁移完成")
+	slog.Info("数据治理表迁移完成")
 
 	// 数据共享服务相关表
-	log.Println("正在迁移数据共享服务相关表...")
+	slog.Info("正在迁移数据共享服务相关表...")
 	err = db.AutoMigrate(
 		&models.ApiApplication{},
 		&models.ApiKey{},
@@ -110,13 +109,13 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.ApiUsageLog{},
 	)
 	if err != nil {
-		log.Printf("数据共享服务表迁移失败: %v", err)
+		slog.Error("数据共享服务表迁移失败", "error", err)
 		return err
 	}
-	log.Println("数据共享服务表迁移完成")
+	slog.Info("数据共享服务表迁移完成")
 
 	// 事件管理相关表
-	log.Println("正在迁移事件管理相关表...")
+	slog.Info("正在迁移事件管理相关表...")
 	err = db.AutoMigrate(
 		&models.SSEEvent{},
 		&models.DBEventListener{},
@@ -124,13 +123,13 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.SSEConnection{},
 	)
 	if err != nil {
-		log.Printf("事件管理表迁移失败: %v", err)
+		slog.Error("事件管理表迁移失败", "error", err)
 		return err
 	}
-	log.Println("事件管理表迁移完成")
+	slog.Info("事件管理表迁移完成")
 
 	// 数据同步相关表
-	log.Println("正在迁移数据同步相关表...")
+	slog.Info("正在迁移数据同步相关表...")
 	err = db.AutoMigrate(
 		&models.SyncTask{},
 		&models.SyncTaskInterface{},
@@ -140,49 +139,49 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.SyncStatistics{},
 	)
 	if err != nil {
-		log.Printf("数据同步表迁移失败: %v", err)
+		slog.Error("数据同步表迁移失败", "error", err)
 		return err
 	}
-	log.Println("数据同步表迁移完成")
+	slog.Info("数据同步表迁移完成")
 
 	// 数据质量相关表
-	log.Println("正在迁移数据质量相关表...")
+	slog.Info("正在迁移数据质量相关表...")
 	err = db.AutoMigrate(
 		&models.QualityCheckExecution{},
 		&models.QualityMetricRecord{},
 		&models.QualityIssueTracker{},
 	)
 	if err != nil {
-		log.Printf("数据质量表迁移失败: %v", err)
+		slog.Error("数据质量表迁移失败", "error", err)
 		return err
 	}
-	log.Println("数据质量表迁移完成")
+	slog.Info("数据质量表迁移完成")
 
 	// 监控和告警相关表
-	log.Println("正在迁移监控和告警相关表...")
+	slog.Info("正在迁移监控和告警相关表...")
 	err = db.AutoMigrate(
 		&models.AlertRule{},
 		&models.MonitoringMetric{},
 	)
 	if err != nil {
-		log.Printf("监控和告警表迁移失败: %v", err)
+		slog.Error("监控和告警表迁移失败", "error", err)
 		return err
 	}
-	log.Println("监控和告警表迁移完成")
+	slog.Info("监控和告警表迁移完成")
 
 	// 创建同步相关索引
 	if err := CreateSyncIndexes(db); err != nil {
-		log.Printf("创建同步索引失败: %v", err)
+		slog.Error("创建同步索引失败", "error", err)
 		return err
 	}
 
-	log.Println("数据库迁移完成")
+	slog.Info("数据库迁移完成")
 	return nil
 }
 
 // InitializeData 初始化基础数据
 func InitializeData(db *gorm.DB) error {
-	log.Println("开始初始化基础数据...")
+	slog.Info("开始初始化基础数据...")
 
 	// 数据源类型元数据现在由动态注册表提供，无需数据库存储
 	// err := initDataSourceTypeMeta(db)
@@ -220,23 +219,23 @@ func InitializeData(db *gorm.DB) error {
 		"status_update",       // 状态更新
 	}
 
-	log.Printf("支持的数据质量规则类型: %v", qualityRuleTypes)
-	log.Printf("支持的数据脱敏类型: %v", maskingTypes)
-	log.Printf("支持的事件类型: %v", eventTypes)
+	slog.Info("支持的数据质量规则类型", "types", qualityRuleTypes)
+	slog.Info("支持的数据脱敏类型", "types", maskingTypes)
+	slog.Info("支持的事件类型", "types", eventTypes)
 
 	// 初始化同步相关基础数据
 	if err := InitializeSyncData(db); err != nil {
-		log.Printf("初始化同步基础数据失败: %v", err)
+		slog.Error("初始化同步基础数据失败", "error", err)
 		return err
 	}
 
-	log.Println("基础数据初始化完成")
+	slog.Info("基础数据初始化完成")
 	return nil
 }
 
 // CreateSyncIndexes 创建同步相关表的索引
 func CreateSyncIndexes(db *gorm.DB) error {
-	log.Println("开始创建数据同步相关索引...")
+	slog.Info("开始创建数据同步相关索引...")
 
 	// 同步配置表索引
 	if err := createSyncConfigurationIndexes(db); err != nil {
@@ -263,7 +262,7 @@ func CreateSyncIndexes(db *gorm.DB) error {
 		return err
 	}
 
-	log.Println("数据同步相关索引创建完成")
+	slog.Info("数据同步相关索引创建完成")
 	return nil
 }
 
@@ -279,7 +278,7 @@ func createSyncConfigurationIndexes(db *gorm.DB) error {
 
 	for _, query := range indexQueries {
 		if err := db.Exec(query).Error; err != nil {
-			log.Printf("创建同步配置表索引失败: %v", err)
+			slog.Error("创建同步配置表索引失败", "error", err)
 			return err
 		}
 	}
@@ -300,7 +299,7 @@ func createSyncExecutionIndexes(db *gorm.DB) error {
 
 	for _, query := range indexQueries {
 		if err := db.Exec(query).Error; err != nil {
-			log.Printf("创建同步执行表索引失败: %v", err)
+			slog.Error("创建同步执行表索引失败", "error", err)
 			return err
 		}
 	}
@@ -319,7 +318,7 @@ func createIncrementalStateIndexes(db *gorm.DB) error {
 
 	for _, query := range indexQueries {
 		if err := db.Exec(query).Error; err != nil {
-			log.Printf("创建增量状态表索引失败: %v", err)
+			slog.Error("创建增量状态表索引失败", "error", err)
 			return err
 		}
 	}
@@ -343,7 +342,7 @@ func createQualityIndexes(db *gorm.DB) error {
 
 	for _, query := range indexQueries {
 		if err := db.Exec(query).Error; err != nil {
-			log.Printf("创建质量相关表索引失败: %v", err)
+			slog.Error("创建质量相关表索引失败", "error", err)
 			return err
 		}
 	}
@@ -362,7 +361,7 @@ func createMonitoringIndexes(db *gorm.DB) error {
 
 	for _, query := range indexQueries {
 		if err := db.Exec(query).Error; err != nil {
-			log.Printf("创建监控相关表索引失败: %v", err)
+			slog.Error("创建监控相关表索引失败", "error", err)
 			return err
 		}
 	}
@@ -372,7 +371,7 @@ func createMonitoringIndexes(db *gorm.DB) error {
 
 // InitializeSyncData 初始化同步相关基础数据
 func InitializeSyncData(db *gorm.DB) error {
-	log.Println("开始初始化数据同步相关基础数据...")
+	slog.Info("开始初始化数据同步相关基础数据...")
 
 	// 初始化默认同步策略类型
 	syncStrategies := []string{
@@ -427,18 +426,18 @@ func InitializeSyncData(db *gorm.DB) error {
 		"data_anomaly",     // 数据异常
 	}
 
-	log.Printf("支持的同步策略类型: %v", syncStrategies)
-	log.Printf("支持的调度类型: %v", scheduleTypes)
-	log.Printf("支持的数据源状态: %v", dataSourceStatuses)
-	log.Printf("支持的质量规则类型: %v", qualityRuleTypes)
-	log.Printf("支持的告警类型: %v", alertTypes)
+	slog.Info("支持的同步策略类型", "types", syncStrategies)
+	slog.Info("支持的调度类型", "types", scheduleTypes)
+	slog.Info("支持的数据源状态", "statuses", dataSourceStatuses)
+	slog.Info("支持的质量规则类型", "types", qualityRuleTypes)
+	slog.Info("支持的告警类型", "types", alertTypes)
 
 	// 创建系统默认配置记录
 	if err := createDefaultSyncConfigurations(db); err != nil {
 		return err
 	}
 
-	log.Println("数据同步相关基础数据初始化完成")
+	slog.Info("数据同步相关基础数据初始化完成")
 	return nil
 }
 
@@ -484,17 +483,17 @@ func createDefaultSyncConfigurations(db *gorm.DB) error {
 
 		if count == 0 {
 			if err := db.Create(&config).Error; err != nil {
-				log.Printf("创建默认配置失败: %v", err)
+				slog.Error("创建默认配置失败", "error", err)
 				// 继续执行，不中断整个初始化过程
 			} else {
-				log.Printf("创建默认配置: %s", config.Key)
+				slog.Info("创建默认配置", "key", config.Key)
 			}
 		}
 	}
 
 	// 迁移现有同步任务的状态
 	if err := MigrateSyncTaskStatus(db); err != nil {
-		log.Printf("迁移同步任务状态失败（非致命错误）: %v", err)
+		slog.Warn("迁移同步任务状态失败（非致命错误）", "error", err)
 		// 不返回错误，允许系统继续运行
 	}
 
@@ -503,11 +502,11 @@ func createDefaultSyncConfigurations(db *gorm.DB) error {
 
 // MigrateSyncTaskStatus 迁移现有同步任务的状态字段
 func MigrateSyncTaskStatus(db *gorm.DB) error {
-	log.Println("开始迁移同步任务状态...")
+	slog.Info("开始迁移同步任务状态...")
 
 	// 检查execution_status字段是否存在
 	if !db.Migrator().HasColumn(&models.SyncTask{}, "execution_status") {
-		log.Println("execution_status字段不存在，跳过数据迁移")
+		slog.Info("execution_status字段不存在，跳过数据迁移")
 		return nil
 	}
 
@@ -536,6 +535,6 @@ func MigrateSyncTaskStatus(db *gorm.DB) error {
 		return fmt.Errorf("更新同步任务状态失败: %w", result.Error)
 	}
 
-	log.Printf("同步任务状态迁移完成，影响 %d 条记录", result.RowsAffected)
+	slog.Info("同步任务状态迁移完成", "rows_affected", result.RowsAffected)
 	return nil
 }

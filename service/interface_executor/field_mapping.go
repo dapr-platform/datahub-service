@@ -422,7 +422,7 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 				if source != "" && target != "" {
 					sourceToTargetMap[source] = target
 					if debug {
-						fmt.Printf("[DEBUG] ApplyFieldMapping - 映射规则: %s -> %s\n", source, target)
+						slog.Debug("ApplyFieldMapping - 映射规则: %s -> %s\n", source, target)
 					}
 				}
 			}
@@ -442,7 +442,7 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 
 			mappedRow[targetField] = value
 			if debug {
-				fmt.Printf("[DEBUG] ApplyFieldMapping - 字段映射: %s -> %s, 值: %v\n", sourceField, targetField, value)
+				slog.Debug("ApplyFieldMapping - 字段映射: %s -> %s, 值: %v\n", sourceField, targetField, value)
 			}
 		}
 
@@ -466,7 +466,7 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 
 			mappedRow[targetField] = value
 			if debug {
-				fmt.Printf("[DEBUG] ApplyFieldMapping - 字段映射（兼容模式）: %s -> %s, 值: %v\n", sourceField, targetField, value)
+				slog.Debug("ApplyFieldMapping - 字段映射（兼容模式）: %s -> %s, 值: %v\n", sourceField, targetField, value)
 			}
 		}
 	}
@@ -485,7 +485,7 @@ func (fm *FieldMapper) ProcessValueForDatabase(columnName string, value interfac
 
 	debug := len(debugLog) > 0 && debugLog[0]
 	if debug {
-		fmt.Printf("[DEBUG] FieldMapper.ProcessValueForDatabase - 处理字段: %s, 原始值: %+v, 类型: %T\n", columnName, value, value)
+		slog.Debug("FieldMapper.ProcessValueForDatabase - 处理字段: %s, 原始值: %+v, 类型: %T\n", columnName, value, value)
 	}
 
 	// 获取字段的数据类型
@@ -522,7 +522,7 @@ func (fm *FieldMapper) convertValueByDataType(value interface{}, dataType, colum
 	default:
 		// 未知类型，使用字符串转换
 		if debug {
-			fmt.Printf("[DEBUG] convertValueByDataType - 未知数据类型 %s，使用字符串转换\n", dataType)
+			slog.Debug("convertValueByDataType - 未知数据类型 %s，使用字符串转换\n", dataType)
 		}
 		return fm.convertToString(value, debug)
 	}
@@ -534,7 +534,7 @@ func (fm *FieldMapper) convertToTimestamp(value interface{}, debug bool) interfa
 	case time.Time:
 		formatted := v.Format("2006-01-02 15:04:05.000")
 		if debug {
-			fmt.Printf("[DEBUG] convertToTimestamp - time.Time转换: %s -> %s\n", v.String(), formatted)
+			slog.Debug("convertToTimestamp - time.Time转换: %s -> %s\n", v.String(), formatted)
 		}
 		return formatted
 	case string:
@@ -553,7 +553,7 @@ func (fm *FieldMapper) convertToTimestamp(value interface{}, debug bool) interfa
 			if parsedTime, err := time.Parse(format, v); err == nil {
 				formatted := parsedTime.Format("2006-01-02 15:04:05.000")
 				if debug {
-					fmt.Printf("[DEBUG] convertToTimestamp - 字符串时间转换(%s): %s -> %s\n", format, v, formatted)
+					slog.Debug("convertToTimestamp - 字符串时间转换(%s): %s -> %s\n", format, v, formatted)
 				}
 				return formatted
 			}
@@ -581,7 +581,7 @@ func (fm *FieldMapper) convertToDate(value interface{}, debug bool) interface{} 
 	case time.Time:
 		formatted := v.Format("2006-01-02")
 		if debug {
-			fmt.Printf("[DEBUG] convertToDate - time.Time转换: %s -> %s\n", v.String(), formatted)
+			slog.Debug("convertToDate - time.Time转换: %s -> %s\n", v.String(), formatted)
 		}
 		return formatted
 	case string:
@@ -597,7 +597,7 @@ func (fm *FieldMapper) convertToDate(value interface{}, debug bool) interface{} 
 			if parsedTime, err := time.Parse(format, v); err == nil {
 				formatted := parsedTime.Format("2006-01-02")
 				if debug {
-					fmt.Printf("[DEBUG] convertToDate - 字符串日期转换(%s): %s -> %s\n", format, v, formatted)
+					slog.Debug("convertToDate - 字符串日期转换(%s): %s -> %s\n", format, v, formatted)
 				}
 				return formatted
 			}
@@ -621,7 +621,7 @@ func (fm *FieldMapper) convertToTime(value interface{}, debug bool) interface{} 
 	case time.Time:
 		formatted := v.Format("15:04:05")
 		if debug {
-			fmt.Printf("[DEBUG] convertToTime - time.Time转换: %s -> %s\n", v.String(), formatted)
+			slog.Debug("convertToTime - time.Time转换: %s -> %s\n", v.String(), formatted)
 		}
 		return formatted
 	case string:
@@ -632,7 +632,7 @@ func (fm *FieldMapper) convertToTime(value interface{}, debug bool) interface{} 
 		if parsedTime, err := time.Parse("2006-01-02T15:04:05Z", v); err == nil {
 			formatted := parsedTime.Format("15:04:05")
 			if debug {
-				fmt.Printf("[DEBUG] convertToTime - 字符串时间转换: %s -> %s\n", v, formatted)
+				slog.Debug("convertToTime - 字符串时间转换: %s -> %s\n", v, formatted)
 			}
 			return formatted
 		}
@@ -650,13 +650,13 @@ func (fm *FieldMapper) convertToInteger(value interface{}, debug bool) interface
 	case float32, float64:
 		intVal := int(cast.ToFloat64(v))
 		if debug {
-			fmt.Printf("[DEBUG] convertToInteger - 浮点数转整数: %v -> %d\n", v, intVal)
+			slog.Debug("convertToInteger - 浮点数转整数: %v -> %d\n", v, intVal)
 		}
 		return intVal
 	case string:
 		if intVal, err := strconv.Atoi(v); err == nil {
 			if debug {
-				fmt.Printf("[DEBUG] convertToInteger - 字符串转整数: %s -> %d\n", v, intVal)
+				slog.Debug("convertToInteger - 字符串转整数: %s -> %d\n", v, intVal)
 			}
 			return intVal
 		}
@@ -664,7 +664,7 @@ func (fm *FieldMapper) convertToInteger(value interface{}, debug bool) interface
 		if floatVal, err := strconv.ParseFloat(v, 64); err == nil {
 			intVal := int(floatVal)
 			if debug {
-				fmt.Printf("[DEBUG] convertToInteger - 字符串(浮点)转整数: %s -> %d\n", v, intVal)
+				slog.Debug("convertToInteger - 字符串(浮点)转整数: %s -> %d\n", v, intVal)
 			}
 			return intVal
 		}
@@ -675,7 +675,7 @@ func (fm *FieldMapper) convertToInteger(value interface{}, debug bool) interface
 	default:
 		intVal := cast.ToInt(v)
 		if debug {
-			fmt.Printf("[DEBUG] convertToInteger - 其他类型转整数: %v -> %d\n", v, intVal)
+			slog.Debug("convertToInteger - 其他类型转整数: %v -> %d\n", v, intVal)
 		}
 		return intVal
 	}
@@ -691,13 +691,13 @@ func (fm *FieldMapper) convertToBigInt(value interface{}, debug bool) interface{
 	case float32, float64:
 		bigIntVal := int64(cast.ToFloat64(v))
 		if debug {
-			fmt.Printf("[DEBUG] convertToBigInt - 浮点数转大整数: %v -> %d\n", v, bigIntVal)
+			slog.Debug("convertToBigInt - 浮点数转大整数: %v -> %d\n", v, bigIntVal)
 		}
 		return bigIntVal
 	case string:
 		if bigIntVal, err := strconv.ParseInt(v, 10, 64); err == nil {
 			if debug {
-				fmt.Printf("[DEBUG] convertToBigInt - 字符串转大整数: %s -> %d\n", v, bigIntVal)
+				slog.Debug("convertToBigInt - 字符串转大整数: %s -> %d\n", v, bigIntVal)
 			}
 			return bigIntVal
 		}
@@ -705,7 +705,7 @@ func (fm *FieldMapper) convertToBigInt(value interface{}, debug bool) interface{
 	default:
 		bigIntVal := cast.ToInt64(v)
 		if debug {
-			fmt.Printf("[DEBUG] convertToBigInt - 其他类型转大整数: %v -> %d\n", v, bigIntVal)
+			slog.Debug("convertToBigInt - 其他类型转大整数: %v -> %d\n", v, bigIntVal)
 		}
 		return bigIntVal
 	}
@@ -719,13 +719,13 @@ func (fm *FieldMapper) convertToFloat(value interface{}, debug bool) interface{}
 	case int, int32, int64:
 		floatVal := cast.ToFloat64(v)
 		if debug {
-			fmt.Printf("[DEBUG] convertToFloat - 整数转浮点数: %v -> %f\n", v, floatVal)
+			slog.Debug("convertToFloat - 整数转浮点数: %v -> %f\n", v, floatVal)
 		}
 		return floatVal
 	case string:
 		if floatVal, err := strconv.ParseFloat(v, 64); err == nil {
 			if debug {
-				fmt.Printf("[DEBUG] convertToFloat - 字符串转浮点数: %s -> %f\n", v, floatVal)
+				slog.Debug("convertToFloat - 字符串转浮点数: %s -> %f\n", v, floatVal)
 			}
 			return floatVal
 		}
@@ -733,7 +733,7 @@ func (fm *FieldMapper) convertToFloat(value interface{}, debug bool) interface{}
 	default:
 		floatVal := cast.ToFloat64(v)
 		if debug {
-			fmt.Printf("[DEBUG] convertToFloat - 其他类型转浮点数: %v -> %f\n", v, floatVal)
+			slog.Debug("convertToFloat - 其他类型转浮点数: %v -> %f\n", v, floatVal)
 		}
 		return floatVal
 	}
@@ -749,12 +749,12 @@ func (fm *FieldMapper) convertToBoolean(value interface{}, debug bool) interface
 		switch lowerV {
 		case "true", "1", "yes", "y", "on":
 			if debug {
-				fmt.Printf("[DEBUG] convertToBoolean - 字符串转布尔值: %s -> true\n", v)
+				slog.Debug("convertToBoolean - 字符串转布尔值: %s -> true\n", v)
 			}
 			return true
 		case "false", "0", "no", "n", "off":
 			if debug {
-				fmt.Printf("[DEBUG] convertToBoolean - 字符串转布尔值: %s -> false\n", v)
+				slog.Debug("convertToBoolean - 字符串转布尔值: %s -> false\n", v)
 			}
 			return false
 		default:
@@ -763,13 +763,13 @@ func (fm *FieldMapper) convertToBoolean(value interface{}, debug bool) interface
 	case int, int32, int64:
 		boolVal := cast.ToInt64(v) != 0
 		if debug {
-			fmt.Printf("[DEBUG] convertToBoolean - 整数转布尔值: %v -> %t\n", v, boolVal)
+			slog.Debug("convertToBoolean - 整数转布尔值: %v -> %t\n", v, boolVal)
 		}
 		return boolVal
 	default:
 		boolVal := cast.ToBool(v)
 		if debug {
-			fmt.Printf("[DEBUG] convertToBoolean - 其他类型转布尔值: %v -> %t\n", v, boolVal)
+			slog.Debug("convertToBoolean - 其他类型转布尔值: %v -> %t\n", v, boolVal)
 		}
 		return boolVal
 	}
@@ -779,7 +779,7 @@ func (fm *FieldMapper) convertToBoolean(value interface{}, debug bool) interface
 func (fm *FieldMapper) convertToString(value interface{}, debug bool) interface{} {
 	strVal := cast.ToString(value)
 	if debug && fmt.Sprintf("%v", value) != strVal {
-		fmt.Printf("[DEBUG] convertToString - 类型转字符串: %v -> %s\n", value, strVal)
+		slog.Debug("convertToString - 类型转字符串: %v -> %s\n", value, strVal)
 	}
 	return strVal
 }

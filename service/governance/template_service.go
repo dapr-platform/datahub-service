@@ -14,7 +14,7 @@ package governance
 import (
 	"datahub-service/service/models"
 	"errors"
-	"fmt"
+	"log/slog"
 
 	"github.com/lib/pq"
 	"gorm.io/gorm"
@@ -545,7 +545,7 @@ func (s *TemplateService) initQualityRuleTemplates() {
 			// 模板不存在，创建新模板（让BeforeCreate钩子生成UUID）
 			template.ID = "" // 清空ID，让BeforeCreate钩子生成UUID
 			if err := s.db.Create(&template).Error; err != nil {
-				fmt.Printf("创建内置质量规则模板失败: %s, 错误: %v\n", template.Name, err)
+				slog.Error("创建内置质量规则模板失败: %s, 错误: %v\n", template.Name, err.Error())
 			}
 		} else {
 			// 模板已存在，更新非用户修改的字段
@@ -559,7 +559,7 @@ func (s *TemplateService) initQualityRuleTemplates() {
 					"tags":           template.Tags,
 				}
 				if err := s.db.Model(&existingTemplate).Updates(updates).Error; err != nil {
-					fmt.Printf("更新内置质量规则模板失败: %s, 错误: %v\n", template.Name, err)
+					slog.Error("更新内置质量规则模板失败: %s, 错误: %v\n", template.Name, err.Error())
 				}
 			}
 		}
@@ -714,7 +714,7 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 			// 模板不存在，创建新模板（让BeforeCreate钩子生成UUID）
 			template.ID = "" // 清空ID，让BeforeCreate钩子生成UUID
 			if err := s.db.Create(&template).Error; err != nil {
-				fmt.Printf("创建内置脱敏规则模板失败: %s, 错误: %v\n", template.Name, err)
+				slog.Error("创建内置脱敏规则模板失败: %s, 错误: %v\n", template.Name, err.Error())
 			}
 		} else {
 			// 模板已存在，更新非用户修改的字段
@@ -729,7 +729,7 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 					"tags":             template.Tags,
 				}
 				if err := s.db.Model(&existingTemplate).Updates(updates).Error; err != nil {
-					fmt.Printf("更新内置脱敏规则模板失败: %s, 错误: %v\n", template.Name, err)
+					slog.Error("更新内置脱敏规则模板失败: %s, 错误: %v\n", template.Name, err.Error())
 				}
 			}
 		}
@@ -924,7 +924,7 @@ func (s *TemplateService) initCleansingRuleTemplates() {
 			// 模板不存在，创建新模板（让BeforeCreate钩子生成UUID）
 			template.ID = "" // 清空ID，让BeforeCreate钩子生成UUID
 			if err := s.db.Create(&template).Error; err != nil {
-				fmt.Printf("创建内置清洗规则模板失败: %s, 错误: %v\n", template.Name, err)
+				slog.Error("创建内置清洗规则模板失败: %s, 错误: %v\n", template.Name, err.Error())
 			}
 		} else {
 			// 模板已存在，更新非用户修改的字段
@@ -939,7 +939,7 @@ func (s *TemplateService) initCleansingRuleTemplates() {
 					"tags":             template.Tags,
 				}
 				if err := s.db.Model(&existingTemplate).Updates(updates).Error; err != nil {
-					fmt.Printf("更新内置清洗规则模板失败: %s, 错误: %v\n", template.Name, err)
+					slog.Error("更新内置清洗规则模板失败: %s, 错误: %v\n", template.Name, err.Error())
 				}
 			}
 		}

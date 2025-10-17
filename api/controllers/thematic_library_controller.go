@@ -235,13 +235,14 @@ func (c *ThematicLibraryController) CreateThematicInterface(w http.ResponseWrite
 
 // GetThematicInterface 获取主题接口详情
 // @Summary 获取主题接口详情
-// @Description 根据ID获取主题接口详细信息
+// @Description 根据ID获取主题接口详细信息，自动同步数据库实际字段到配置
 // @Tags 主题接口
 // @Produce json
-// @Param id path string true "主题接口ID"
-// @Success 200 {object} APIResponse{data=models.ThematicInterface}
-// @Failure 404 {object} APIResponse
-// @Failure 500 {object} APIResponse
+// @Param id path string true "主题接口ID" example:"550e8400-e29b-41d4-a716-446655440000"
+// @Success 200 {object} APIResponse{data=models.ThematicInterface} "获取成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 404 {object} APIResponse "主题接口不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /thematic-interfaces/{id} [get]
 func (c *ThematicLibraryController) GetThematicInterface(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
@@ -250,9 +251,10 @@ func (c *ThematicLibraryController) GetThematicInterface(w http.ResponseWriter, 
 		return
 	}
 
-	thematicInterface, err := c.service.GetThematicInterface(id)
+	// 获取主题接口详情（包含字段同步）
+	thematicInterface, err := c.service.GetThematicInterfaceWithSync(id)
 	if err != nil {
-		render.JSON(w, r, NotFoundResponse("主题接口不存在", nil))
+		render.JSON(w, r, NotFoundResponse("主题接口不存在", err))
 		return
 	}
 
@@ -582,4 +584,218 @@ func (c *ThematicLibraryController) GetThematicInterfaceViewSQL(w http.ResponseW
 	}
 
 	render.JSON(w, r, SuccessResponse("获取主题接口视图SQL成功", viewSQL))
+}
+
+// GetThematicInterfaceTableColumns 获取主题接口表的字段信息
+// @Summary 获取主题接口表字段
+// @Description 从数据库动态获取主题接口对应表或视图的字段信息，包含字段名、类型、约束等完整信息
+// @Tags 主题接口
+// @Produce json
+// @Param id path string true "主题接口ID" example:"550e8400-e29b-41d4-a716-446655440000"
+// @Success 200 {object} APIResponse{data=[]database.ColumnDefinition} "返回表字段列表"
+// @Failure 400 {object} APIResponse "请求参数错误或表未创建"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /thematic-interfaces/{id}/table-columns [get]
+func (c *ThematicLibraryController) GetThematicInterfaceTableColumns(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("ID参数不能为空", nil))
+		return
+	}
+
+	// 获取主题接口信息
+	interfaceData, err := c.service.GetThematicInterface(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取主题接口信息失败", err))
+		return
+	}
+
+	// 检查表或视图是否已创建
+	if !interfaceData.IsTableCreated && !interfaceData.IsViewCreated {
+		render.JSON(w, r, BadRequestResponse("主题接口表或视图尚未创建", nil))
+		return
+	}
+
+	// 从数据库获取表/视图字段信息
+	columns, err := c.service.GetSchemaService().GetTableColumns(interfaceData.ThematicLibrary.NameEn, interfaceData.NameEn)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取字段信息失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取字段信息成功", columns))
+}
+
+// GetThematicInterfaceTableIndexes 获取主题接口表的索引信息
+// @Summary 获取主题接口表索引
+// @Description 从数据库获取主题接口对应表的索引信息，包含索引名称、类型、包含的列等（视图类型不支持）
+// @Tags 主题接口
+// @Produce json
+// @Param id path string true "主题接口ID" example:"550e8400-e29b-41d4-a716-446655440000"
+// @Success 200 {object} APIResponse{data=[]database.IndexDefinition} "返回索引列表"
+// @Failure 400 {object} APIResponse "请求参数错误、表未创建或视图类型不支持"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /thematic-interfaces/{id}/table-indexes [get]
+func (c *ThematicLibraryController) GetThematicInterfaceTableIndexes(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		render.JSON(w, r, BadRequestResponse("ID参数不能为空", nil))
+		return
+	}
+
+	// 获取主题接口信息
+	interfaceData, err := c.service.GetThematicInterface(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取主题接口信息失败", err))
+		return
+	}
+
+	// 检查表是否已创建（视图没有索引）
+	if interfaceData.Type == "view" {
+		render.JSON(w, r, BadRequestResponse("视图类型的接口不支持索引管理", nil))
+		return
+	}
+
+	if !interfaceData.IsTableCreated {
+		render.JSON(w, r, BadRequestResponse("主题接口表尚未创建", nil))
+		return
+	}
+
+	// 从数据库获取索引信息
+	indexes, err := c.service.GetSchemaService().GetTableIndexes(interfaceData.ThematicLibrary.NameEn, interfaceData.NameEn)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取索引信息失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取索引信息成功", indexes))
+}
+
+// CreateThematicInterfaceTableIndexRequest 创建索引请求结构
+type CreateThematicInterfaceTableIndexRequest struct {
+	InterfaceID string   `json:"interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	IndexName   string   `json:"index_name" validate:"required" example:"idx_order_created_at"`
+	Columns     []string `json:"columns" validate:"required" example:"order_id,created_at"`
+	IsUnique    bool     `json:"is_unique" example:"false"`
+	IndexType   string   `json:"index_type" example:"btree"` // btree, hash, gin, gist, etc.
+}
+
+// CreateThematicInterfaceTableIndex 为主题接口表创建索引
+// @Summary 创建主题接口表索引
+// @Description 为主题接口对应的数据表创建索引，支持普通索引、唯一索引，支持多种索引类型（btree、hash、gin、gist等），视图类型不支持
+// @Tags 主题接口
+// @Accept json
+// @Produce json
+// @Param request body CreateThematicInterfaceTableIndexRequest true "创建索引请求"
+// @Success 200 {object} APIResponse{data=nil} "创建成功"
+// @Failure 400 {object} APIResponse "请求参数错误、视图类型不支持或表未创建"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /thematic-interfaces/create-table-index [post]
+func (c *ThematicLibraryController) CreateThematicInterfaceTableIndex(w http.ResponseWriter, r *http.Request) {
+	var req CreateThematicInterfaceTableIndexRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.InterfaceID == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	if req.IndexName == "" {
+		render.JSON(w, r, BadRequestResponse("索引名称不能为空", nil))
+		return
+	}
+
+	if len(req.Columns) == 0 {
+		render.JSON(w, r, BadRequestResponse("索引列不能为空", nil))
+		return
+	}
+
+	// 获取主题接口信息
+	interfaceData, err := c.service.GetThematicInterface(req.InterfaceID)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取主题接口信息失败", err))
+		return
+	}
+
+	// 检查接口类型
+	if interfaceData.Type == "view" {
+		render.JSON(w, r, BadRequestResponse("视图类型的接口不支持创建索引", nil))
+		return
+	}
+
+	// 检查表是否已创建
+	if !interfaceData.IsTableCreated {
+		render.JSON(w, r, BadRequestResponse("主题接口表尚未创建", nil))
+		return
+	}
+
+	// 创建索引
+	err = c.service.GetSchemaService().CreateIndex(
+		interfaceData.ThematicLibrary.NameEn,
+		interfaceData.NameEn,
+		req.IndexName,
+		req.Columns,
+		req.IsUnique,
+		req.IndexType,
+	)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("创建索引失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("创建索引成功", nil))
+}
+
+// DropThematicInterfaceTableIndexRequest 删除索引请求结构
+type DropThematicInterfaceTableIndexRequest struct {
+	InterfaceID string `json:"interface_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	IndexName   string `json:"index_name" validate:"required" example:"idx_order_created_at"`
+}
+
+// DropThematicInterfaceTableIndex 删除主题接口表索引
+// @Summary 删除主题接口表索引
+// @Description 删除主题接口对应数据表的指定索引
+// @Tags 主题接口
+// @Accept json
+// @Produce json
+// @Param request body DropThematicInterfaceTableIndexRequest true "删除索引请求"
+// @Success 200 {object} APIResponse{data=nil} "删除成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /thematic-interfaces/drop-table-index [post]
+func (c *ThematicLibraryController) DropThematicInterfaceTableIndex(w http.ResponseWriter, r *http.Request) {
+	var req DropThematicInterfaceTableIndexRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if req.InterfaceID == "" {
+		render.JSON(w, r, BadRequestResponse("接口ID不能为空", nil))
+		return
+	}
+
+	if req.IndexName == "" {
+		render.JSON(w, r, BadRequestResponse("索引名称不能为空", nil))
+		return
+	}
+
+	// 获取主题接口信息
+	interfaceData, err := c.service.GetThematicInterface(req.InterfaceID)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取主题接口信息失败", err))
+		return
+	}
+
+	// 删除索引
+	err = c.service.GetSchemaService().DropIndex(interfaceData.ThematicLibrary.NameEn, req.IndexName)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("删除索引失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("删除索引成功", nil))
 }

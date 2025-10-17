@@ -18,7 +18,7 @@ import (
 	"datahub-service/service/thematic_library/thematic_sync"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -212,9 +212,9 @@ func (tss *ThematicSyncService) CreateSyncTask(ctx context.Context, req *CreateT
 	// 如果任务状态为active且配置了调度，添加到调度器
 	if task.Status == "active" && (task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once") {
 		if err := tss.AddScheduledTask(task); err != nil {
-			log.Printf("添加任务到调度器失败 [%s]: %v", task.ID, err)
+			slog.Error("添加任务到调度器失败 [%s]: %v", task.ID, err)
 		} else {
-			log.Printf("任务已添加到调度器 [任务ID: %s, 触发类型: %s]", task.ID, task.TriggerType)
+			slog.Info("任务已添加到调度器 [任务ID: %s, 触发类型: %s]", task.ID, task.TriggerType)
 		}
 	}
 
@@ -266,6 +266,16 @@ func (tss *ThematicSyncService) UpdateSyncTask(ctx context.Context, taskID strin
 		statusChanged = true
 	}
 
+	// 更新数据源配置
+	if len(req.SourceLibraries) > 0 {
+		task.SourceLibraries = structToJSONBGenericArray(req.SourceLibraries)
+		slog.Debug("更新源库配置", "taskID", taskID, "count", len(req.SourceLibraries))
+	}
+	if len(req.SQLQueries) > 0 {
+		task.SQLQueries = structToJSONBGenericArray(req.SQLQueries)
+		slog.Debug("更新SQL查询配置", "taskID", taskID, "count", len(req.SQLQueries))
+	}
+
 	// 更新调度配置
 	scheduleChanged := false
 	if req.ScheduleConfig != nil {
@@ -310,32 +320,32 @@ func (tss *ThematicSyncService) UpdateSyncTask(ctx context.Context, taskID strin
 
 	// 处理状态变化（激活/暂停）
 	if statusChanged {
-		log.Printf("主题任务状态变化: %s -> %s [任务ID: %s]", oldStatus, task.Status, taskID)
+		slog.Info("主题任务状态变化: %s -> %s [任务ID: %s]", oldStatus, task.Status, taskID)
 
 		switch task.Status {
 		case "active":
 			// 激活任务：添加到调度器
 			if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
 				if err := tss.AddScheduledTask(&task); err != nil {
-					log.Printf("添加任务到调度器失败 [%s]: %v", taskID, err)
+					slog.Error("添加任务到调度器失败 [%s]: %v", taskID, err)
 				} else {
-					log.Printf("主题任务已激活并添加到调度器 [任务ID: %s]", taskID)
+					slog.Info("主题任务已激活并添加到调度器 [任务ID: %s]", taskID)
 				}
 			}
 		case "paused":
 			// 暂停任务：从调度器移除
 			if err := tss.RemoveScheduledTask(taskID); err != nil {
-				log.Printf("从调度器移除任务失败 [%s]: %v", taskID, err)
+				slog.Error("从调度器移除任务失败 [%s]: %v", taskID, err)
 			} else {
-				log.Printf("主题任务已暂停并从调度器移除 [任务ID: %s]", taskID)
+				slog.Info("主题任务已暂停并从调度器移除 [任务ID: %s]", taskID)
 			}
 		}
 	} else if scheduleChanged {
 		// 如果只是修改了调度配置（未改变状态），重新加载调度器
 		if err := tss.ReloadScheduledTasks(); err != nil {
-			log.Printf("重新加载调度器失败: %v", err)
+			slog.Error("重新加载调度器失败: %v", err)
 		} else {
-			log.Printf("调度配置已更新，调度器已重新加载 [任务ID: %s]", taskID)
+			slog.Info("调度配置已更新，调度器已重新加载 [任务ID: %s]", taskID)
 		}
 	}
 
@@ -563,8 +573,6 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 		}
 	}
 
-	// 注意：已移除 SourceInterfaces 字段，所有源接口信息现在都在 SourceLibraries 中
-
 	// 解析SQL查询配置（优先级更高）
 	var sqlQueryConfigs []*thematic_sync.SQLQueryConfig
 	if len(task.SQLQueries) > 0 {
@@ -618,11 +626,25 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 	// 优先添加SQL查询配置（SQL模式）
 	if len(sqlQueryConfigs) > 0 {
 		configMap["sql_queries"] = sqlQueryConfigs
-		fmt.Printf("[DEBUG] 任务使用SQL查询模式，查询数量: %d\n", len(sqlQueryConfigs))
+		slog.Debug("任务使用SQL查询模式", "queryCount", len(sqlQueryConfigs))
 	} else if len(sourceLibraryConfigs) > 0 {
 		// 使用接口模式
 		configMap["source_libraries"] = sourceLibraryConfigs
-		fmt.Printf("[DEBUG] 任务使用接口模式，源库数量: %d\n", len(sourceLibraryConfigs))
+		slog.Debug("任务使用接口模式", "libraryCount", len(sourceLibraryConfigs))
+
+		// 调试：打印源库配置详情
+		for i, config := range sourceLibraryConfigs {
+			slog.Debug("源库配置详情", "index", i, "libraryID", config.LibraryID,
+				"interfaceID", config.InterfaceID, "hasIncrementalConfig", config.IncrementalConfig != nil)
+			if config.IncrementalConfig != nil {
+				slog.Debug("增量配置详情", "index", i,
+					"enabled", config.IncrementalConfig.Enabled,
+					"field", config.IncrementalConfig.IncrementalField,
+					"fieldType", config.IncrementalConfig.FieldType,
+					"lastSyncValue", config.IncrementalConfig.LastSyncValue,
+					"initialValue", config.IncrementalConfig.InitialValue)
+			}
+		}
 	} else {
 		return nil, fmt.Errorf("任务必须配置数据源：请配置 SQLQueries(SQL模式) 或 SourceLibraries(接口模式)")
 	}
@@ -632,14 +654,15 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 		var keyRules KeyMatchingRules
 		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.KeyMatchingRules)), &keyRules); err == nil {
 			configMap["key_matching_rules"] = keyRules
+		} else {
+			slog.Warn("解析KeyMatchingRules失败", "error", err)
 		}
 	}
 
 	if len(task.FieldMappingRules) > 0 {
-		var fieldRules FieldMappingRules
-		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.FieldMappingRules)), &fieldRules); err == nil {
-			configMap["field_mapping_rules"] = fieldRules
-		}
+		// 直接使用 task.FieldMappingRules，它已经是 map[string]interface{} 类型
+		configMap["field_mapping_rules"] = task.FieldMappingRules
+		slog.Debug("添加字段映射规则到配置", "rules", task.FieldMappingRules)
 	}
 
 	// 添加数据治理规则配置
@@ -848,9 +871,9 @@ func (tss *ThematicSyncService) PauseSyncTask(ctx context.Context, taskID string
 
 	// 暂停后需要重新加载调度器，移除该任务
 	if err := tss.ReloadScheduledTasks(); err != nil {
-		log.Printf("重新加载调度器失败: %v", err)
+		slog.Error("重新加载调度器失败: %v", err)
 	} else {
-		log.Printf("任务已暂停，调度器已更新 [任务ID: %s]", taskID)
+		slog.Info("任务已暂停，调度器已更新 [任务ID: %s]", taskID)
 	}
 
 	return nil
@@ -882,9 +905,9 @@ func (tss *ThematicSyncService) ActivateSyncTask(ctx context.Context, taskID str
 	// 激活后需要重新加载调度器，添加该任务
 	if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
 		if err := tss.ReloadScheduledTasks(); err != nil {
-			log.Printf("重新加载调度器失败: %v", err)
+			slog.Error("重新加载调度器失败: %v", err)
 		} else {
-			log.Printf("任务已激活，调度器已更新 [任务ID: %s]", taskID)
+			slog.Info("任务已激活，调度器已更新 [任务ID: %s]", taskID)
 		}
 	}
 
@@ -1012,7 +1035,7 @@ func (tss *ThematicSyncService) SetDistributedLock(lock interface {
 }) {
 	tss.distributedLock = lock
 	if lock != nil {
-		log.Println("主题同步任务服务已启用分布式锁")
+		slog.Info("主题同步任务服务已启用分布式锁")
 	}
 }
 
@@ -1022,7 +1045,7 @@ func (tss *ThematicSyncService) StartScheduler() error {
 		return fmt.Errorf("调度器已经启动")
 	}
 
-	log.Println("启动主题库同步任务调度器")
+	slog.Info("启动主题库同步任务调度器")
 
 	// 启动cron调度器
 	tss.cron.Start()
@@ -1033,12 +1056,12 @@ func (tss *ThematicSyncService) StartScheduler() error {
 
 	// 加载现有的调度任务
 	if err := tss.loadScheduledTasks(); err != nil {
-		log.Printf("加载主题调度任务失败: %v", err)
+		slog.Error("加载主题调度任务失败: %v", err)
 		return err
 	}
 
 	tss.schedulerStarted = true
-	log.Println("主题库同步任务调度器启动完成")
+	slog.Info("主题库同步任务调度器启动完成")
 	return nil
 }
 
@@ -1048,7 +1071,7 @@ func (tss *ThematicSyncService) StopScheduler() {
 		return
 	}
 
-	log.Println("停止主题库同步任务调度器")
+	slog.Info("停止主题库同步任务调度器")
 
 	tss.cancel()
 
@@ -1061,7 +1084,7 @@ func (tss *ThematicSyncService) StopScheduler() {
 	}
 
 	tss.schedulerStarted = false
-	log.Println("主题库同步任务调度器已停止")
+	slog.Info("主题库同步任务调度器已停止")
 }
 
 // loadScheduledTasks 加载调度任务
@@ -1074,11 +1097,11 @@ func (tss *ThematicSyncService) loadScheduledTasks() error {
 
 	for _, task := range tasks {
 		if err := tss.addTaskToScheduler(&task); err != nil {
-			log.Printf("添加任务到调度器失败 [%s]: %v", task.ID, err)
+			slog.Error("添加任务到调度器失败 [%s]: %v", task.ID, err)
 		}
 	}
 
-	log.Printf("加载了 %d 个主题同步调度任务", len(tasks))
+	slog.Info("加载了 %d 个主题同步调度任务", len(tasks))
 	return nil
 }
 
@@ -1126,7 +1149,7 @@ func (tss *ThematicSyncService) addTaskToScheduler(task *models.ThematicSyncTask
 			return fmt.Errorf("添加Cron任务失败: %w", err)
 		}
 
-		log.Printf("添加主题Cron任务: %s [%s]", task.ID, task.CronExpression)
+		slog.Info("添加主题Cron任务: %s [%s]", task.ID, task.CronExpression)
 
 	case "once":
 		if task.ScheduledTime != nil && task.ScheduledTime.After(time.Now()) {
@@ -1142,12 +1165,12 @@ func (tss *ThematicSyncService) addTaskToScheduler(task *models.ThematicSyncTask
 				}
 			}()
 
-			log.Printf("添加主题单次任务: %s [%s]", task.ID, task.ScheduledTime.Format("2006-01-02 15:04:05"))
+			slog.Info("添加主题单次任务: %s [%s]", task.ID, task.ScheduledTime.Format("2006-01-02 15:04:05"))
 		}
 
 	case "interval":
 		// 间隔任务由intervalChecker处理
-		log.Printf("添加主题间隔任务: %s [%d秒]", task.ID, task.IntervalSeconds)
+		slog.Info("添加主题间隔任务: %s [%d秒]", task.ID, task.IntervalSeconds)
 	}
 
 	return nil
@@ -1169,7 +1192,7 @@ func (tss *ThematicSyncService) runIntervalChecker() {
 func (tss *ThematicSyncService) checkIntervalTasks() {
 	tasks, err := tss.getShouldExecuteNowTasks(tss.ctx)
 	if err != nil {
-		log.Printf("获取间隔任务失败: %v", err)
+		slog.Error("获取间隔任务失败: %v", err)
 		return
 	}
 
@@ -1182,7 +1205,7 @@ func (tss *ThematicSyncService) checkIntervalTasks() {
 
 // executeScheduledTask 执行调度任务（带分布式锁）
 func (tss *ThematicSyncService) executeScheduledTask(taskID string) {
-	log.Printf("执行主题调度任务: %s", taskID)
+	slog.Info("执行主题调度任务: %s", taskID)
 
 	// 如果有分布式锁，使用锁保护执行
 	if tss.distributedLock != nil {
@@ -1192,19 +1215,19 @@ func (tss *ThematicSyncService) executeScheduledTask(taskID string) {
 		// 尝试获取锁
 		locked, err := tss.distributedLock.TryLock(tss.ctx, lockKey, lockTTL)
 		if err != nil {
-			log.Printf("获取分布式锁失败 [%s]: %v", taskID, err)
+			slog.Error("获取分布式锁失败 [%s]: %v", taskID, err)
 			return
 		}
 
 		if !locked {
-			log.Printf("任务正在其他实例执行，跳过 [%s]", taskID)
+			slog.Error("任务正在其他实例执行，跳过 [%s]", taskID)
 			return
 		}
 
 		// 确保执行完毕后释放锁
 		defer func() {
 			if unlockErr := tss.distributedLock.Unlock(tss.ctx, lockKey); unlockErr != nil {
-				log.Printf("释放分布式锁失败 [%s]: %v", taskID, unlockErr)
+				slog.Error("释放分布式锁失败 [%s]: %v", taskID, unlockErr)
 			}
 		}()
 	}
@@ -1212,13 +1235,13 @@ func (tss *ThematicSyncService) executeScheduledTask(taskID string) {
 	// 获取任务详情
 	task, err := tss.GetSyncTask(tss.ctx, taskID)
 	if err != nil {
-		log.Printf("获取任务失败 [%s]: %v", taskID, err)
+		slog.Error("获取任务失败 [%s]: %v", taskID, err)
 		return
 	}
 
 	// 检查任务是否可以执行
 	if !task.CanStart() {
-		log.Printf("任务不能执行 [%s]: 状态=%s", taskID, task.Status)
+		slog.Error("任务不能执行 [%s]: 状态=%s", taskID, task.Status)
 		return
 	}
 
@@ -1231,7 +1254,7 @@ func (tss *ThematicSyncService) executeScheduledTask(taskID string) {
 	// 执行同步任务
 	_, err = tss.ExecuteSyncTask(tss.ctx, taskID, req)
 	if err != nil {
-		log.Printf("执行调度任务失败 [%s]: %v", taskID, err)
+		slog.Error("执行调度任务失败 [%s]: %v", taskID, err)
 		return
 	}
 
@@ -1243,10 +1266,10 @@ func (tss *ThematicSyncService) executeScheduledTask(taskID string) {
 			"last_sync_time": time.Now(),
 			"updated_at":     time.Now(),
 		}).Error; err != nil {
-		log.Printf("更新任务执行时间失败 [%s]: %v", taskID, err)
+		slog.Error("更新任务执行时间失败 [%s]: %v", taskID, err)
 	}
 
-	log.Printf("主题调度任务执行完成 [%s]", taskID)
+	slog.Info("主题调度任务执行完成 [%s]", taskID)
 }
 
 // AddScheduledTask 添加调度任务

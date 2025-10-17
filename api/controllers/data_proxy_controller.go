@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"log/slog"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -368,7 +369,8 @@ func (c *DataProxyController) logApiUsageWithSize(r *http.Request, appID, keyID 
 	go func() {
 		if err := c.sharingService.CreateApiUsageLog(log); err != nil {
 			// 日志记录失败，可以考虑写入本地日志文件
-			fmt.Printf("记录API使用日志失败: %v\n", err)
+			
+			slog.Error("记录API使用日志失败: %v\n", err.Error())
 		}
 	}()
 }
@@ -411,7 +413,7 @@ func (c *DataProxyController) Close() error {
 	// 关闭所有缓存的客户端
 	for apiKeyID, client := range c.clientCache {
 		if err := client.Close(); err != nil {
-			fmt.Printf("关闭API Key %s 的PostgREST客户端失败: %v\n", apiKeyID, err)
+			slog.Error("关闭API Key %s 的PostgREST客户端失败: %v\n", apiKeyID, err)
 		}
 	}
 
@@ -452,7 +454,7 @@ func (c *DataProxyController) ClearExpiredClients() int {
 			client.Close()
 			delete(c.clientCache, apiKeyID)
 			clearedCount++
-			fmt.Printf("清理高错误率的PostgREST客户端: %s\n", apiKeyID)
+			slog.Error("清理高错误率的PostgREST客户端: %s\n", apiKeyID)
 		}
 	}
 

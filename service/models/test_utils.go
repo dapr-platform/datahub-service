@@ -12,6 +12,7 @@ package models
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"gorm.io/driver/sqlite"
@@ -74,7 +75,7 @@ func (tdb *ModelTestDB) CleanDB() {
 func (tdb *ModelTestDB) Close() {
 	sqlDB, err := tdb.DB.DB()
 	if err != nil {
-		fmt.Printf("Error getting underlying DB: %v\n", err)
+		slog.Error("Error getting underlying DB", "error", err)
 		return
 	}
 	sqlDB.Close()
