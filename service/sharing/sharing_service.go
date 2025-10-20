@@ -874,53 +874,45 @@ func (s *SharingService) GetApiUsageLogs(page, pageSize int, applicationID, user
 }
 
 // GetApiRateLimitStatistics 获取API限流统计信息
-func (s *SharingService) GetApiRateLimitStatistics() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
+func (s *SharingService) GetApiRateLimitStatistics() (*models.ApiRateLimitStatistics, error) {
+	stats := &models.ApiRateLimitStatistics{}
 
 	// 总限流规则数
-	var totalRules int64
-	if err := s.db.Model(&models.ApiRateLimit{}).Count(&totalRules).Error; err != nil {
+	if err := s.db.Model(&models.ApiRateLimit{}).Count(&stats.TotalRules).Error; err != nil {
 		return nil, err
 	}
-	stats["total_rules"] = totalRules
 
 	// 启用的限流规则数
-	var enabledRules int64
-	if err := s.db.Model(&models.ApiRateLimit{}).Where("is_enabled = ?", true).Count(&enabledRules).Error; err != nil {
+	if err := s.db.Model(&models.ApiRateLimit{}).Where("is_enabled = ?", true).Count(&stats.EnabledRules).Error; err != nil {
 		return nil, err
 	}
-	stats["enabled_rules"] = enabledRules
 
 	// 按类型统计
-	var typeStats []struct {
-		RateLimitType string `json:"rate_limit_type"`
-		Count         int64  `json:"count"`
-	}
 	if err := s.db.Model(&models.ApiRateLimit{}).
 		Select("rate_limit_type, COUNT(*) as count").
 		Where("is_enabled = ?", true).
 		Group("rate_limit_type").
-		Find(&typeStats).Error; err != nil {
+		Find(&stats.TypeDistribution).Error; err != nil {
 		return nil, err
 	}
-	stats["type_distribution"] = typeStats
 
 	// 最近7天创建的规则数
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
-	var recentRules int64
 	if err := s.db.Model(&models.ApiRateLimit{}).
 		Where("created_at >= ?", sevenDaysAgo).
-		Count(&recentRules).Error; err != nil {
+		Count(&stats.RecentRules).Error; err != nil {
 		return nil, err
 	}
-	stats["recent_rules"] = recentRules
 
 	return stats, nil
 }
 
 // GetApiUsageStatistics 获取API使用统计信息
-func (s *SharingService) GetApiUsageStatistics(startTime, endTime *time.Time) (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
+func (s *SharingService) GetApiUsageStatistics(startTime, endTime *time.Time) (*models.ApiUsageStatistics, error) {
+	stats := &models.ApiUsageStatistics{
+		TopApplications:    make([]models.TopApplication, 0),
+		StatusDistribution: make([]models.StatusDistribution, 0),
+	}
 
 	// 辅助函数：应用时间过滤
 	applyTimeFilter := func(query *gorm.DB) *gorm.DB {
@@ -934,39 +926,31 @@ func (s *SharingService) GetApiUsageStatistics(startTime, endTime *time.Time) (m
 	}
 
 	// 总请求数
-	var totalRequests int64
 	query := applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
-	if err := query.Count(&totalRequests).Error; err != nil {
+	if err := query.Count(&stats.TotalRequests).Error; err != nil {
 		return nil, err
 	}
-	stats["total_requests"] = totalRequests
 
 	// 成功请求数（2xx状态码）
-	var successRequests int64
 	query = applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
 	if err := query.Where("status_code >= ? AND status_code < ?", 200, 300).
-		Count(&successRequests).Error; err != nil {
+		Count(&stats.SuccessRequests).Error; err != nil {
 		return nil, err
 	}
-	stats["success_requests"] = successRequests
 
 	// 失败请求数（4xx和5xx状态码）
-	var failedRequests int64
 	query = applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
 	if err := query.Where("status_code >= ?", 400).
-		Count(&failedRequests).Error; err != nil {
+		Count(&stats.FailedRequests).Error; err != nil {
 		return nil, err
 	}
-	stats["failed_requests"] = failedRequests
 
 	// 限流拒绝数（429状态码）
-	var rateLimitedRequests int64
 	query = applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
 	if err := query.Where("status_code = ?", 429).
-		Count(&rateLimitedRequests).Error; err != nil {
+		Count(&stats.RateLimitedRequests).Error; err != nil {
 		return nil, err
 	}
-	stats["rate_limited_requests"] = rateLimitedRequests
 
 	// 平均响应时间
 	var avgResponseTime float64
@@ -975,14 +959,9 @@ func (s *SharingService) GetApiUsageStatistics(startTime, endTime *time.Time) (m
 		Row().Scan(&avgResponseTime); err != nil && err != gorm.ErrRecordNotFound {
 		return nil, err
 	}
-	stats["avg_response_time"] = int(avgResponseTime)
+	stats.AvgResponseTime = int(avgResponseTime)
 
 	// 按应用统计TOP5
-	var topApps []struct {
-		ApplicationID string `json:"application_id"`
-		AppName       string `json:"app_name"`
-		Count         int64  `json:"count"`
-	}
 	query = applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
 	if err := query.Select("api_usage_logs.application_id, api_applications.name as app_name, COUNT(*) as count").
 		Joins("LEFT JOIN api_applications ON api_usage_logs.application_id = api_applications.id").
@@ -990,24 +969,18 @@ func (s *SharingService) GetApiUsageStatistics(startTime, endTime *time.Time) (m
 		Group("api_usage_logs.application_id, api_applications.name").
 		Order("count DESC").
 		Limit(5).
-		Find(&topApps).Error; err != nil {
+		Find(&stats.TopApplications).Error; err != nil {
 		return nil, err
 	}
-	stats["top_applications"] = topApps
 
 	// 按状态码统计
-	var statusStats []struct {
-		StatusCode int   `json:"status_code"`
-		Count      int64 `json:"count"`
-	}
 	query = applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
 	if err := query.Select("status_code, COUNT(*) as count").
 		Group("status_code").
 		Order("count DESC").
-		Find(&statusStats).Error; err != nil {
+		Find(&stats.StatusDistribution).Error; err != nil {
 		return nil, err
 	}
-	stats["status_distribution"] = statusStats
 
 	return stats, nil
 }

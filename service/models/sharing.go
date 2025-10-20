@@ -296,3 +296,43 @@ func (a *ApiUsageLog) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+// === 统计响应结构体 ===
+
+// RateLimitTypeStats 限流类型统计
+type RateLimitTypeStats struct {
+	RateLimitType string `json:"rate_limit_type"` // global/api_key/application
+	Count         int64  `json:"count"`
+}
+
+// ApiRateLimitStatistics API限流统计响应
+type ApiRateLimitStatistics struct {
+	TotalRules       int64                `json:"total_rules"`       // 总限流规则数
+	EnabledRules     int64                `json:"enabled_rules"`     // 启用的限流规则数
+	TypeDistribution []RateLimitTypeStats `json:"type_distribution"` // 按类型统计的规则分布
+	RecentRules      int64                `json:"recent_rules"`      // 最近7天创建的规则数
+}
+
+// TopApplication TOP应用统计
+type TopApplication struct {
+	ApplicationID string `json:"application_id"` // 应用ID
+	AppName       string `json:"app_name"`       // 应用名称
+	Count         int64  `json:"count"`          // 请求次数
+}
+
+// StatusDistribution 状态码分布统计
+type StatusDistribution struct {
+	StatusCode int   `json:"status_code"` // HTTP状态码
+	Count      int64 `json:"count"`       // 该状态码的请求数量
+}
+
+// ApiUsageStatistics API使用统计响应
+type ApiUsageStatistics struct {
+	TotalRequests       int64                `json:"total_requests"`        // 总请求数
+	SuccessRequests     int64                `json:"success_requests"`      // 成功请求数（2xx状态码）
+	FailedRequests      int64                `json:"failed_requests"`       // 失败请求数（4xx和5xx状态码）
+	RateLimitedRequests int64                `json:"rate_limited_requests"` // 被限流的请求数（429状态码）
+	AvgResponseTime     int                  `json:"avg_response_time"`     // 平均响应时间（毫秒）
+	TopApplications     []TopApplication     `json:"top_applications"`      // 请求量TOP5的应用
+	StatusDistribution  []StatusDistribution `json:"status_distribution"`   // 按状态码统计的请求分布
+}

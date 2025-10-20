@@ -992,7 +992,7 @@ func (c *SharingController) DeleteApiInterface(w http.ResponseWriter, r *http.Re
 // @Tags 数据共享服务
 // @Accept json
 // @Produce json
-// @Success 200 {object} APIResponse{data=map[string]interface{}} "获取成功"
+// @Success 200 {object} APIResponse{data=models.ApiRateLimitStatistics} "获取成功"
 // @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /sharing/api-rate-limits/statistics [get]
 func (c *SharingController) GetApiRateLimitStatistics(w http.ResponseWriter, r *http.Request) {
@@ -1013,7 +1013,7 @@ func (c *SharingController) GetApiRateLimitStatistics(w http.ResponseWriter, r *
 // @Produce json
 // @Param start_time query string false "开始时间（RFC3339格式）"
 // @Param end_time query string false "结束时间（RFC3339格式）"
-// @Success 200 {object} APIResponse{data=map[string]interface{}} "获取成功"
+// @Success 200 {object} APIResponse{data=models.ApiUsageStatistics} "获取成功"
 // @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /sharing/api-usage-logs/statistics [get]
 func (c *SharingController) GetApiUsageStatistics(w http.ResponseWriter, r *http.Request) {

@@ -6927,8 +6927,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/models.ApiRateLimitStatistics"
                                         }
                                     }
                                 }
@@ -7166,8 +7165,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/models.ApiUsageStatistics"
                                         }
                                     }
                                 }
@@ -16313,6 +16311,30 @@ const docTemplate = `{
                 }
             }
         },
+        "models.ApiRateLimitStatistics": {
+            "type": "object",
+            "properties": {
+                "enabled_rules": {
+                    "description": "启用的限流规则数",
+                    "type": "integer"
+                },
+                "recent_rules": {
+                    "description": "最近7天创建的规则数",
+                    "type": "integer"
+                },
+                "total_rules": {
+                    "description": "总限流规则数",
+                    "type": "integer"
+                },
+                "type_distribution": {
+                    "description": "按类型统计的规则分布",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.RateLimitTypeStats"
+                    }
+                }
+            }
+        },
         "models.ApiUsageLog": {
             "type": "object",
             "properties": {
@@ -16364,6 +16386,45 @@ const docTemplate = `{
                 },
                 "user_name": {
                     "type": "string"
+                }
+            }
+        },
+        "models.ApiUsageStatistics": {
+            "type": "object",
+            "properties": {
+                "avg_response_time": {
+                    "description": "平均响应时间（毫秒）",
+                    "type": "integer"
+                },
+                "failed_requests": {
+                    "description": "失败请求数（4xx和5xx状态码）",
+                    "type": "integer"
+                },
+                "rate_limited_requests": {
+                    "description": "被限流的请求数（429状态码）",
+                    "type": "integer"
+                },
+                "status_distribution": {
+                    "description": "按状态码统计的请求分布",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.StatusDistribution"
+                    }
+                },
+                "success_requests": {
+                    "description": "成功请求数（2xx状态码）",
+                    "type": "integer"
+                },
+                "top_applications": {
+                    "description": "请求量TOP5的应用",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TopApplication"
+                    }
+                },
+                "total_requests": {
+                    "description": "总请求数",
+                    "type": "integer"
                 }
             }
         },
@@ -16809,6 +16870,18 @@ const docTemplate = `{
                 }
             }
         },
+        "models.RateLimitTypeStats": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "rate_limit_type": {
+                    "description": "global/api_key/application",
+                    "type": "string"
+                }
+            }
+        },
         "models.SSEConnection": {
             "type": "object",
             "properties": {
@@ -16884,6 +16957,19 @@ const docTemplate = `{
                 },
                 "user_name": {
                     "type": "string"
+                }
+            }
+        },
+        "models.StatusDistribution": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "该状态码的请求数量",
+                    "type": "integer"
+                },
+                "status_code": {
+                    "description": "HTTP状态码",
+                    "type": "integer"
                 }
             }
         },
@@ -17537,6 +17623,23 @@ const docTemplate = `{
                 },
                 "version": {
                     "type": "string"
+                }
+            }
+        },
+        "models.TopApplication": {
+            "type": "object",
+            "properties": {
+                "app_name": {
+                    "description": "应用名称",
+                    "type": "string"
+                },
+                "application_id": {
+                    "description": "应用ID",
+                    "type": "string"
+                },
+                "count": {
+                    "description": "请求次数",
+                    "type": "integer"
                 }
             }
         },
