@@ -526,18 +526,79 @@ func (s *SharingService) DeleteApiInterface(id string) error {
 
 // CreateApiRateLimit 创建API限流规则
 func (s *SharingService) CreateApiRateLimit(limit *models.ApiRateLimit) error {
+	// 验证限流类型
+	validTypes := []string{"global", "api_key", "application"}
+	isValidType := false
+	for _, validType := range validTypes {
+		if limit.RateLimitType == validType {
+			isValidType = true
+			break
+		}
+	}
+	if !isValidType {
+		return errors.New("无效的限流类型，必须是global、api_key或application")
+	}
+
+	// 如果是全局限流，检查是否已存在全局限流规则
+	if limit.RateLimitType == "global" {
+		var count int64
+		if err := s.db.Model(&models.ApiRateLimit{}).
+			Where("rate_limit_type = ? AND is_enabled = true", "global").
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return errors.New("全局限流规则已存在，一个系统只能有一个全局限流规则")
+		}
+		// 全局限流不需要TargetID
+		limit.TargetID = nil
+	}
+
+	// 验证密钥或应用是否存在
+	if limit.RateLimitType == "api_key" {
+		if limit.TargetID == nil {
+			return errors.New("API密钥限流必须指定target_id")
+		}
+		var key models.ApiKey
+		if err := s.db.First(&key, "id = ?", *limit.TargetID).Error; err != nil {
+			return errors.New("API密钥不存在")
+		}
+	} else if limit.RateLimitType == "application" {
+		if limit.TargetID == nil {
+			return errors.New("应用限流必须指定target_id")
+		}
+		var app models.ApiApplication
+		if err := s.db.First(&app, "id = ?", *limit.TargetID).Error; err != nil {
+			return errors.New("应用不存在")
+		}
+	}
+
+	// 验证时间窗口和最大请求数
+	if limit.TimeWindow <= 0 {
+		return errors.New("时间窗口必须大于0")
+	}
+	if limit.MaxRequests <= 0 {
+		return errors.New("最大请求数必须大于0")
+	}
+
 	return s.db.Create(limit).Error
 }
 
 // GetApiRateLimits 获取API限流规则列表
-func (s *SharingService) GetApiRateLimits(page, pageSize int, applicationID string) ([]models.ApiRateLimit, int64, error) {
+func (s *SharingService) GetApiRateLimits(page, pageSize int, rateLimitType, targetID string) ([]models.ApiRateLimit, int64, error) {
 	var limits []models.ApiRateLimit
 	var total int64
 
-	query := s.db.Model(&models.ApiRateLimit{}).Preload("Application")
+	query := s.db.Model(&models.ApiRateLimit{}).
+		Preload("Application").
+		Preload("ApiKey")
 
-	if applicationID != "" {
-		query = query.Where("application_id = ?", applicationID)
+	if rateLimitType != "" {
+		query = query.Where("rate_limit_type = ?", rateLimitType)
+	}
+
+	if targetID != "" {
+		query = query.Where("target_id = ?", targetID)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -545,11 +606,40 @@ func (s *SharingService) GetApiRateLimits(page, pageSize int, applicationID stri
 	}
 
 	offset := (page - 1) * pageSize
-	if err := query.Offset(offset).Limit(pageSize).Find(&limits).Error; err != nil {
+	if err := query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&limits).Error; err != nil {
 		return nil, 0, err
 	}
 
 	return limits, total, nil
+}
+
+// GetApplicableRateLimits 获取适用于特定请求的所有限流规则（全局、密钥、应用）
+func (s *SharingService) GetApplicableRateLimits(apiKeyID, applicationID string) ([]models.ApiRateLimit, error) {
+	var limits []models.ApiRateLimit
+
+	// 查询全局限流
+	var globalLimit models.ApiRateLimit
+	if err := s.db.Where("rate_limit_type = ? AND is_enabled = true", "global").First(&globalLimit).Error; err == nil {
+		limits = append(limits, globalLimit)
+	}
+
+	// 查询API密钥限流
+	if apiKeyID != "" {
+		var keyLimit models.ApiRateLimit
+		if err := s.db.Where("rate_limit_type = ? AND target_id = ? AND is_enabled = true", "api_key", apiKeyID).First(&keyLimit).Error; err == nil {
+			limits = append(limits, keyLimit)
+		}
+	}
+
+	// 查询应用限流
+	if applicationID != "" {
+		var appLimit models.ApiRateLimit
+		if err := s.db.Where("rate_limit_type = ? AND target_id = ? AND is_enabled = true", "application", applicationID).First(&appLimit).Error; err == nil {
+			limits = append(limits, appLimit)
+		}
+	}
+
+	return limits, nil
 }
 
 // UpdateApiRateLimit 更新API限流规则
@@ -781,6 +871,145 @@ func (s *SharingService) GetApiUsageLogs(page, pageSize int, applicationID, user
 	}
 
 	return logs, total, nil
+}
+
+// GetApiRateLimitStatistics 获取API限流统计信息
+func (s *SharingService) GetApiRateLimitStatistics() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+
+	// 总限流规则数
+	var totalRules int64
+	if err := s.db.Model(&models.ApiRateLimit{}).Count(&totalRules).Error; err != nil {
+		return nil, err
+	}
+	stats["total_rules"] = totalRules
+
+	// 启用的限流规则数
+	var enabledRules int64
+	if err := s.db.Model(&models.ApiRateLimit{}).Where("is_enabled = ?", true).Count(&enabledRules).Error; err != nil {
+		return nil, err
+	}
+	stats["enabled_rules"] = enabledRules
+
+	// 按类型统计
+	var typeStats []struct {
+		RateLimitType string `json:"rate_limit_type"`
+		Count         int64  `json:"count"`
+	}
+	if err := s.db.Model(&models.ApiRateLimit{}).
+		Select("rate_limit_type, COUNT(*) as count").
+		Where("is_enabled = ?", true).
+		Group("rate_limit_type").
+		Find(&typeStats).Error; err != nil {
+		return nil, err
+	}
+	stats["type_distribution"] = typeStats
+
+	// 最近7天创建的规则数
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+	var recentRules int64
+	if err := s.db.Model(&models.ApiRateLimit{}).
+		Where("created_at >= ?", sevenDaysAgo).
+		Count(&recentRules).Error; err != nil {
+		return nil, err
+	}
+	stats["recent_rules"] = recentRules
+
+	return stats, nil
+}
+
+// GetApiUsageStatistics 获取API使用统计信息
+func (s *SharingService) GetApiUsageStatistics(startTime, endTime *time.Time) (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+
+	// 辅助函数：应用时间过滤
+	applyTimeFilter := func(query *gorm.DB) *gorm.DB {
+		if startTime != nil {
+			query = query.Where("request_time >= ?", startTime)
+		}
+		if endTime != nil {
+			query = query.Where("request_time <= ?", endTime)
+		}
+		return query
+	}
+
+	// 总请求数
+	var totalRequests int64
+	query := applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
+	if err := query.Count(&totalRequests).Error; err != nil {
+		return nil, err
+	}
+	stats["total_requests"] = totalRequests
+
+	// 成功请求数（2xx状态码）
+	var successRequests int64
+	query = applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
+	if err := query.Where("status_code >= ? AND status_code < ?", 200, 300).
+		Count(&successRequests).Error; err != nil {
+		return nil, err
+	}
+	stats["success_requests"] = successRequests
+
+	// 失败请求数（4xx和5xx状态码）
+	var failedRequests int64
+	query = applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
+	if err := query.Where("status_code >= ?", 400).
+		Count(&failedRequests).Error; err != nil {
+		return nil, err
+	}
+	stats["failed_requests"] = failedRequests
+
+	// 限流拒绝数（429状态码）
+	var rateLimitedRequests int64
+	query = applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
+	if err := query.Where("status_code = ?", 429).
+		Count(&rateLimitedRequests).Error; err != nil {
+		return nil, err
+	}
+	stats["rate_limited_requests"] = rateLimitedRequests
+
+	// 平均响应时间
+	var avgResponseTime float64
+	query = applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
+	if err := query.Select("AVG(response_time)").
+		Row().Scan(&avgResponseTime); err != nil && err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+	stats["avg_response_time"] = int(avgResponseTime)
+
+	// 按应用统计TOP5
+	var topApps []struct {
+		ApplicationID string `json:"application_id"`
+		AppName       string `json:"app_name"`
+		Count         int64  `json:"count"`
+	}
+	query = applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
+	if err := query.Select("api_usage_logs.application_id, api_applications.name as app_name, COUNT(*) as count").
+		Joins("LEFT JOIN api_applications ON api_usage_logs.application_id = api_applications.id").
+		Where("api_usage_logs.application_id IS NOT NULL").
+		Group("api_usage_logs.application_id, api_applications.name").
+		Order("count DESC").
+		Limit(5).
+		Find(&topApps).Error; err != nil {
+		return nil, err
+	}
+	stats["top_applications"] = topApps
+
+	// 按状态码统计
+	var statusStats []struct {
+		StatusCode int   `json:"status_code"`
+		Count      int64 `json:"count"`
+	}
+	query = applyTimeFilter(s.db.Model(&models.ApiUsageLog{}))
+	if err := query.Select("status_code, COUNT(*) as count").
+		Group("status_code").
+		Order("count DESC").
+		Find(&statusStats).Error; err != nil {
+		return nil, err
+	}
+	stats["status_distribution"] = statusStats
+
+	return stats, nil
 }
 
 // === 工具函数 ===

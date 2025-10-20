@@ -373,6 +373,7 @@ func InitRoute(r *chi.Mux) {
 		r.Route("/api-rate-limits", func(r chi.Router) {
 			r.Post("/", sharingController.CreateApiRateLimit)
 			r.Get("/", sharingController.GetApiRateLimits)
+			r.Get("/statistics", sharingController.GetApiRateLimitStatistics)
 			r.Put("/{id}", sharingController.UpdateApiRateLimit)
 			r.Delete("/{id}", sharingController.DeleteApiRateLimit)
 		})
@@ -395,7 +396,10 @@ func InitRoute(r *chi.Mux) {
 		})
 
 		// API使用日志管理
-		r.Get("/api-usage-logs", sharingController.GetApiUsageLogs)
+		r.Route("/api-usage-logs", func(r chi.Router) {
+			r.Get("/", sharingController.GetApiUsageLogs)
+			r.Get("/statistics", sharingController.GetApiUsageStatistics)
+		})
 
 		// API接口管理
 		r.Route("/api-interfaces", func(r chi.Router) {

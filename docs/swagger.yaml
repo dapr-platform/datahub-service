@@ -320,6 +320,27 @@ definitions:
         description: 完整的Key值，仅返回一次
         type: string
     type: object
+  controllers.CreateApiRateLimitRequest:
+    properties:
+      description:
+        type: string
+      max_requests:
+        description: 最大请求数
+        type: integer
+      rate_limit_type:
+        description: global/api_key/application
+        type: string
+      target_id:
+        description: api_key_id或application_id，全局时为null
+        type: string
+      time_window:
+        description: 时间窗口（秒）
+        type: integer
+    required:
+    - max_requests
+    - rate_limit_type
+    - time_window
+    type: object
   controllers.CreateInterfaceTableIndexRequest:
     properties:
       columns:
@@ -3838,15 +3859,21 @@ definitions:
     type: object
   models.ApiRateLimit:
     properties:
-      api_path:
+      api_key:
+        $ref: '#/definitions/models.ApiKey'
+      api_key_id:
+        description: 冗余字段，便于查询
         type: string
       application:
         $ref: '#/definitions/models.ApiApplication'
       application_id:
+        description: 冗余字段，便于查询
         type: string
       created_at:
         type: string
       created_by:
+        type: string
+      description:
         type: string
       id:
         type: string
@@ -3855,9 +3882,19 @@ definitions:
       max_requests:
         description: 最大请求数
         type: integer
+      rate_limit_type:
+        description: global/api_key/application
+        type: string
+      target_id:
+        description: 目标ID：api_key_id或application_id，全局时为null
+        type: string
       time_window:
         description: 时间窗口，单位秒
         type: integer
+      updated_at:
+        type: string
+      updated_by:
+        type: string
     type: object
   models.ApiUsageLog:
     properties:
@@ -9676,7 +9713,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 分页获取API限流规则列表
+      description: 分页获取API限流规则列表，可按限流类型和目标ID过滤
       parameters:
       - default: 1
         description: 页码
@@ -9688,9 +9725,13 @@ paths:
         in: query
         name: size
         type: integer
-      - description: 应用ID
+      - description: 限流类型：global/api_key/application
         in: query
-        name: application_id
+        name: rate_limit_type
+        type: string
+      - description: 目标ID（api_key_id或application_id）
+        in: query
+        name: target_id
         type: string
       produces:
       - application/json
@@ -9714,14 +9755,14 @@ paths:
     post:
       consumes:
       - application/json
-      description: 创建新的API限流规则
+      description: 创建新的API限流规则，支持三层限流：全局（global）、API密钥（api_key）、应用（application）
       parameters:
       - description: API限流规则信息
         in: body
         name: limit
         required: true
         schema:
-          $ref: '#/definitions/models.ApiRateLimit'
+          $ref: '#/definitions/controllers.CreateApiRateLimitRequest'
       produces:
       - application/json
       responses:
@@ -9813,6 +9854,31 @@ paths:
       summary: 更新API限流规则
       tags:
       - 数据共享服务
+  /sharing/api-rate-limits/statistics:
+    get:
+      consumes:
+      - application/json
+      description: 获取API限流规则的统计信息，包括总数、启用数、类型分布等
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取API限流统计信息
+      tags:
+      - 数据共享服务
   /sharing/api-usage-logs:
     get:
       consumes:
@@ -9862,6 +9928,40 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取API使用日志列表
+      tags:
+      - 数据共享服务
+  /sharing/api-usage-logs/statistics:
+    get:
+      consumes:
+      - application/json
+      description: 获取API使用日志的统计信息，包括总请求数、成功率、平均响应时间、TOP应用等
+      parameters:
+      - description: 开始时间（RFC3339格式）
+        in: query
+        name: start_time
+        type: string
+      - description: 结束时间（RFC3339格式）
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取API使用统计信息
       tags:
       - 数据共享服务
   /sharing/data-access-requests:

@@ -12,18 +12,20 @@
 package controllers
 
 import (
+	"context"
 	"datahub-service/client"
 	"datahub-service/service/models"
+	"datahub-service/service/rate_limiter"
 	"datahub-service/service/sharing"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"sort"
 	"strings"
 	"sync"
 	"time"
-	"log/slog"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -61,6 +63,7 @@ type SimplifiedFieldInfo struct {
 // DataProxyController 数据访问代理控制器
 type DataProxyController struct {
 	sharingService  *sharing.SharingService
+	rateLimiter     *rate_limiter.RedisRateLimiter
 	postgrestURL    string
 	clientCache     map[string]*client.PostgRESTClient // API Key ID -> PostgREST Client
 	cacheMutex      sync.RWMutex                       // 缓存读写锁
@@ -76,8 +79,15 @@ func NewDataProxyController(sharingService *sharing.SharingService) *DataProxyCo
 		postgrestURL = "http://postgrest:3000"
 	}
 
+	// 初始化限流器
+	rateLimiter, err := rate_limiter.NewRedisRateLimiter()
+	if err != nil {
+		slog.Error("初始化Redis限流器失败，限流功能将不可用", "error", err)
+	}
+
 	return &DataProxyController{
 		sharingService:  sharingService,
+		rateLimiter:     rateLimiter,
 		postgrestURL:    postgrestURL,
 		clientCache:     make(map[string]*client.PostgRESTClient),
 		clientTimeout:   30 * time.Second,
@@ -232,6 +242,29 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// 5.5. 检查限流（全局 -> 密钥 -> 应用）
+	if c.rateLimiter != nil {
+		rateLimitResult, err := c.checkRateLimit(r.Context(), apiKey.ID, apiInterface.ApiApplicationID)
+		if err != nil {
+			slog.Error("限流检查失败", "error", err)
+			// 限流检查失败不影响正常流程，记录日志即可
+		} else if !rateLimitResult.Allowed {
+			c.logApiUsage(r, apiInterface.ApiApplicationID, apiKey.ID, http.StatusTooManyRequests, time.Since(startTime), rateLimitResult.Message)
+
+			// 设置限流相关响应头
+			w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", rateLimitResult.Limit))
+			w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", rateLimitResult.Remaining))
+			w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", rateLimitResult.ResetAt))
+			w.Header().Set("X-RateLimit-Type", rateLimitResult.RateLimitType)
+
+			render.JSON(w, r, APIResponse{
+				Status: http.StatusTooManyRequests,
+				Msg:    rateLimitResult.Message,
+			})
+			return
+		}
+	}
+
 	// 6. 获取主题库schema和主题接口信息（table_name）
 	schema := apiInterface.ApiApplication.ThematicLibrary.NameEn
 	if schema == "" {
@@ -369,8 +402,7 @@ func (c *DataProxyController) logApiUsageWithSize(r *http.Request, appID, keyID 
 	go func() {
 		if err := c.sharingService.CreateApiUsageLog(log); err != nil {
 			// 日志记录失败，可以考虑写入本地日志文件
-			
-			slog.Error("记录API使用日志失败: %v\n", err.Error())
+			slog.Error("记录API使用日志失败", "error", err)
 		}
 	}()
 }
@@ -405,6 +437,43 @@ func getStringPointer(s string) *string {
 	return &s
 }
 
+// checkRateLimit 检查限流
+func (c *DataProxyController) checkRateLimit(ctx context.Context, apiKeyID, applicationID string) (*rate_limiter.RateLimitResult, error) {
+	// 获取适用的限流规则
+	rateLimits, err := c.sharingService.GetApplicableRateLimits(apiKeyID, applicationID)
+	if err != nil {
+		return nil, fmt.Errorf("获取限流规则失败: %w", err)
+	}
+
+	// 如果没有限流规则，允许通过
+	if len(rateLimits) == 0 {
+		return &rate_limiter.RateLimitResult{
+			Allowed:       true,
+			Limit:         -1,
+			Remaining:     -1,
+			RateLimitType: "none",
+			Message:       "无限流规则",
+		}, nil
+	}
+
+	// 转换为限流器规则格式
+	var rules []rate_limiter.RateLimitRule
+	for _, limit := range rateLimits {
+		rule := rate_limiter.RateLimitRule{
+			Type:        limit.RateLimitType,
+			TimeWindow:  limit.TimeWindow,
+			MaxRequests: limit.MaxRequests,
+		}
+		if limit.TargetID != nil {
+			rule.TargetID = *limit.TargetID
+		}
+		rules = append(rules, rule)
+	}
+
+	// 检查限流
+	return c.rateLimiter.CheckRateLimit(ctx, rules)
+}
+
 // Close 关闭控制器并释放资源
 func (c *DataProxyController) Close() error {
 	c.cacheMutex.Lock()
@@ -413,12 +482,19 @@ func (c *DataProxyController) Close() error {
 	// 关闭所有缓存的客户端
 	for apiKeyID, client := range c.clientCache {
 		if err := client.Close(); err != nil {
-			slog.Error("关闭API Key %s 的PostgREST客户端失败: %v\n", apiKeyID, err)
+			slog.Error("关闭PostgREST客户端失败", "api_key_id", apiKeyID, "error", err)
 		}
 	}
 
 	// 清空缓存
 	c.clientCache = make(map[string]*client.PostgRESTClient)
+
+	// 关闭限流器
+	if c.rateLimiter != nil {
+		if err := c.rateLimiter.Close(); err != nil {
+			slog.Error("关闭限流器失败", "error", err)
+		}
+	}
 
 	return nil
 }
@@ -454,7 +530,7 @@ func (c *DataProxyController) ClearExpiredClients() int {
 			client.Close()
 			delete(c.clientCache, apiKeyID)
 			clearedCount++
-			slog.Error("清理高错误率的PostgREST客户端: %s\n", apiKeyID)
+			slog.Warn("清理高错误率的PostgREST客户端", "api_key_id", apiKeyID, "error_count", errorCount)
 		}
 	}
 

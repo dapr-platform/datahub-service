@@ -148,17 +148,23 @@ func (ai *ApiInterface) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// ApiRateLimit API调用限制模型
+// ApiRateLimit API调用限制模型 - 支持三层限流：全局/密钥/应用
 type ApiRateLimit struct {
 	ID            string          `gorm:"type:uuid;primary_key" json:"id"`
-	ApplicationID string          `gorm:"not null" json:"application_id"`
+	RateLimitType string          `gorm:"not null;size:20;index" json:"rate_limit_type"` // global/api_key/application
+	TargetID      *string         `gorm:"type:uuid;index" json:"target_id"`              // 目标ID：api_key_id或application_id，全局时为null
+	ApiKeyID      *string         `json:"api_key_id"`                                    // 冗余字段，便于查询
+	ApplicationID *string         `json:"application_id"`                                // 冗余字段，便于查询
 	Application   *ApiApplication `gorm:"foreignKey:ApplicationID;constraint:OnDelete:RESTRICT" json:"application,omitempty"`
-	ApiPath       string          `gorm:"not null" json:"api_path"`
+	ApiKey        *ApiKey         `gorm:"foreignKey:ApiKeyID;constraint:OnDelete:RESTRICT" json:"api_key,omitempty"`
 	TimeWindow    int             `gorm:"not null" json:"time_window"`  // 时间窗口，单位秒
 	MaxRequests   int             `gorm:"not null" json:"max_requests"` // 最大请求数
+	Description   *string         `json:"description"`
 	IsEnabled     bool            `gorm:"not null;default:true" json:"is_enabled"`
 	CreatedAt     time.Time       `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
 	CreatedBy     string          `gorm:"not null;default:'system';size:100" json:"created_by"`
+	UpdatedAt     time.Time       `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	UpdatedBy     string          `gorm:"not null;default:'system';size:100" json:"updated_by"`
 }
 
 // BeforeCreate 创建前钩子
@@ -168,6 +174,25 @@ func (a *ApiRateLimit) BeforeCreate(tx *gorm.DB) error {
 	}
 	if a.CreatedBy == "" {
 		a.CreatedBy = "system"
+	}
+	if a.UpdatedBy == "" {
+		a.UpdatedBy = "system"
+	}
+
+	// 根据类型设置冗余字段
+	if a.RateLimitType == "api_key" && a.TargetID != nil {
+		a.ApiKeyID = a.TargetID
+	} else if a.RateLimitType == "application" && a.TargetID != nil {
+		a.ApplicationID = a.TargetID
+	}
+
+	return nil
+}
+
+// BeforeUpdate 更新前钩子
+func (a *ApiRateLimit) BeforeUpdate(tx *gorm.DB) error {
+	if a.UpdatedBy == "" {
+		a.UpdatedBy = "system"
 	}
 	return nil
 }

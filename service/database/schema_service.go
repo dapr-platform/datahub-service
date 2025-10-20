@@ -452,7 +452,7 @@ func (s *SchemaService) updatePrimaryKey(schemaName, tableName string, oldKeys, 
 // dropTable 删除表
 func (s *SchemaService) dropTable(schemaName, tableName string) error {
 	dropSQL := fmt.Sprintf(
-		"DROP TABLE IF EXISTS %s.%s",
+		"DROP TABLE IF EXISTS %s.%s CASCADE",
 		s.quoteIdentifier(schemaName),
 		s.quoteIdentifier(tableName),
 	)

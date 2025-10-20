@@ -6779,7 +6779,7 @@ const docTemplate = `{
         },
         "/sharing/api-rate-limits": {
             "get": {
-                "description": "分页获取API限流规则列表",
+                "description": "分页获取API限流规则列表，可按限流类型和目标ID过滤",
                 "consumes": [
                     "application/json"
                 ],
@@ -6807,8 +6807,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "应用ID",
-                        "name": "application_id",
+                        "description": "限流类型：global/api_key/application",
+                        "name": "rate_limit_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "目标ID（api_key_id或application_id）",
+                        "name": "target_id",
                         "in": "query"
                     }
                 ],
@@ -6840,7 +6846,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "创建新的API限流规则",
+                "description": "创建新的API限流规则，支持三层限流：全局（global）、API密钥（api_key）、应用（application）",
                 "consumes": [
                     "application/json"
                 ],
@@ -6858,7 +6864,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.ApiRateLimit"
+                            "$ref": "#/definitions/controllers.CreateApiRateLimitRequest"
                         }
                     }
                 ],
@@ -6885,6 +6891,48 @@ const docTemplate = `{
                         "description": "请求参数错误",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sharing/api-rate-limits/statistics": {
+            "get": {
+                "description": "获取API限流规则的统计信息，包括总数、启用数、类型分布等",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "获取API限流统计信息",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "500": {
@@ -7064,6 +7112,62 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/controllers.ApiUsageLogListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sharing/api-usage-logs/statistics": {
+            "get": {
+                "description": "获取API使用日志的统计信息，包括总请求数、成功率、平均响应时间、TOP应用等",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "获取API使用统计信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "开始时间（RFC3339格式）",
+                        "name": "start_time",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "结束时间（RFC3339格式）",
+                        "name": "end_time",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
                                         }
                                     }
                                 }
@@ -11082,6 +11186,35 @@ const docTemplate = `{
                 "key_value": {
                     "description": "完整的Key值，仅返回一次",
                     "type": "string"
+                }
+            }
+        },
+        "controllers.CreateApiRateLimitRequest": {
+            "type": "object",
+            "required": [
+                "max_requests",
+                "rate_limit_type",
+                "time_window"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "max_requests": {
+                    "description": "最大请求数",
+                    "type": "integer"
+                },
+                "rate_limit_type": {
+                    "description": "global/api_key/application",
+                    "type": "string"
+                },
+                "target_id": {
+                    "description": "api_key_id或application_id，全局时为null",
+                    "type": "string"
+                },
+                "time_window": {
+                    "description": "时间窗口（秒）",
+                    "type": "integer"
                 }
             }
         },
@@ -16127,19 +16260,27 @@ const docTemplate = `{
         "models.ApiRateLimit": {
             "type": "object",
             "properties": {
-                "api_path": {
+                "api_key": {
+                    "$ref": "#/definitions/models.ApiKey"
+                },
+                "api_key_id": {
+                    "description": "冗余字段，便于查询",
                     "type": "string"
                 },
                 "application": {
                     "$ref": "#/definitions/models.ApiApplication"
                 },
                 "application_id": {
+                    "description": "冗余字段，便于查询",
                     "type": "string"
                 },
                 "created_at": {
                     "type": "string"
                 },
                 "created_by": {
+                    "type": "string"
+                },
+                "description": {
                     "type": "string"
                 },
                 "id": {
@@ -16152,9 +16293,23 @@ const docTemplate = `{
                     "description": "最大请求数",
                     "type": "integer"
                 },
+                "rate_limit_type": {
+                    "description": "global/api_key/application",
+                    "type": "string"
+                },
+                "target_id": {
+                    "description": "目标ID：api_key_id或application_id，全局时为null",
+                    "type": "string"
+                },
                 "time_window": {
                     "description": "时间窗口，单位秒",
                     "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "string"
                 }
             }
         },

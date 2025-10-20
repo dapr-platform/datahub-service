@@ -242,26 +242,44 @@ func (c *SharingController) DeleteApiApplication(w http.ResponseWriter, r *http.
 
 // === API限流管理 ===
 
+// CreateApiRateLimitRequest 创建API限流规则请求结构
+type CreateApiRateLimitRequest struct {
+	RateLimitType string  `json:"rate_limit_type" validate:"required"` // global/api_key/application
+	TargetID      *string `json:"target_id"`                           // api_key_id或application_id，全局时为null
+	TimeWindow    int     `json:"time_window" validate:"required"`     // 时间窗口（秒）
+	MaxRequests   int     `json:"max_requests" validate:"required"`    // 最大请求数
+	Description   *string `json:"description"`
+}
+
 // CreateApiRateLimit 创建API限流规则
 // @Summary 创建API限流规则
-// @Description 创建新的API限流规则
+// @Description 创建新的API限流规则，支持三层限流：全局（global）、API密钥（api_key）、应用（application）
 // @Tags 数据共享服务
 // @Accept json
 // @Produce json
-// @Param limit body models.ApiRateLimit true "API限流规则信息"
+// @Param limit body CreateApiRateLimitRequest true "API限流规则信息"
 // @Success 201 {object} APIResponse{data=models.ApiRateLimit} "创建成功"
 // @Failure 400 {object} APIResponse "请求参数错误"
 // @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /sharing/api-rate-limits [post]
 func (c *SharingController) CreateApiRateLimit(w http.ResponseWriter, r *http.Request) {
-	var limit models.ApiRateLimit
-	if err := render.DecodeJSON(r.Body, &limit); err != nil {
+	var req CreateApiRateLimitRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
 		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
 		return
 	}
 
-	if err := c.sharingService.CreateApiRateLimit(&limit); err != nil {
-		render.JSON(w, r, InternalErrorResponse("创建API限流规则失败", err))
+	// 构建限流规则
+	limit := &models.ApiRateLimit{
+		RateLimitType: req.RateLimitType,
+		TargetID:      req.TargetID,
+		TimeWindow:    req.TimeWindow,
+		MaxRequests:   req.MaxRequests,
+		Description:   req.Description,
+	}
+
+	if err := c.sharingService.CreateApiRateLimit(limit); err != nil {
+		render.JSON(w, r, InternalErrorResponse("创建API限流规则失败: "+err.Error(), err))
 		return
 	}
 
@@ -270,13 +288,14 @@ func (c *SharingController) CreateApiRateLimit(w http.ResponseWriter, r *http.Re
 
 // GetApiRateLimits 获取API限流规则列表
 // @Summary 获取API限流规则列表
-// @Description 分页获取API限流规则列表
+// @Description 分页获取API限流规则列表，可按限流类型和目标ID过滤
 // @Tags 数据共享服务
 // @Accept json
 // @Produce json
 // @Param page query int false "页码" default(1)
 // @Param size query int false "每页数量" default(10)
-// @Param application_id query string false "应用ID"
+// @Param rate_limit_type query string false "限流类型：global/api_key/application"
+// @Param target_id query string false "目标ID（api_key_id或application_id）"
 // @Success 200 {object} APIResponse{data=ApiRateLimitListResponse} "获取成功"
 // @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /sharing/api-rate-limits [get]
@@ -290,9 +309,10 @@ func (c *SharingController) GetApiRateLimits(w http.ResponseWriter, r *http.Requ
 		size = 10
 	}
 
-	applicationID := r.URL.Query().Get("application_id")
+	rateLimitType := r.URL.Query().Get("rate_limit_type")
+	targetID := r.URL.Query().Get("target_id")
 
-	limits, total, err := c.sharingService.GetApiRateLimits(page, size, applicationID)
+	limits, total, err := c.sharingService.GetApiRateLimits(page, size, rateLimitType, targetID)
 	if err != nil {
 		render.JSON(w, r, InternalErrorResponse("获取API限流规则列表失败", err))
 		return
@@ -962,4 +982,62 @@ func (c *SharingController) DeleteApiInterface(w http.ResponseWriter, r *http.Re
 	}
 
 	render.JSON(w, r, SuccessResponse("删除共享接口成功", nil))
+}
+
+// === 统计接口 ===
+
+// GetApiRateLimitStatistics 获取API限流统计信息
+// @Summary 获取API限流统计信息
+// @Description 获取API限流规则的统计信息，包括总数、启用数、类型分布等
+// @Tags 数据共享服务
+// @Accept json
+// @Produce json
+// @Success 200 {object} APIResponse{data=map[string]interface{}} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /sharing/api-rate-limits/statistics [get]
+func (c *SharingController) GetApiRateLimitStatistics(w http.ResponseWriter, r *http.Request) {
+	stats, err := c.sharingService.GetApiRateLimitStatistics()
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取限流统计失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取限流统计成功", stats))
+}
+
+// GetApiUsageStatistics 获取API使用统计信息
+// @Summary 获取API使用统计信息
+// @Description 获取API使用日志的统计信息，包括总请求数、成功率、平均响应时间、TOP应用等
+// @Tags 数据共享服务
+// @Accept json
+// @Produce json
+// @Param start_time query string false "开始时间（RFC3339格式）"
+// @Param end_time query string false "结束时间（RFC3339格式）"
+// @Success 200 {object} APIResponse{data=map[string]interface{}} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /sharing/api-usage-logs/statistics [get]
+func (c *SharingController) GetApiUsageStatistics(w http.ResponseWriter, r *http.Request) {
+	var startTime, endTime *time.Time
+
+	// 解析开始时间
+	if startTimeStr := r.URL.Query().Get("start_time"); startTimeStr != "" {
+		if t, err := time.Parse(time.RFC3339, startTimeStr); err == nil {
+			startTime = &t
+		}
+	}
+
+	// 解析结束时间
+	if endTimeStr := r.URL.Query().Get("end_time"); endTimeStr != "" {
+		if t, err := time.Parse(time.RFC3339, endTimeStr); err == nil {
+			endTime = &t
+		}
+	}
+
+	stats, err := c.sharingService.GetApiUsageStatistics(startTime, endTime)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取使用统计失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取使用统计成功", stats))
 }
