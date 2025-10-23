@@ -814,14 +814,55 @@ func (s *SchemaService) createView(schemaName, viewName, viewSQL string) error {
 		return fmt.Errorf("视图SQL验证失败: %v", err)
 	}
 
+	// 检查视图是否已存在
+	viewExists, err := s.CheckViewExists(schemaName, viewName)
+	if err != nil {
+		return fmt.Errorf("检查视图存在性失败: %v", err)
+	}
+
+	// 尝试使用 CREATE OR REPLACE VIEW
 	fullSQL := fmt.Sprintf("CREATE OR REPLACE VIEW %s.%s AS %s",
 		s.quoteIdentifier(schemaName),
 		s.quoteIdentifier(viewName),
 		s.extractSelectFromViewSQL(viewSQL))
 
-	slog.Debug("SchemaService.createView", "sql", fullSQL)
-	if err := s.db.Exec(fullSQL).Error; err != nil {
-		return fmt.Errorf("创建视图失败: %v", err)
+	slog.Debug("SchemaService.createView", "sql", fullSQL, "view_exists", viewExists)
+
+	err = s.db.Exec(fullSQL).Error
+	if err != nil {
+		// 如果 CREATE OR REPLACE 失败（可能是不兼容的列变更），尝试先删除再创建
+		if strings.Contains(err.Error(), "cannot change") ||
+			strings.Contains(err.Error(), "cannot drop") ||
+			strings.Contains(err.Error(), "cannot be replaced") {
+
+			slog.Warn("视图定义不兼容，将先删除后重建",
+				"schema", schemaName,
+				"view", viewName,
+				"error", err.Error())
+
+			// 先删除视图（会丢失权限）
+			if dropErr := s.forceDropView(schemaName, viewName); dropErr != nil {
+				return fmt.Errorf("删除不兼容视图失败: %v (原始错误: %v)", dropErr, err)
+			}
+
+			// 重新创建视图
+			if createErr := s.db.Exec(fullSQL).Error; createErr != nil {
+				return fmt.Errorf("重建视图失败: %v", createErr)
+			}
+
+			slog.Info("视图已成功重建", "schema", schemaName, "view", viewName)
+		} else {
+			return fmt.Errorf("创建视图失败: %v", err)
+		}
+	}
+
+	// 授予视图访问权限
+	// 注意：
+	// - 如果是 CREATE OR REPLACE 成功且列兼容，原有权限会保留，这里重新授权是幂等的
+	// - 如果是先 DROP 后 CREATE，权限已丢失，这里必须重新授权
+	if err := s.grantViewPermissions(schemaName, viewName); err != nil {
+		slog.Warn("授予视图权限失败", "schema", schemaName, "view", viewName, "error", err)
+		// 权限授予失败不应该阻止视图创建，只记录警告
 	}
 
 	return nil
@@ -833,8 +874,9 @@ func (s *SchemaService) updateView(schemaName, viewName, viewSQL string) error {
 }
 
 // dropView 删除视图
+// 注意：PostgreSQL 在执行 DROP VIEW 时会自动删除所有相关的权限授予(GRANT)
 func (s *SchemaService) dropView(schemaName, viewName string) error {
-	dropSQL := fmt.Sprintf("DROP VIEW IF EXISTS %s.%s",
+	dropSQL := fmt.Sprintf("DROP VIEW IF EXISTS %s.%s CASCADE",
 		s.quoteIdentifier(schemaName),
 		s.quoteIdentifier(viewName))
 
@@ -843,6 +885,108 @@ func (s *SchemaService) dropView(schemaName, viewName string) error {
 		return fmt.Errorf("删除视图失败: %v", err)
 	}
 
+	slog.Info("视图已删除（包括所有依赖和权限）", "schema", schemaName, "view", viewName)
+	return nil
+}
+
+// forceDropView 强制删除视图（内部使用，用于处理 REPLACE 失败的情况）
+func (s *SchemaService) forceDropView(schemaName, viewName string) error {
+	dropSQL := fmt.Sprintf("DROP VIEW IF EXISTS %s.%s CASCADE",
+		s.quoteIdentifier(schemaName),
+		s.quoteIdentifier(viewName))
+
+	slog.Debug("SchemaService.forceDropView", "sql", dropSQL)
+	if err := s.db.Exec(dropSQL).Error; err != nil {
+		return fmt.Errorf("强制删除视图失败: %v", err)
+	}
+
+	return nil
+}
+
+// grantViewPermissions 授予视图访问权限
+func (s *SchemaService) grantViewPermissions(schemaName, viewName string) error {
+	// 构建完整的视图名称
+	fullViewName := fmt.Sprintf("%s.%s", s.quoteIdentifier(schemaName), s.quoteIdentifier(viewName))
+
+	// 需要授予权限的角色列表
+	// 1. authenticator - PostgREST 使用的角色
+	// 2. admin, user, readonly, guest - 应用级别的角色
+	roles := []string{"authenticator", "admin", `"user"`, "readonly", "guest"}
+
+	slog.Info("开始授予视图访问权限", "schema", schemaName, "view", viewName, "roles", roles)
+
+	for _, role := range roles {
+		// 授予 SELECT 权限（视图通常只需要 SELECT）
+		grantSQL := fmt.Sprintf("GRANT SELECT ON %s TO %s", fullViewName, role)
+
+		slog.Debug("授予视图权限", "sql", grantSQL)
+
+		if err := s.db.Exec(grantSQL).Error; err != nil {
+			// 如果角色不存在，记录警告但继续
+			if strings.Contains(err.Error(), "role") && strings.Contains(err.Error(), "does not exist") {
+				slog.Warn("角色不存在，跳过权限授予", "role", role, "error", err)
+				continue
+			}
+			return fmt.Errorf("授予视图权限失败 (role=%s): %v", role, err)
+		}
+	}
+
+	// 同时需要授予该 schema 下所有现有用户的权限
+	if err := s.grantViewPermissionsToSchemaUsers(schemaName, viewName); err != nil {
+		slog.Warn("授予 schema 用户视图权限失败", "error", err)
+		// 不返回错误，因为这只是额外的权限授予
+	}
+
+	slog.Info("视图访问权限授予完成", "schema", schemaName, "view", viewName)
+	return nil
+}
+
+// grantViewPermissionsToSchemaUsers 授予 schema 下所有现有用户视图权限
+func (s *SchemaService) grantViewPermissionsToSchemaUsers(schemaName, viewName string) error {
+	// 查询有该 schema 访问权限的所有用户
+	query := `
+		SELECT DISTINCT grantee
+		FROM information_schema.role_table_grants
+		WHERE table_schema = $1
+			AND privilege_type = 'SELECT'
+			AND grantee NOT IN ('authenticator', 'admin', 'user', 'readonly', 'guest', 'postgres', 'supabase_admin')
+	`
+
+	rows, err := s.db.Raw(query, schemaName).Rows()
+	if err != nil {
+		return fmt.Errorf("查询 schema 用户失败: %v", err)
+	}
+	defer rows.Close()
+
+	var users []string
+	for rows.Next() {
+		var username string
+		if err := rows.Scan(&username); err != nil {
+			slog.Warn("扫描用户名失败", "error", err)
+			continue
+		}
+		users = append(users, username)
+	}
+
+	if len(users) == 0 {
+		slog.Debug("没有需要授予视图权限的额外用户", "schema", schemaName)
+		return nil
+	}
+
+	fullViewName := fmt.Sprintf("%s.%s", s.quoteIdentifier(schemaName), s.quoteIdentifier(viewName))
+
+	for _, username := range users {
+		grantSQL := fmt.Sprintf("GRANT SELECT ON %s TO %s", fullViewName, s.quoteIdentifier(username))
+
+		slog.Debug("授予用户视图权限", "user", username, "sql", grantSQL)
+
+		if err := s.db.Exec(grantSQL).Error; err != nil {
+			slog.Warn("授予用户视图权限失败", "user", username, "error", err)
+			continue
+		}
+	}
+
+	slog.Info("已授予额外用户视图权限", "schema", schemaName, "view", viewName, "user_count", len(users))
 	return nil
 }
 
@@ -1036,7 +1180,7 @@ func (s *SchemaService) validateViewSQL(viewSQL, schemaName, viewName string) er
 		return fmt.Errorf("视图SQL必须是SELECT语句或CREATE VIEW语句")
 	}
 
-	dangerousKeywords := []string{"DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", "ALTER"}
+	dangerousKeywords := []string{"DROP ", "DELETE ", "UPDATE ", "INSERT ", "TRUNCATE ", "ALTER ", "GRANT ", "REVOKE "}
 	for _, keyword := range dangerousKeywords {
 		if strings.Contains(trimmedSQL, keyword) {
 			return fmt.Errorf("视图SQL不能包含危险操作: %s", keyword)

@@ -8948,8 +8948,8 @@ const docTemplate = `{
                     },
                     {
                         "enum": [
-                            "realtime",
-                            "batch"
+                            "table",
+                            "view"
                         ],
                         "type": "string",
                         "description": "接口类型过滤",
@@ -17520,7 +17520,7 @@ const docTemplate = `{
                     ]
                 },
                 "type": {
-                    "description": "realtime, batch, view",
+                    "description": "table, view",
                     "type": "string"
                 },
                 "updated_at": {

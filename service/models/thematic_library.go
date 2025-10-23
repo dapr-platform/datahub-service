@@ -50,7 +50,7 @@ type ThematicInterface struct {
 	LibraryID         string    `json:"library_id" gorm:"not null;type:varchar(36);index"`
 	NameZh            string    `json:"name_zh" gorm:"not null;size:255"`
 	NameEn            string    `json:"name_en" gorm:"not null;size:255"`
-	Type              string    `json:"type" gorm:"not null;size:20"` // realtime, batch, view
+	Type              string    `json:"type" gorm:"not null;size:20"` // table, view
 	Description       string    `json:"description" gorm:"size:1000"`
 	CreatedAt         time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
 	CreatedBy         string    `json:"created_by" gorm:"not null;default:'system';size:100"`

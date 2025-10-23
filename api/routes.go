@@ -496,6 +496,20 @@ func InitRoute(r *chi.Mux) {
 		r.Get("/{library_type}/{library_id}/tables/{table_name}/structure", dataViewController.GetTableStructure)
 	})
 
+	// HTTP POST数据源管理（需要认证）
+	r.Route("/http-post", func(r chi.Router) {
+		httpPostController := controllers.NewHTTPPostController()
+
+		// webhook接收
+		r.Post("/webhook/{suffix}", httpPostController.HandleWebhook)
+
+		// 数据源管理
+		r.Get("/datasources", httpPostController.GetDataSourceList)
+		r.Get("/datasources/{suffix}/status", httpPostController.GetDataSourceStatus)
+		r.Get("/datasources/{suffix}/data", httpPostController.GetReceivedData)
+		r.Post("/datasources/{suffix}/clear", httpPostController.ClearReceivedData)
+	})
+
 	// Dashboard统计数据（需要认证）
 	r.Route("/dashboard", func(r chi.Router) {
 		dashboardController := controllers.NewDashboardController()

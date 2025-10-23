@@ -15,10 +15,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"sync"
 	"time"
-	"log/slog"
 
 	"datahub-service/service/models"
 
@@ -47,6 +47,10 @@ type MQTTDataSource struct {
 	reconnectDelay time.Duration
 	maxReconnects  int
 	reconnectCount int
+
+	// 实时数据处理
+	realtimeProcessor RealtimeDataProcessor // 实时数据处理器
+	enableAutoWrite   bool                  // 是否启用自动写入
 }
 
 // MQTTMessage MQTT消息结构
@@ -153,6 +157,10 @@ func (m *MQTTDataSource) Init(ctx context.Context, ds *models.DataSource) error 
 		m.topics = []string{"datahub/+", "#"} // 默认订阅所有主题
 	}
 
+	// 获取全局实时处理器
+	m.realtimeProcessor = GetGlobalRealtimeProcessor()
+	m.enableAutoWrite = true // 默认启用自动写入
+
 	return nil
 }
 
@@ -236,6 +244,13 @@ func (m *MQTTDataSource) parseParamsConfig(params map[string]interface{}) {
 			m.maxReconnects = int(v)
 		case int:
 			m.maxReconnects = v
+		}
+	}
+
+	// 是否启用自动写入
+	if enableAutoWrite, exists := params["enable_auto_write"]; exists {
+		if enabled, ok := enableAutoWrite.(bool); ok {
+			m.enableAutoWrite = enabled
 		}
 	}
 }
@@ -340,14 +355,25 @@ func (m *MQTTDataSource) processMessages() {
 		m.mu.Lock()
 		m.receivedMsgs = append(m.receivedMsgs, msg)
 
-		// 限制存储的消息量，只保留最近的1000条
-		if len(m.receivedMsgs) > 1000 {
-			m.receivedMsgs = m.receivedMsgs[len(m.receivedMsgs)-1000:]
+		// 限制存储的消息量，只保留最近的5000条
+		if len(m.receivedMsgs) > 5000 {
+			m.receivedMsgs = m.receivedMsgs[len(m.receivedMsgs)-5000:]
 		}
 		m.mu.Unlock()
 
 		// 通知所有订阅者
 		m.notifySubscribers(msg)
+
+		// 自动写入到关联的数据接口表
+		if m.enableAutoWrite && m.realtimeProcessor != nil && msg.ParsedData != nil {
+			ctx := context.Background()
+			if err := m.realtimeProcessor.ProcessRealtimeData(ctx, m.GetID(), msg.ParsedData); err != nil {
+				slog.Error("MQTT实时处理数据失败",
+					"datasource_id", m.GetID(),
+					"topic", msg.Topic,
+					"error", err)
+			}
+		}
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"context"
 	"datahub-service/service/basic_library"
 	"datahub-service/service/database"
+	"datahub-service/service/datasource"
 	"datahub-service/service/distributed_lock"
 	"datahub-service/service/event"
 	"datahub-service/service/governance"
@@ -125,6 +126,9 @@ func initServices() {
 	GlobalThematicSyncService = thematic_library.NewThematicSyncService(DB, GlobalGovernanceService)
 	GlobalSharingService = sharing.NewSharingService(DB)
 
+	// 初始化全局实时处理器
+	initRealtimeProcessor()
+
 	// 初始化Redis分布式锁
 	if schedulerEnabled := getEnvWithDefault("SCHEDULER_ENABLED", "true"); schedulerEnabled == "true" {
 		lock, err := distributed_lock.NewRedisLock()
@@ -188,4 +192,31 @@ func initializeDataSources() {
 	}
 
 	slog.Info("数据源初始化和启动流程完成")
+
+	// 初始化实时接口绑定
+	initializeRealtimeInterfaceBindings(ctx, datasourceInitService)
+}
+
+// initRealtimeProcessor 初始化全局实时处理器
+func initRealtimeProcessor() {
+	slog.Info("开始初始化全局实时处理器...")
+
+	// 创建适配器
+	dataWriter := basic_library.NewRealtimeDataWriter(DB)
+	interfaceLoader := basic_library.NewRealtimeInterfaceLoader(DB)
+
+	// 初始化全局实时处理器
+	datasource.InitGlobalRealtimeProcessor(DB, dataWriter, interfaceLoader)
+
+	slog.Info("全局实时处理器初始化完成")
+}
+
+// initializeRealtimeInterfaceBindings 初始化实时接口绑定
+func initializeRealtimeInterfaceBindings(ctx context.Context, datasourceInitService *basic_library.DatasourceInitService) {
+	slog.Info("开始初始化实时接口绑定...")
+
+	// TODO: 从数据库加载所有实时接口绑定关系并注册到处理器
+	// 这里暂时跳过，因为需要在interface_service中实现相关方法
+
+	slog.Info("实时接口绑定初始化完成")
 }

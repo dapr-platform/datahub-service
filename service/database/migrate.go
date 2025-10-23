@@ -162,6 +162,12 @@ func AutoMigrate(db *gorm.DB) error {
 	err = db.AutoMigrate(
 		&models.AlertRule{},
 		&models.MonitoringMetric{},
+		&models.AlertInstance{},
+		&models.AlertNotification{},
+		&models.HealthCheck{},
+		&models.HealthCheckResult{},
+		&models.SystemMetrics{},
+		&models.PerformanceSnapshot{},
 	)
 	if err != nil {
 		slog.Error("监控和告警表迁移失败", "error", err)

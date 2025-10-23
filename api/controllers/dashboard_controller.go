@@ -403,9 +403,9 @@ func (c *DashboardController) getBasicLibraryStats() BasicLibraryStats {
 		Find(&stats.RecentLibraries)
 
 	// 数据源使用排行 (前10个，基于关联的接口数量)
-	c.db.Table("t_data_source ds").
+	c.db.Table("data_sources ds").
 		Select("ds.id as data_source_id, ds.name as data_source_name, COUNT(di.id) as usage_count, MAX(di.updated_at) as last_used_at").
-		Joins("LEFT JOIN t_data_interface di ON ds.id = di.data_source_id").
+		Joins("LEFT JOIN data_interfaces di ON ds.id = di.data_source_id").
 		Group("ds.id, ds.name").
 		Order("usage_count DESC").
 		Limit(10).
@@ -428,9 +428,9 @@ func (c *DashboardController) getThematicLibraryStats() ThematicLibraryStats {
 
 	// 主题库总数和状态统计
 	c.db.Model(&models.ThematicLibrary{}).Count(&stats.TotalLibraries)
-	c.db.Model(&models.ThematicLibrary{}).Where("status = ?", "published").Count(&stats.PublishedLibraries)
-	c.db.Model(&models.ThematicLibrary{}).Where("status = ?", "draft").Count(&stats.DraftLibraries)
-	c.db.Model(&models.ThematicLibrary{}).Where("status = ?", "archived").Count(&stats.ArchivedLibraries)
+	c.db.Model(&models.ThematicLibrary{}).Where("publish_status = ?", "published").Count(&stats.PublishedLibraries)
+	c.db.Model(&models.ThematicLibrary{}).Where("publish_status = ?", "draft").Count(&stats.DraftLibraries)
+	c.db.Model(&models.ThematicLibrary{}).Where("publish_status = ?", "archived").Count(&stats.ArchivedLibraries)
 
 	// 主题接口统计
 	c.db.Model(&models.ThematicInterface{}).Count(&stats.TotalInterfaces)
@@ -469,9 +469,9 @@ func (c *DashboardController) getThematicLibraryStats() ThematicLibraryStats {
 		Find(&stats.RecentLibraries)
 
 	// 访问量排行 (基于API应用数量)
-	c.db.Table("t_thematic_library tl").
+	c.db.Table("thematic_libraries tl").
 		Select("tl.id as library_id, tl.name_zh as library_name, COUNT(aa.id) as access_count").
-		Joins("LEFT JOIN t_api_application aa ON tl.id = aa.thematic_library_id").
+		Joins("LEFT JOIN api_applications aa ON tl.id = aa.thematic_library_id").
 		Group("tl.id, tl.name_zh").
 		Order("access_count DESC").
 		Limit(10).
@@ -500,10 +500,10 @@ func (c *DashboardController) getSyncTaskStats() SyncTaskStats {
 
 	// 任务总数和状态统计
 	c.db.Model(&models.SyncTask{}).Count(&stats.TotalTasks)
-	c.db.Model(&models.SyncTask{}).Where("status = ?", "running").Count(&stats.RunningTasks)
-	c.db.Model(&models.SyncTask{}).Where("status = ?", "pending").Count(&stats.PendingTasks)
-	c.db.Model(&models.SyncTask{}).Where("status = ?", "completed").Count(&stats.CompletedTasks)
-	c.db.Model(&models.SyncTask{}).Where("status = ?", "failed").Count(&stats.FailedTasks)
+	c.db.Model(&models.SyncTask{}).Where("execution_status = ?", "running").Count(&stats.RunningTasks)
+	c.db.Model(&models.SyncTask{}).Where("status = ?", "draft").Count(&stats.PendingTasks)
+	c.db.Model(&models.SyncTask{}).Where("execution_status = ?", "success").Count(&stats.CompletedTasks)
+	c.db.Model(&models.SyncTask{}).Where("execution_status = ?", "failed").Count(&stats.FailedTasks)
 
 	// 今日执行统计
 	today := time.Now().Format("2006-01-02")
@@ -532,14 +532,14 @@ func (c *DashboardController) getSyncTaskStats() SyncTaskStats {
 
 	// 总同步数据量
 	c.db.Model(&models.SyncTaskExecution{}).
-		Select("COALESCE(SUM(record_count), 0)").
+		Select("COALESCE(SUM(processed_rows), 0)").
 		Where("status = ?", "success").
 		Scan(&stats.TotalDataSynced)
 
 	// 最近执行记录 (前10条)
-	c.db.Table("t_sync_task_execution ste").
-		Select("ste.id as execution_id, ste.task_id, st.task_name, ste.status, ste.start_time, ste.end_time, ste.record_count, ste.error_message").
-		Joins("LEFT JOIN t_sync_task st ON ste.task_id = st.id").
+	c.db.Table("sync_task_executions ste").
+		Select("ste.id as execution_id, ste.task_id, '' as task_name, ste.status, ste.start_time, ste.end_time, ste.processed_rows as record_count, ste.error_message").
+		Joins("LEFT JOIN sync_tasks st ON ste.task_id = st.id").
 		Order("ste.start_time DESC").
 		Limit(10).
 		Find(&stats.RecentExecutions)
@@ -557,7 +557,7 @@ func (c *DashboardController) getSyncTaskStats() SyncTaskStats {
 		Find(&stats.TriggerTypeStats)
 
 	// 执行趋势数据 (最近7天)
-	c.db.Table("t_sync_task_execution").
+	c.db.Table("sync_task_executions").
 		Select("DATE(start_time) as date, COUNT(CASE WHEN status = 'success' THEN 1 END) as success_count, COUNT(CASE WHEN status = 'failed' THEN 1 END) as failure_count").
 		Where("start_time >= ?", time.Now().AddDate(0, 0, -7)).
 		Group("DATE(start_time)").
@@ -664,7 +664,7 @@ func (c *DashboardController) getDataSharingStats() DataSharingStats {
 	c.db.Model(&models.ApiUsageLog{}).Count(&stats.TotalApiCalls)
 	today := time.Now().Format("2006-01-02")
 	c.db.Model(&models.ApiUsageLog{}).
-		Where("DATE(created_at) = ?", today).
+		Where("DATE(request_time) = ?", today).
 		Count(&stats.TodayApiCalls)
 
 	// 数据订阅统计
@@ -677,9 +677,9 @@ func (c *DashboardController) getDataSharingStats() DataSharingStats {
 	c.db.Model(&models.DataAccessRequest{}).Where("status = ?", "approved").Count(&stats.ApprovedAccessRequests)
 
 	// 热门应用 (前10个，按调用次数)
-	c.db.Table("t_api_usage_log aul").
-		Select("aul.application_id, aa.name as application_name, COUNT(*) as call_count, MAX(aul.created_at) as last_call_time").
-		Joins("LEFT JOIN t_api_application aa ON aul.application_id = aa.id").
+	c.db.Table("api_usage_logs aul").
+		Select("aul.application_id, aa.name as application_name, COUNT(*) as call_count, MAX(aul.request_time) as last_call_time").
+		Joins("LEFT JOIN api_applications aa ON aul.application_id = aa.id").
 		Where("aul.application_id IS NOT NULL").
 		Group("aul.application_id, aa.name").
 		Order("call_count DESC").
@@ -688,16 +688,16 @@ func (c *DashboardController) getDataSharingStats() DataSharingStats {
 
 	// API调用趋势 (最近7天)
 	c.db.Model(&models.ApiUsageLog{}).
-		Select("DATE(created_at) as date, COUNT(*) as call_count").
-		Where("created_at >= ?", time.Now().AddDate(0, 0, -7)).
-		Group("DATE(created_at)").
+		Select("DATE(request_time) as date, COUNT(*) as call_count").
+		Where("request_time >= ?", time.Now().AddDate(0, 0, -7)).
+		Group("DATE(request_time)").
 		Order("date ASC").
 		Find(&stats.ApiCallTrendData)
 
 	// 最近API使用日志 (前10条)
 	c.db.Model(&models.ApiUsageLog{}).
-		Select("id as log_id, api_path, method, status_code, response_time, created_at, request_ip").
-		Order("created_at DESC").
+		Select("id as log_id, api_path, method, status_code, response_time, request_time as created_at, request_ip").
+		Order("request_time DESC").
 		Limit(10).
 		Find(&stats.RecentApiUsageLogs)
 

@@ -354,7 +354,7 @@ func (c *ThematicLibraryController) GetThematicLibraryList(w http.ResponseWriter
 // @Param page query int false "页码" default(1)
 // @Param size query int false "每页大小" default(10)
 // @Param library_id query string false "主题库ID过滤"
-// @Param interface_type query string false "接口类型过滤" Enums(realtime,batch)
+// @Param interface_type query string false "接口类型过滤" Enums(table,view)
 // @Param status query string false "状态过滤" Enums(active,inactive)
 // @Param name query string false "名称搜索（支持中英文）"
 // @Success 200 {object} APIResponse{data=ThematicInterfaceListResponse} "获取成功"

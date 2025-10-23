@@ -14,6 +14,9 @@ package models
 import (
 	"crypto/tls"
 	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // ConnectionPoolConfig 连接池配置
@@ -143,20 +146,32 @@ type HealthCheckerConfig struct {
 
 // HealthCheckResult 健康检查结果
 type HealthCheckResult struct {
-	CheckerName          string                 `json:"checker_name"`          // 检查器名称
-	Target               string                 `json:"target"`                // 检查目标
-	Status               string                 `json:"status"`                // 状态: healthy, unhealthy, unknown
-	CheckedAt            time.Time              `json:"checked_at"`            // 检查时间
-	ResponseTime         int64                  `json:"response_time"`         // 响应时间
-	StatusCode           int                    `json:"status_code"`           // 状态码
-	Message              string                 `json:"message"`               // 状态消息
-	Details              string                 `json:"details"`               // 详细信息
-	Error                string                 `json:"error"`                 // 错误信息
-	Metadata             map[string]interface{} `json:"metadata"`              // 元数据
-	ConsecutiveFailures  int                    `json:"consecutive_failures"`  // 连续失败次数
-	ConsecutiveSuccesses int                    `json:"consecutive_successes"` // 连续成功次数
-	LastSuccess          time.Time              `json:"last_success"`          // 最后成功时间
-	LastFailure          time.Time              `json:"last_failure"`          // 最后失败时间
+	ID                   string    `json:"id" gorm:"primaryKey;type:varchar(36)"`
+	HealthCheckID        string    `json:"health_check_id" gorm:"not null;type:varchar(36);index"`
+	CheckerName          string    `json:"checker_name" gorm:"not null;size:255"`  // 检查器名称
+	Target               string    `json:"target" gorm:"not null;size:500"`        // 检查目标
+	Status               string    `json:"status" gorm:"not null;size:20"`         // 状态: healthy, unhealthy, unknown
+	CheckedAt            time.Time `json:"checked_at" gorm:"not null"`             // 检查时间
+	ResponseTime         int64     `json:"response_time" gorm:"default:0"`         // 响应时间
+	StatusCode           int       `json:"status_code" gorm:"default:0"`           // 状态码
+	Message              string    `json:"message" gorm:"type:text"`               // 状态消息
+	Details              string    `json:"details" gorm:"type:text"`               // 详细信息
+	Error                string    `json:"error" gorm:"type:text"`                 // 错误信息
+	Metadata             JSONB     `json:"metadata" gorm:"type:jsonb"`             // 元数据
+	ConsecutiveFailures  int       `json:"consecutive_failures" gorm:"default:0"`  // 连续失败次数
+	ConsecutiveSuccesses int       `json:"consecutive_successes" gorm:"default:0"` // 连续成功次数
+	LastSuccess          time.Time `json:"last_success"`                           // 最后成功时间
+	LastFailure          time.Time `json:"last_failure"`                           // 最后失败时间
+	CreatedAt            time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt            time.Time `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP"`
+}
+
+// BeforeCreate GORM钩子，创建前生成UUID
+func (hcr *HealthCheckResult) BeforeCreate(tx *gorm.DB) error {
+	if hcr.ID == "" {
+		hcr.ID = uuid.New().String()
+	}
+	return nil
 }
 
 // CryptoConfig 加密配置

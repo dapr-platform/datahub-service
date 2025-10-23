@@ -37,6 +37,10 @@ type HTTPPostDataSource struct {
 	dataChannel   chan map[string]interface{}   // 数据通道，用于实时数据传输
 	subscribers   []chan map[string]interface{} // 订阅者列表
 	subscribersMu sync.RWMutex                  // 保护subscribers的并发访问
+
+	// 实时数据处理
+	realtimeProcessor RealtimeDataProcessor // 实时数据处理器
+	enableAutoWrite   bool                  // 是否启用自动写入
 }
 
 // NewHTTPPostDataSource 创建HTTP POST数据源
@@ -96,6 +100,10 @@ func (h *HTTPPostDataSource) Init(ctx context.Context, ds *models.DataSource) er
 		h.parseParamsConfig(ds.ParamsConfig)
 	}
 
+	// 获取全局实时处理器
+	h.realtimeProcessor = GetGlobalRealtimeProcessor()
+	h.enableAutoWrite = true // 默认启用自动写入
+
 	return nil
 }
 
@@ -127,6 +135,13 @@ func (h *HTTPPostDataSource) parseParamsConfig(params map[string]interface{}) {
 		}
 	} else {
 		h.timeout = 30 * time.Second
+	}
+
+	// 是否启用自动写入
+	if enableAutoWrite, exists := params["enable_auto_write"]; exists {
+		if enabled, ok := enableAutoWrite.(bool); ok {
+			h.enableAutoWrite = enabled
+		}
 	}
 }
 
@@ -241,6 +256,16 @@ func (h *HTTPPostDataSource) processData() {
 
 		// 通知所有订阅者
 		h.notifySubscribers(data)
+
+		// 自动写入到关联的数据接口表
+		if h.enableAutoWrite && h.realtimeProcessor != nil {
+			ctx := context.Background()
+			if err := h.realtimeProcessor.ProcessRealtimeData(ctx, h.GetID(), data); err != nil {
+				slog.Error("实时处理数据失败",
+					"datasource_id", h.GetID(),
+					"error", err)
+			}
+		}
 	}
 }
 
