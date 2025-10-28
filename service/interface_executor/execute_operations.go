@@ -542,7 +542,7 @@ func (ops *ExecuteOperations) getLastSyncValue(interfaceInfo InterfaceInfo, sour
 		return mappedFieldName, nil, fmt.Errorf("查询最新值失败: %w", err)
 	}
 
-	slog.Debug("getLastSyncValue - 查询SQL: %s, 结果: %v\n", sql, lastValue)
+	slog.Debug("getLastSyncValue - 查询结果", "sql", sql, "result", lastValue)
 	return mappedFieldName, lastValue, nil
 }
 

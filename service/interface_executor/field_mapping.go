@@ -12,9 +12,9 @@
 package interface_executor
 
 import (
-	"log/slog"
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -131,7 +131,7 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 
 	slog.Debug("FieldMapper.UpdateTableData - 开始更新表数据")
 	slog.Debug("UpdateTableData - 表名", "value", fullTableName)
-	slog.Debug("UpdateTableData - 数据行数", "count", len(data))
+	slog.Debug("UpdateTableData - 原始数据行数", "count", len(data))
 
 	// 打印parseConfig信息
 	parseConfig := interfaceInfo.GetParseConfig()
@@ -141,10 +141,26 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 		slog.Debug("UpdateTableData - 第一行数据示例", "data", data[0])
 	}
 
-	// 这里应该根据接口类型（实时/批量）和配置来决定更新策略
-	// 简化实现：清空表后插入新数据
+	// 1. 获取表的主键信息
+	primaryKeys, err := fm.getPrimaryKeys(db, schemaName, tableName)
+	if err != nil {
+		slog.Warn("UpdateTableData - 获取主键信息失败，将不进行去重处理", "error", err)
+	}
 
-	// 开启事务
+	// 2. 对数据进行去重处理（基于主键）
+	deduplicatedData := data
+	if len(primaryKeys) > 0 {
+		deduplicatedData = fm.deduplicateData(data, primaryKeys, interfaceInfo)
+		slog.Debug("UpdateTableData - 去重后数据行数", "count", len(deduplicatedData))
+		if len(data) > len(deduplicatedData) {
+			slog.Info("UpdateTableData - 发现并去除重复数据",
+				"original_count", len(data),
+				"deduplicated_count", len(deduplicatedData),
+				"removed_count", len(data)-len(deduplicatedData))
+		}
+	}
+
+	// 3. 开启事务
 	tx := db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -153,7 +169,7 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 		}
 	}()
 
-	// 清空现有数据
+	// 4. 清空现有数据
 	deleteSQL := fmt.Sprintf("DELETE FROM %s", fullTableName)
 	slog.Debug("UpdateTableData - 清空表SQL", "value", deleteSQL)
 
@@ -163,14 +179,14 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 		return 0, fmt.Errorf("清空表数据失败: %w", err)
 	}
 
-	// 插入新数据
+	// 5. 插入新数据
 	var insertedRows int64
-	for i, row := range data {
+	for i, row := range deduplicatedData {
 		// 只对第一行数据输出详细调试信息
 		if i == 0 {
-			slog.Debug("UpdateTableData - 处理第 %d 行数据", "data", i+1, row)
+			slog.Debug("UpdateTableData - 处理第一行数据", "row_index", i+1, "row_data", row)
 		} else if i%100 == 0 {
-			slog.Debug("UpdateTableData - 已处理", "count", i+1) // 行数据...
+			slog.Debug("UpdateTableData - 已处理", "count", i+1)
 		}
 
 		// 应用parseConfig中的fieldMapping
@@ -192,7 +208,7 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 			values = append(values, processedVal)
 		}
 
-		// 修复SQL格式错误 - 使用strings.Join而不是fmt.Sprintf
+		// 构建插入SQL
 		insertSQL := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
 			fullTableName,
 			strings.Join(columns, ", "),
@@ -213,13 +229,13 @@ func (fm *FieldMapper) UpdateTableData(ctx context.Context, db *gorm.DB, interfa
 		insertedRows++
 	}
 
-	// 提交事务
+	// 6. 提交事务
 	if err := tx.Commit().Error; err != nil {
 		slog.Error("UpdateTableData - 提交事务失败", "error", err)
 		return 0, fmt.Errorf("提交事务失败: %w", err)
 	}
 
-	slog.Debug("UpdateTableData - 成功插入", "count", insertedRows) // 行数据
+	slog.Debug("UpdateTableData - 成功插入", "count", insertedRows)
 	return insertedRows, nil
 }
 
@@ -247,7 +263,7 @@ func (fm *FieldMapper) InsertBatchData(ctx context.Context, db *gorm.DB, interfa
 	// 插入数据
 	var insertedRows int64
 	for i, row := range data {
-		slog.Debug("InsertBatchData - 处理第 %d 行数据", "data", i+1, row)
+		slog.Debug("InsertBatchData - 处理行数据", "row_index", i+1, "row_data", row)
 
 		// 应用parseConfig中的fieldMapping
 		parseConfig := interfaceInfo.GetParseConfig()
@@ -303,20 +319,48 @@ func (fm *FieldMapper) InsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 	}
 
 	// 构造表名
-	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
+	schemaName := interfaceInfo.GetSchemaName()
+	tableName := interfaceInfo.GetTableName()
+	fullTableName := fmt.Sprintf(`"%s"."%s"`, schemaName, tableName)
 
 	slog.Debug("FieldMapper.InsertBatchDataWithTx - 开始插入批量数据到表", "value", fullTableName)
-	slog.Debug("InsertBatchDataWithTx - 数据行数", "count", len(data))
+	slog.Debug("InsertBatchDataWithTx - 原始数据行数", "count", len(data))
 
-	// 插入数据（使用提供的事务）
+	// 1. 获取表的主键信息（使用外部db连接，因为tx可能已经在事务中）
+	primaryKeys, err := fm.getPrimaryKeys(tx, schemaName, tableName)
+	if err != nil {
+		slog.Warn("InsertBatchDataWithTx - 获取主键信息失败，将不进行去重处理", "error", err)
+	}
+
+	// 2. 对数据进行去重处理（基于主键）
+	deduplicatedData := data
+	if len(primaryKeys) > 0 {
+		deduplicatedData = fm.deduplicateData(data, primaryKeys, interfaceInfo)
+		slog.Debug("InsertBatchDataWithTx - 去重后数据行数", "count", len(deduplicatedData))
+		if len(data) > len(deduplicatedData) {
+			slog.Info("InsertBatchDataWithTx - 发现并去除重复数据",
+				"original_count", len(data),
+				"deduplicated_count", len(deduplicatedData),
+				"removed_count", len(data)-len(deduplicatedData))
+		}
+	}
+
+	// 3. 插入数据（使用提供的事务）
 	var insertedRows int64
-	for i, row := range data {
-		slog.Debug("InsertBatchDataWithTx - 处理第 %d 行数据", "data", i+1, row)
+	parseConfig := interfaceInfo.GetParseConfig()
+
+	for i, row := range deduplicatedData {
+		if i == 0 {
+			slog.Debug("InsertBatchDataWithTx - 处理第一行数据", "row_index", i+1, "row_data", row)
+		} else if i%100 == 0 {
+			slog.Debug("InsertBatchDataWithTx - 已处理", "count", i+1)
+		}
 
 		// 应用parseConfig中的fieldMapping
-		parseConfig := interfaceInfo.GetParseConfig()
-		mappedRow := fm.ApplyFieldMapping(row, parseConfig)
-		slog.Debug("InsertBatchDataWithTx - 字段映射后的数据", "data", mappedRow)
+		mappedRow := fm.ApplyFieldMapping(row, parseConfig, i == 0)
+		if i == 0 {
+			slog.Debug("InsertBatchDataWithTx - 字段映射后的数据", "data", mappedRow)
+		}
 
 		// 构建插入SQL
 		columns := make([]string, 0, len(mappedRow))
@@ -327,7 +371,7 @@ func (fm *FieldMapper) InsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 			columns = append(columns, fmt.Sprintf(`"%s"`, col))
 			placeholders = append(placeholders, "?")
 			// 处理数据类型转换，基于字段配置
-			processedVal := fm.ProcessValueForDatabase(col, val, interfaceInfo)
+			processedVal := fm.ProcessValueForDatabase(col, val, interfaceInfo, i == 0)
 			values = append(values, processedVal)
 		}
 
@@ -337,8 +381,10 @@ func (fm *FieldMapper) InsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 			strings.Join(columns, ", "),
 			strings.Join(placeholders, ", "))
 
-		slog.Debug("InsertBatchDataWithTx - 插入SQL", "value", insertSQL)
-		slog.Debug("InsertBatchDataWithTx - 插入参数", "data", values)
+		if i == 0 {
+			slog.Debug("InsertBatchDataWithTx - 插入SQL", "value", insertSQL)
+			slog.Debug("InsertBatchDataWithTx - 插入参数", "data", values)
+		}
 
 		if err := tx.Exec(insertSQL, values...).Error; err != nil {
 			slog.Error("InsertBatchDataWithTx - 插入数据失败", "error", err)
@@ -349,7 +395,7 @@ func (fm *FieldMapper) InsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 		insertedRows++
 	}
 
-	slog.Debug("InsertBatchDataWithTx - 成功插入", "count", insertedRows) // 行数据
+	slog.Debug("InsertBatchDataWithTx - 成功插入", "count", insertedRows)
 	return insertedRows, nil
 }
 
@@ -422,7 +468,7 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 				if source != "" && target != "" {
 					sourceToTargetMap[source] = target
 					if debug {
-						slog.Debug("ApplyFieldMapping - 映射规则: %s -> %s\n", source, target)
+						slog.Debug("ApplyFieldMapping - 映射规则", "source", source, "target", target)
 					}
 				}
 			}
@@ -442,7 +488,7 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 
 			mappedRow[targetField] = value
 			if debug {
-				slog.Debug("ApplyFieldMapping - 字段映射: %s -> %s, 值: %v\n", sourceField, targetField, value)
+				slog.Debug("ApplyFieldMapping - 字段映射", "source", sourceField, "target", targetField, "value", value)
 			}
 		}
 
@@ -466,7 +512,7 @@ func (fm *FieldMapper) ApplyFieldMapping(row map[string]interface{}, parseConfig
 
 			mappedRow[targetField] = value
 			if debug {
-				slog.Debug("ApplyFieldMapping - 字段映射（兼容模式）: %s -> %s, 值: %v\n", sourceField, targetField, value)
+				slog.Debug("ApplyFieldMapping - 字段映射（兼容模式）", "source", sourceField, "target", targetField, "value", value)
 			}
 		}
 	}
@@ -485,13 +531,13 @@ func (fm *FieldMapper) ProcessValueForDatabase(columnName string, value interfac
 
 	debug := len(debugLog) > 0 && debugLog[0]
 	if debug {
-		slog.Debug("FieldMapper.ProcessValueForDatabase - 处理字段: %s, 原始值: %+v, 类型: %T\n", columnName, value, value)
+		slog.Debug("FieldMapper.ProcessValueForDatabase - 处理字段", "column", columnName, "value", value, "type", fmt.Sprintf("%T", value))
 	}
 
 	// 获取字段的数据类型
 	dataType := fm.getFieldDataType(columnName, interfaceInfo)
 	if debug {
-		slog.Debug("ProcessValueForDatabase - 字段 %s 的数据类型", "value", columnName, dataType)
+		slog.Debug("ProcessValueForDatabase - 字段数据类型", "column", columnName, "data_type", dataType)
 	}
 
 	// 根据数据类型进行转换
@@ -522,7 +568,7 @@ func (fm *FieldMapper) convertValueByDataType(value interface{}, dataType, colum
 	default:
 		// 未知类型，使用字符串转换
 		if debug {
-			slog.Debug("convertValueByDataType - 未知数据类型 %s，使用字符串转换\n", dataType)
+			slog.Debug("convertValueByDataType - 未知数据类型，使用字符串转换", "data_type", dataType)
 		}
 		return fm.convertToString(value, debug)
 	}
@@ -534,7 +580,7 @@ func (fm *FieldMapper) convertToTimestamp(value interface{}, debug bool) interfa
 	case time.Time:
 		formatted := v.Format("2006-01-02 15:04:05.000")
 		if debug {
-			slog.Debug("convertToTimestamp - time.Time转换: %s -> %s\n", v.String(), formatted)
+			slog.Debug("convertToTimestamp - time.Time转换", "from", v.String(), "to", formatted)
 		}
 		return formatted
 	case string:
@@ -553,7 +599,7 @@ func (fm *FieldMapper) convertToTimestamp(value interface{}, debug bool) interfa
 			if parsedTime, err := time.Parse(format, v); err == nil {
 				formatted := parsedTime.Format("2006-01-02 15:04:05.000")
 				if debug {
-					slog.Debug("convertToTimestamp - 字符串时间转换(%s): %s -> %s\n", format, v, formatted)
+					slog.Debug("convertToTimestamp - 字符串时间转换", "format", format, "from", v, "to", formatted)
 				}
 				return formatted
 			}
@@ -581,7 +627,7 @@ func (fm *FieldMapper) convertToDate(value interface{}, debug bool) interface{} 
 	case time.Time:
 		formatted := v.Format("2006-01-02")
 		if debug {
-			slog.Debug("convertToDate - time.Time转换: %s -> %s\n", v.String(), formatted)
+			slog.Debug("convertToDate - time.Time转换", "from", v.String(), "to", formatted)
 		}
 		return formatted
 	case string:
@@ -597,7 +643,7 @@ func (fm *FieldMapper) convertToDate(value interface{}, debug bool) interface{} 
 			if parsedTime, err := time.Parse(format, v); err == nil {
 				formatted := parsedTime.Format("2006-01-02")
 				if debug {
-					slog.Debug("convertToDate - 字符串日期转换(%s): %s -> %s\n", format, v, formatted)
+					slog.Debug("convertToDate - 字符串日期转换", "format", format, "from", v, "to", formatted)
 				}
 				return formatted
 			}
@@ -621,7 +667,7 @@ func (fm *FieldMapper) convertToTime(value interface{}, debug bool) interface{} 
 	case time.Time:
 		formatted := v.Format("15:04:05")
 		if debug {
-			slog.Debug("convertToTime - time.Time转换: %s -> %s\n", v.String(), formatted)
+			slog.Debug("convertToTime - time.Time转换", "from", v.String(), "to", formatted)
 		}
 		return formatted
 	case string:
@@ -632,7 +678,7 @@ func (fm *FieldMapper) convertToTime(value interface{}, debug bool) interface{} 
 		if parsedTime, err := time.Parse("2006-01-02T15:04:05Z", v); err == nil {
 			formatted := parsedTime.Format("15:04:05")
 			if debug {
-				slog.Debug("convertToTime - 字符串时间转换: %s -> %s\n", v, formatted)
+				slog.Debug("convertToTime - 字符串时间转换", "from", v, "to", formatted)
 			}
 			return formatted
 		}
@@ -650,13 +696,13 @@ func (fm *FieldMapper) convertToInteger(value interface{}, debug bool) interface
 	case float32, float64:
 		intVal := int(cast.ToFloat64(v))
 		if debug {
-			slog.Debug("convertToInteger - 浮点数转整数: %v -> %d\n", v, intVal)
+			slog.Debug("convertToInteger - 浮点数转整数", "from", v, "to", intVal)
 		}
 		return intVal
 	case string:
 		if intVal, err := strconv.Atoi(v); err == nil {
 			if debug {
-				slog.Debug("convertToInteger - 字符串转整数: %s -> %d\n", v, intVal)
+				slog.Debug("convertToInteger - 字符串转整数", "from", v, "to", intVal)
 			}
 			return intVal
 		}
@@ -664,7 +710,7 @@ func (fm *FieldMapper) convertToInteger(value interface{}, debug bool) interface
 		if floatVal, err := strconv.ParseFloat(v, 64); err == nil {
 			intVal := int(floatVal)
 			if debug {
-				slog.Debug("convertToInteger - 字符串(浮点)转整数: %s -> %d\n", v, intVal)
+				slog.Debug("convertToInteger - 字符串(浮点)转整数", "from", v, "to", intVal)
 			}
 			return intVal
 		}
@@ -675,7 +721,7 @@ func (fm *FieldMapper) convertToInteger(value interface{}, debug bool) interface
 	default:
 		intVal := cast.ToInt(v)
 		if debug {
-			slog.Debug("convertToInteger - 其他类型转整数: %v -> %d\n", v, intVal)
+			slog.Debug("convertToInteger - 其他类型转整数", "from", v, "to", intVal)
 		}
 		return intVal
 	}
@@ -691,13 +737,13 @@ func (fm *FieldMapper) convertToBigInt(value interface{}, debug bool) interface{
 	case float32, float64:
 		bigIntVal := int64(cast.ToFloat64(v))
 		if debug {
-			slog.Debug("convertToBigInt - 浮点数转大整数: %v -> %d\n", v, bigIntVal)
+			slog.Debug("convertToBigInt - 浮点数转大整数", "from", v, "to", bigIntVal)
 		}
 		return bigIntVal
 	case string:
 		if bigIntVal, err := strconv.ParseInt(v, 10, 64); err == nil {
 			if debug {
-				slog.Debug("convertToBigInt - 字符串转大整数: %s -> %d\n", v, bigIntVal)
+				slog.Debug("convertToBigInt - 字符串转大整数", "from", v, "to", bigIntVal)
 			}
 			return bigIntVal
 		}
@@ -705,7 +751,7 @@ func (fm *FieldMapper) convertToBigInt(value interface{}, debug bool) interface{
 	default:
 		bigIntVal := cast.ToInt64(v)
 		if debug {
-			slog.Debug("convertToBigInt - 其他类型转大整数: %v -> %d\n", v, bigIntVal)
+			slog.Debug("convertToBigInt - 其他类型转大整数", "from", v, "to", bigIntVal)
 		}
 		return bigIntVal
 	}
@@ -719,13 +765,13 @@ func (fm *FieldMapper) convertToFloat(value interface{}, debug bool) interface{}
 	case int, int32, int64:
 		floatVal := cast.ToFloat64(v)
 		if debug {
-			slog.Debug("convertToFloat - 整数转浮点数: %v -> %f\n", v, floatVal)
+			slog.Debug("convertToFloat - 整数转浮点数", "from", v, "to", floatVal)
 		}
 		return floatVal
 	case string:
 		if floatVal, err := strconv.ParseFloat(v, 64); err == nil {
 			if debug {
-				slog.Debug("convertToFloat - 字符串转浮点数: %s -> %f\n", v, floatVal)
+				slog.Debug("convertToFloat - 字符串转浮点数", "from", v, "to", floatVal)
 			}
 			return floatVal
 		}
@@ -733,7 +779,7 @@ func (fm *FieldMapper) convertToFloat(value interface{}, debug bool) interface{}
 	default:
 		floatVal := cast.ToFloat64(v)
 		if debug {
-			slog.Debug("convertToFloat - 其他类型转浮点数: %v -> %f\n", v, floatVal)
+			slog.Debug("convertToFloat - 其他类型转浮点数", "from", v, "to", floatVal)
 		}
 		return floatVal
 	}
@@ -749,12 +795,12 @@ func (fm *FieldMapper) convertToBoolean(value interface{}, debug bool) interface
 		switch lowerV {
 		case "true", "1", "yes", "y", "on":
 			if debug {
-				slog.Debug("convertToBoolean - 字符串转布尔值: %s -> true\n", v)
+				slog.Debug("convertToBoolean - 字符串转布尔值", "from", v, "to", true)
 			}
 			return true
 		case "false", "0", "no", "n", "off":
 			if debug {
-				slog.Debug("convertToBoolean - 字符串转布尔值: %s -> false\n", v)
+				slog.Debug("convertToBoolean - 字符串转布尔值", "from", v, "to", false)
 			}
 			return false
 		default:
@@ -763,13 +809,13 @@ func (fm *FieldMapper) convertToBoolean(value interface{}, debug bool) interface
 	case int, int32, int64:
 		boolVal := cast.ToInt64(v) != 0
 		if debug {
-			slog.Debug("convertToBoolean - 整数转布尔值: %v -> %t\n", v, boolVal)
+			slog.Debug("convertToBoolean - 整数转布尔值", "from", v, "to", boolVal)
 		}
 		return boolVal
 	default:
 		boolVal := cast.ToBool(v)
 		if debug {
-			slog.Debug("convertToBoolean - 其他类型转布尔值: %v -> %t\n", v, boolVal)
+			slog.Debug("convertToBoolean - 其他类型转布尔值", "from", v, "to", boolVal)
 		}
 		return boolVal
 	}
@@ -779,7 +825,7 @@ func (fm *FieldMapper) convertToBoolean(value interface{}, debug bool) interface
 func (fm *FieldMapper) convertToString(value interface{}, debug bool) interface{} {
 	strVal := cast.ToString(value)
 	if debug && fmt.Sprintf("%v", value) != strVal {
-		slog.Debug("convertToString - 类型转字符串: %v -> %s\n", value, strVal)
+		slog.Debug("convertToString - 类型转字符串", "from", value, "to", strVal)
 	}
 	return strVal
 }
@@ -908,9 +954,28 @@ func (fm *FieldMapper) ReplaceTableData(ctx context.Context, db *gorm.DB, interf
 
 	slog.Debug("FieldMapper.ReplaceTableData - 开始替换表数据")
 	slog.Debug("ReplaceTableData - 表名", "value", fullTableName)
-	slog.Debug("ReplaceTableData - 数据行数", "count", len(data))
+	slog.Debug("ReplaceTableData - 原始数据行数", "count", len(data))
 
-	// 开启事务
+	// 1. 获取表的主键信息
+	primaryKeys, err := fm.getPrimaryKeys(db, schemaName, tableName)
+	if err != nil {
+		slog.Warn("ReplaceTableData - 获取主键信息失败，将不进行去重处理", "error", err)
+	}
+
+	// 2. 对数据进行去重处理（基于主键）
+	deduplicatedData := data
+	if len(primaryKeys) > 0 {
+		deduplicatedData = fm.deduplicateData(data, primaryKeys, interfaceInfo)
+		slog.Debug("ReplaceTableData - 去重后数据行数", "count", len(deduplicatedData))
+		if len(data) > len(deduplicatedData) {
+			slog.Info("ReplaceTableData - 发现并去除重复数据",
+				"original_count", len(data),
+				"deduplicated_count", len(deduplicatedData),
+				"removed_count", len(data)-len(deduplicatedData))
+		}
+	}
+
+	// 3. 开启事务
 	tx := db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -919,7 +984,7 @@ func (fm *FieldMapper) ReplaceTableData(ctx context.Context, db *gorm.DB, interf
 		}
 	}()
 
-	// 清空现有数据
+	// 4. 清空现有数据
 	deleteSQL := fmt.Sprintf("DELETE FROM %s", fullTableName)
 	slog.Debug("ReplaceTableData - 清空表SQL", "value", deleteSQL)
 
@@ -929,18 +994,19 @@ func (fm *FieldMapper) ReplaceTableData(ctx context.Context, db *gorm.DB, interf
 		return 0, fmt.Errorf("清空表数据失败: %w", err)
 	}
 
-	// 插入新数据
+	// 5. 批量插入新数据
 	var insertedRows int64
-	for i, row := range data {
+	parseConfig := interfaceInfo.GetParseConfig()
+
+	for i, row := range deduplicatedData {
 		// 只对第一行数据输出详细调试信息
 		if i == 0 {
-			slog.Debug("ReplaceTableData - 处理第 %d 行数据", "data", i+1, row)
+			slog.Debug("ReplaceTableData - 处理第一行数据", "row_index", i+1, "row_data", row)
 		} else if i%100 == 0 {
-			slog.Debug("ReplaceTableData - 已处理", "count", i+1) // 行数据...
+			slog.Debug("ReplaceTableData - 已处理", "count", i+1)
 		}
 
 		// 应用parseConfig中的fieldMapping
-		parseConfig := interfaceInfo.GetParseConfig()
 		mappedRow := fm.ApplyFieldMapping(row, parseConfig, i == 0)
 		if i == 0 {
 			slog.Debug("ReplaceTableData - 字段映射后的数据", "data", mappedRow)
@@ -980,14 +1046,112 @@ func (fm *FieldMapper) ReplaceTableData(ctx context.Context, db *gorm.DB, interf
 		insertedRows++
 	}
 
-	// 提交事务
+	// 6. 提交事务
 	if err := tx.Commit().Error; err != nil {
 		slog.Error("ReplaceTableData - 提交事务失败", "error", err)
 		return 0, fmt.Errorf("提交事务失败: %w", err)
 	}
 
-	slog.Debug("ReplaceTableData - 成功插入", "count", insertedRows) // 行数据
+	slog.Debug("ReplaceTableData - 成功插入", "count", insertedRows)
 	return insertedRows, nil
+}
+
+// getPrimaryKeys 获取表的主键列
+func (fm *FieldMapper) getPrimaryKeys(db *gorm.DB, schemaName, tableName string) ([]string, error) {
+	query := `
+		SELECT kcu.column_name
+		FROM information_schema.table_constraints tc
+		JOIN information_schema.key_column_usage kcu 
+			ON tc.constraint_name = kcu.constraint_name
+			AND tc.table_schema = kcu.table_schema
+		WHERE tc.constraint_type = 'PRIMARY KEY'
+			AND tc.table_schema = $1
+			AND tc.table_name = $2
+		ORDER BY kcu.ordinal_position
+	`
+
+	var primaryKeys []string
+	rows, err := db.Raw(query, schemaName, tableName).Rows()
+	if err != nil {
+		return nil, fmt.Errorf("查询主键失败: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var columnName string
+		if err := rows.Scan(&columnName); err != nil {
+			return nil, fmt.Errorf("扫描主键列名失败: %w", err)
+		}
+		primaryKeys = append(primaryKeys, columnName)
+	}
+
+	return primaryKeys, nil
+}
+
+// deduplicateData 对数据进行去重处理（基于主键，保留最后一次出现的记录）
+func (fm *FieldMapper) deduplicateData(data []map[string]interface{}, primaryKeys []string, interfaceInfo InterfaceInfo) []map[string]interface{} {
+	if len(data) == 0 || len(primaryKeys) == 0 {
+		return data
+	}
+
+	slog.Debug("deduplicateData - 开始数据去重", "primary_keys", primaryKeys, "data_count", len(data))
+
+	// 应用字段映射到主键
+	parseConfig := interfaceInfo.GetParseConfig()
+
+	// 使用map存储唯一记录，key是主键组合
+	uniqueRecords := make(map[string]map[string]interface{})
+	var orderedKeys []string // 保持插入顺序
+
+	for i, row := range data {
+		// 应用字段映射
+		mappedRow := fm.ApplyFieldMapping(row, parseConfig, false)
+
+		// 构建主键组合
+		var keyParts []string
+		allKeysPresent := true
+		for _, pkField := range primaryKeys {
+			val, exists := mappedRow[pkField]
+			if !exists || val == nil {
+				slog.Warn("deduplicateData - 记录缺少主键字段", "row_index", i, "primary_key_field", pkField)
+				allKeysPresent = false
+				break
+			}
+			keyParts = append(keyParts, fmt.Sprintf("%v", val))
+		}
+
+		// 如果主键不完整，跳过该记录
+		if !allKeysPresent {
+			slog.Warn("deduplicateData - 跳过主键不完整的记录", "row_index", i)
+			continue
+		}
+
+		// 使用分隔符组合主键值
+		compositeKey := strings.Join(keyParts, "||")
+
+		// 如果是重复记录，后面的会覆盖前面的（保留最新的）
+		if _, exists := uniqueRecords[compositeKey]; exists {
+			slog.Debug("deduplicateData - 发现重复记录", "composite_key", compositeKey, "row_index", i)
+		} else {
+			orderedKeys = append(orderedKeys, compositeKey)
+		}
+
+		// 保存原始数据（未映射的），因为后续还需要再次映射
+		uniqueRecords[compositeKey] = row
+	}
+
+	// 按照插入顺序返回去重后的数据
+	result := make([]map[string]interface{}, 0, len(orderedKeys))
+	for _, key := range orderedKeys {
+		result = append(result, uniqueRecords[key])
+	}
+
+	slog.Debug("deduplicateData - 去重完成",
+		"original_count", len(data),
+		"deduplicated_count", len(result),
+		"removed_count", len(data)-len(result))
+
+	return result
 }
 
 // UpsertBatchDataWithTx 使用提供的事务进行批量UPSERT操作（增量同步）
@@ -1005,7 +1169,7 @@ func (fm *FieldMapper) UpsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 	// 处理数据（使用提供的事务）
 	var processedRows int64
 	for i, row := range data {
-		slog.Debug("UpsertBatchDataWithTx - 处理第 %d 行数据", "data", i+1, row)
+		slog.Debug("UpsertBatchDataWithTx - 处理行数据", "row_index", i+1, "row_data", row)
 
 		// 应用parseConfig中的fieldMapping
 		parseConfig := interfaceInfo.GetParseConfig()
