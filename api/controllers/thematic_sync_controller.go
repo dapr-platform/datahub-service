@@ -334,13 +334,13 @@ func (c *ThematicSyncController) DeleteSyncTask(w http.ResponseWriter, r *http.R
 }
 
 // @Summary 执行同步任务
-// @Description 立即执行指定的同步任务
+// @Description 立即异步执行指定的同步任务，返回执行记录ID用于查询进度
 // @Tags 主题同步
 // @Accept json
 // @Produce json
 // @Param id path string true "任务ID"
 // @Param request body ExecuteSyncTaskRequest true "执行同步任务请求"
-// @Success 200 {object} APIResponse
+// @Success 200 {object} APIResponse "返回执行记录ID"
 // @Failure 400 {object} APIResponse
 // @Failure 404 {object} APIResponse
 // @Failure 500 {object} APIResponse
@@ -372,13 +372,19 @@ func (c *ThematicSyncController) ExecuteSyncTask(w http.ResponseWriter, r *http.
 		Options:       req.Options,
 	}
 
-	syncResult, err := c.thematicSyncService.ExecuteSyncTask(r.Context(), id, execReq)
+	// 异步执行同步任务，立即返回执行记录ID
+	executionID, err := c.thematicSyncService.ExecuteSyncTaskAsync(r.Context(), id, execReq)
 	if err != nil {
-		render.JSON(w, r, InternalErrorResponse("执行同步任务失败", err))
+		render.JSON(w, r, InternalErrorResponse("启动同步任务失败", err))
 		return
 	}
 
-	render.JSON(w, r, SuccessResponse("执行同步任务成功", syncResult))
+	// 返回执行记录ID，前端可以通过此ID查询执行进度和结果
+	render.JSON(w, r, SuccessResponse("同步任务已提交执行", map[string]interface{}{
+		"execution_id": executionID,
+		"task_id":      id,
+		"message":      "任务正在后台执行，请通过execution_id查询执行进度",
+	}))
 }
 
 // @Summary 暂停同步任务

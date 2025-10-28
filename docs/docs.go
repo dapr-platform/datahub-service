@@ -10659,7 +10659,7 @@ const docTemplate = `{
         },
         "/thematic-sync/tasks/{id}/execute": {
             "post": {
-                "description": "立即执行指定的同步任务",
+                "description": "立即异步执行指定的同步任务，返回执行记录ID用于查询进度",
                 "consumes": [
                     "application/json"
                 ],
@@ -10690,7 +10690,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "返回执行记录ID",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }

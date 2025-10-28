@@ -92,21 +92,40 @@ func (tse *ThematicSyncEngine) SetProgressCallback(callback func(*SyncProgress))
 // ExecuteSync 执行同步
 func (tse *ThematicSyncEngine) ExecuteSync(request *SyncRequest) (*SyncResponse, error) {
 	startTime := time.Now()
-	executionID := uuid.New().String()
 
-	// 创建执行记录
-	execution := &models.ThematicSyncExecution{
-		ID:            executionID,
-		TaskID:        request.TaskID,
-		ExecutionType: request.ExecutionType,
-		Status:        "running",
-		StartTime:     &startTime,
-		CreatedAt:     startTime, // 修复：添加CreatedAt字段
-		CreatedBy:     "system",
-	}
+	// 检查是否已存在执行记录（异步模式下会预先创建）
+	var execution models.ThematicSyncExecution
+	var executionID string
 
-	if err := tse.db.Create(execution).Error; err != nil {
-		return nil, fmt.Errorf("创建执行记录失败: %w", err)
+	if request.ExecutionID != "" {
+		// 异步模式：使用预先创建的执行记录
+		executionID = request.ExecutionID
+		if err := tse.db.First(&execution, "id = ?", executionID).Error; err != nil {
+			return nil, fmt.Errorf("获取执行记录失败: %w", err)
+		}
+
+		// 更新状态为running
+		execution.Status = "running"
+		execution.StartTime = &startTime
+		if err := tse.db.Save(&execution).Error; err != nil {
+			return nil, fmt.Errorf("更新执行记录失败: %w", err)
+		}
+	} else {
+		// 同步模式：创建新的执行记录
+		executionID = uuid.New().String()
+		execution = models.ThematicSyncExecution{
+			ID:            executionID,
+			TaskID:        request.TaskID,
+			ExecutionType: request.ExecutionType,
+			Status:        "running",
+			StartTime:     &startTime,
+			CreatedAt:     startTime,
+			CreatedBy:     "system",
+		}
+
+		if err := tse.db.Create(&execution).Error; err != nil {
+			return nil, fmt.Errorf("创建执行记录失败: %w", err)
+		}
 	}
 
 	// 初始化进度

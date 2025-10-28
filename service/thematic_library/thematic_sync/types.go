@@ -37,7 +37,8 @@ const (
 // SyncRequest 同步请求
 type SyncRequest struct {
 	TaskID            string                 `json:"task_id"`
-	ExecutionType     string                 `json:"execution_type"` // manual, scheduled, retry
+	ExecutionID       string                 `json:"execution_id,omitempty"` // 执行记录ID（异步模式下使用）
+	ExecutionType     string                 `json:"execution_type"`         // manual, scheduled, retry
 	SourceLibraries   []string               `json:"source_libraries"`
 	SourceInterfaces  []string               `json:"source_interfaces"`
 	TargetLibraryID   string                 `json:"target_library_id"`

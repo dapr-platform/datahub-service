@@ -212,9 +212,9 @@ func (tss *ThematicSyncService) CreateSyncTask(ctx context.Context, req *CreateT
 	// 如果任务状态为active且配置了调度，添加到调度器
 	if task.Status == "active" && (task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once") {
 		if err := tss.AddScheduledTask(task); err != nil {
-			slog.Error("添加任务到调度器失败 [%s]: %v", task.ID, err)
+			slog.Error("添加任务到调度器失败", "taskID", task.ID, "error", err)
 		} else {
-			slog.Info("任务已添加到调度器 [任务ID: %s, 触发类型: %s]", task.ID, task.TriggerType)
+			slog.Info("任务已添加到调度器", "taskID", task.ID, "triggerType", task.TriggerType)
 		}
 	}
 
@@ -320,32 +320,32 @@ func (tss *ThematicSyncService) UpdateSyncTask(ctx context.Context, taskID strin
 
 	// 处理状态变化（激活/暂停）
 	if statusChanged {
-		slog.Info("主题任务状态变化: %s -> %s [任务ID: %s]", oldStatus, task.Status, taskID)
+		slog.Info("主题任务状态变化", "oldStatus", oldStatus, "newStatus", task.Status, "taskID", taskID)
 
 		switch task.Status {
 		case "active":
 			// 激活任务：添加到调度器
 			if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
 				if err := tss.AddScheduledTask(&task); err != nil {
-					slog.Error("添加任务到调度器失败 [%s]: %v", taskID, err)
+					slog.Error("添加任务到调度器失败", "taskID", taskID, "error", err)
 				} else {
-					slog.Info("主题任务已激活并添加到调度器 [任务ID: %s]", taskID)
+					slog.Info("主题任务已激活并添加到调度器", "taskID", taskID)
 				}
 			}
 		case "paused":
 			// 暂停任务：从调度器移除
 			if err := tss.RemoveScheduledTask(taskID); err != nil {
-				slog.Error("从调度器移除任务失败 [%s]: %v", taskID, err)
+				slog.Error("从调度器移除任务失败", "taskID", taskID, "error", err)
 			} else {
-				slog.Info("主题任务已暂停并从调度器移除 [任务ID: %s]", taskID)
+				slog.Info("主题任务已暂停并从调度器移除", "taskID", taskID)
 			}
 		}
 	} else if scheduleChanged {
 		// 如果只是修改了调度配置（未改变状态），重新加载调度器
 		if err := tss.ReloadScheduledTasks(); err != nil {
-			slog.Error("重新加载调度器失败: %v", err)
+			slog.Error("重新加载调度器失败", "error", err)
 		} else {
-			slog.Info("调度配置已更新，调度器已重新加载 [任务ID: %s]", taskID)
+			slog.Info("调度配置已更新，调度器已重新加载", "taskID", taskID)
 		}
 	}
 
@@ -427,7 +427,66 @@ func (tss *ThematicSyncService) DeleteSyncTask(ctx context.Context, taskID strin
 	})
 }
 
-// ExecuteSyncTask 执行同步任务
+// ExecuteSyncTaskAsync 异步执行同步任务，立即返回执行记录ID
+func (tss *ThematicSyncService) ExecuteSyncTaskAsync(ctx context.Context, taskID string, req *ExecuteSyncTaskRequest) (string, error) {
+	// 获取任务信息
+	task, err := tss.GetSyncTask(ctx, taskID)
+	if err != nil {
+		return "", err
+	}
+
+	// 检查任务状态
+	if !task.CanStart() {
+		return "", fmt.Errorf("任务状态不允许执行: %s", task.Status)
+	}
+
+	// 创建执行记录（状态为pending）
+	startTime := time.Now()
+	executionID := uuid.New().String()
+	execution := &models.ThematicSyncExecution{
+		ID:            executionID,
+		TaskID:        taskID,
+		ExecutionType: req.ExecutionType,
+		Status:        "pending",
+		StartTime:     &startTime,
+		CreatedAt:     startTime,
+		CreatedBy:     "system",
+	}
+
+	if err := tss.db.Create(execution).Error; err != nil {
+		return "", fmt.Errorf("创建执行记录失败: %w", err)
+	}
+
+	// 启动异步执行goroutine
+	go func() {
+		// 使用独立的context避免原始请求context被取消
+		execCtx := context.Background()
+		slog.Info("开始异步执行主题同步任务", "taskID", taskID, "executionID", executionID)
+
+		// 执行同步任务（带executionID）
+		_, err := tss.executeSyncTaskInternalAsync(execCtx, taskID, executionID, req)
+		if err != nil {
+			slog.Error("异步执行主题同步任务失败", "taskID", taskID, "executionID", executionID, "error", err)
+
+			// 更新执行记录状态为失败
+			if updateErr := tss.db.Model(&models.ThematicSyncExecution{}).
+				Where("id = ?", executionID).
+				Updates(map[string]interface{}{
+					"status":        "failed",
+					"error_details": models.JSONB{"error": err.Error()},
+					"end_time":      time.Now(),
+				}).Error; updateErr != nil {
+				slog.Error("更新执行记录失败状态失败", "executionID", executionID, "error", updateErr)
+			}
+		} else {
+			slog.Info("异步执行主题同步任务成功", "taskID", taskID, "executionID", executionID)
+		}
+	}()
+
+	return executionID, nil
+}
+
+// ExecuteSyncTask 同步执行同步任务（保留用于调度器调用）
 func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID string, req *ExecuteSyncTaskRequest) (*thematic_sync.SyncResponse, error) {
 	// 获取任务信息
 	task, err := tss.GetSyncTask(ctx, taskID)
@@ -438,6 +497,17 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 	// 检查任务状态
 	if !task.CanStart() {
 		return nil, fmt.Errorf("任务状态不允许执行: %s", task.Status)
+	}
+
+	return tss.executeSyncTaskInternal(ctx, taskID, req)
+}
+
+// executeSyncTaskInternal 内部同步执行方法（供同步和异步调用使用）
+func (tss *ThematicSyncService) executeSyncTaskInternal(ctx context.Context, taskID string, req *ExecuteSyncTaskRequest) (*thematic_sync.SyncResponse, error) {
+	// 获取任务信息
+	task, err := tss.GetSyncTask(ctx, taskID)
+	if err != nil {
+		return nil, err
 	}
 
 	// 解析源库配置
@@ -735,6 +805,310 @@ func (tss *ThematicSyncService) ExecuteSyncTask(ctx context.Context, taskID stri
 	return tss.syncEngine.ExecuteSync(syncRequest)
 }
 
+// executeSyncTaskInternalAsync 内部异步执行方法（带executionID）
+func (tss *ThematicSyncService) executeSyncTaskInternalAsync(ctx context.Context, taskID string, executionID string, req *ExecuteSyncTaskRequest) (*thematic_sync.SyncResponse, error) {
+	// 获取任务信息
+	task, err := tss.GetSyncTask(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析源库配置
+	var sourceLibraryConfigs []thematic_sync.SourceLibraryConfig
+	if len(task.SourceLibraries) > 0 {
+		// 从JSONBGenericArray中解析源库配置
+		sourceLibrariesRaw := []interface{}(task.SourceLibraries)
+		if len(sourceLibrariesRaw) > 0 {
+			for _, configRaw := range sourceLibrariesRaw {
+				if configMap, ok := configRaw.(map[string]interface{}); ok {
+					libraryID := getStringFromMap(configMap, "library_id")
+
+					// 处理嵌套的interfaces结构
+					var interfaceConfigs []thematic_sync.SourceInterfaceConfig
+					if interfacesRaw, exists := configMap["interfaces"]; exists {
+						if interfacesSlice, ok := interfacesRaw.([]interface{}); ok {
+							for _, interfaceRaw := range interfacesSlice {
+								if interfaceMap, ok := interfaceRaw.(map[string]interface{}); ok {
+									interfaceConfig := thematic_sync.SourceInterfaceConfig{
+										InterfaceID: getStringFromMap(interfaceMap, "interface_id"),
+									}
+
+									// 解析增量配置
+									if incrementalRaw, exists := interfaceMap["incremental_config"]; exists {
+										if incrementalMap, ok := incrementalRaw.(map[string]interface{}); ok {
+											incrementalConfig := &thematic_sync.IncrementalConfig{
+												Enabled:            getBoolFromMap(incrementalMap, "enabled"),
+												IncrementalField:   getStringFromMap(incrementalMap, "incremental_field"),
+												FieldType:          getStringFromMap(incrementalMap, "field_type"),
+												CompareOperator:    getStringFromMap(incrementalMap, "compare_operator"),
+												LastSyncValue:      getStringFromMap(incrementalMap, "last_sync_value"),
+												InitialValue:       getStringFromMap(incrementalMap, "initial_value"),
+												MaxLookbackHours:   getIntFromMap(incrementalMap, "max_lookback_hours"),
+												CheckDeletedField:  getStringFromMap(incrementalMap, "check_deleted_field"),
+												DeletedValue:       getStringFromMap(incrementalMap, "deleted_value"),
+												BatchSize:          getIntFromMap(incrementalMap, "batch_size"),
+												SyncDeletedRecords: getBoolFromMap(incrementalMap, "sync_deleted_records"),
+												TimestampFormat:    getStringFromMap(incrementalMap, "timestamp_format"),
+												TimeZone:           getStringFromMap(incrementalMap, "timezone"),
+											}
+
+											// 设置默认值
+											if incrementalConfig.CompareOperator == "" {
+												incrementalConfig.CompareOperator = ">"
+											}
+											if incrementalConfig.BatchSize == 0 {
+												incrementalConfig.BatchSize = 1000
+											}
+											if incrementalConfig.TimeZone == "" {
+												incrementalConfig.TimeZone = "Asia/Shanghai"
+											}
+
+											interfaceConfig.IncrementalConfig = incrementalConfig
+										}
+									}
+
+									interfaceConfigs = append(interfaceConfigs, interfaceConfig)
+								}
+							}
+						}
+					}
+
+					// 如果没有找到嵌套结构，尝试直接获取interface_id（向前兼容）
+					if len(interfaceConfigs) == 0 {
+						if interfaceID := getStringFromMap(configMap, "interface_id"); interfaceID != "" {
+							interfaceConfig := thematic_sync.SourceInterfaceConfig{
+								InterfaceID: interfaceID,
+							}
+							interfaceConfigs = append(interfaceConfigs, interfaceConfig)
+						}
+					}
+
+					// 为每个接口创建一个配置
+					for _, interfaceConfig := range interfaceConfigs {
+						config := thematic_sync.SourceLibraryConfig{
+							LibraryID:         libraryID,
+							InterfaceID:       interfaceConfig.InterfaceID,
+							SQLQuery:          getStringFromMap(configMap, "sql_query"),
+							IncrementalConfig: interfaceConfig.IncrementalConfig,
+						}
+
+						// 解析参数
+						if params, exists := configMap["parameters"]; exists {
+							if paramsMap, ok := params.(map[string]interface{}); ok {
+								config.Parameters = paramsMap
+							}
+						}
+
+						// 解析过滤器
+						if filters, exists := configMap["filters"]; exists {
+							if filtersSlice, ok := filters.([]interface{}); ok {
+								for _, filterRaw := range filtersSlice {
+									if filterMap, ok := filterRaw.(map[string]interface{}); ok {
+										filter := thematic_sync.FilterConfig{
+											Field:    getStringFromMap(filterMap, "field"),
+											Operator: getStringFromMap(filterMap, "operator"),
+											Value:    filterMap["value"],
+											LogicOp:  getStringFromMap(filterMap, "logic_op"),
+										}
+										config.Filters = append(config.Filters, filter)
+									}
+								}
+							}
+						}
+
+						// 解析转换配置
+						if transforms, exists := configMap["transforms"]; exists {
+							if transformsSlice, ok := transforms.([]interface{}); ok {
+								for _, transformRaw := range transformsSlice {
+									if transformMap, ok := transformRaw.(map[string]interface{}); ok {
+										transform := thematic_sync.TransformConfig{
+											SourceField: getStringFromMap(transformMap, "source_field"),
+											TargetField: getStringFromMap(transformMap, "target_field"),
+											Transform:   getStringFromMap(transformMap, "transform"),
+										}
+
+										if transformConfig, exists := transformMap["config"]; exists {
+											if transformConfigMap, ok := transformConfig.(map[string]interface{}); ok {
+												transform.Config = transformConfigMap
+											}
+										}
+
+										config.Transforms = append(config.Transforms, transform)
+									}
+								}
+							}
+						}
+
+						sourceLibraryConfigs = append(sourceLibraryConfigs, config)
+					}
+				}
+			}
+		}
+	}
+
+	// 解析SQL查询配置（优先级更高）
+	var sqlQueryConfigs []*thematic_sync.SQLQueryConfig
+	if len(task.SQLQueries) > 0 {
+		sqlConfigsRaw := []interface{}(task.SQLQueries)
+		if len(sqlConfigsRaw) > 0 {
+			for _, configRaw := range sqlConfigsRaw {
+				if configMap, ok := configRaw.(map[string]interface{}); ok {
+					config := &thematic_sync.SQLQueryConfig{
+						SQLQuery: getStringFromMap(configMap, "sql_query"),
+						Timeout:  30,    // 默认30秒
+						MaxRows:  10000, // 默认1万行
+					}
+
+					// 解析参数
+					if params, exists := configMap["parameters"]; exists {
+						if paramsMap, ok := params.(map[string]interface{}); ok {
+							config.Parameters = paramsMap
+						}
+					}
+
+					// 解析超时时间
+					if timeout, exists := configMap["timeout"]; exists {
+						if timeoutFloat, ok := timeout.(float64); ok {
+							config.Timeout = int(timeoutFloat)
+						} else if timeoutInt, ok := timeout.(int); ok {
+							config.Timeout = timeoutInt
+						}
+					}
+
+					// 解析最大行数
+					if maxRows, exists := configMap["max_rows"]; exists {
+						if maxRowsFloat, ok := maxRows.(float64); ok {
+							config.MaxRows = int(maxRowsFloat)
+						} else if maxRowsInt, ok := maxRows.(int); ok {
+							config.MaxRows = maxRowsInt
+						}
+					}
+
+					// 只添加有效的SQL查询
+					if config.SQLQuery != "" {
+						sqlQueryConfigs = append(sqlQueryConfigs, config)
+					}
+				}
+			}
+		}
+	}
+
+	// 构建同步请求配置
+	configMap := make(map[string]interface{})
+
+	// 优先添加SQL查询配置（SQL模式）
+	if len(sqlQueryConfigs) > 0 {
+		configMap["sql_queries"] = sqlQueryConfigs
+		slog.Debug("任务使用SQL查询模式", "queryCount", len(sqlQueryConfigs))
+	} else if len(sourceLibraryConfigs) > 0 {
+		// 使用接口模式
+		configMap["source_libraries"] = sourceLibraryConfigs
+		slog.Debug("任务使用接口模式", "libraryCount", len(sourceLibraryConfigs))
+
+		// 调试：打印源库配置详情
+		for i, config := range sourceLibraryConfigs {
+			slog.Debug("源库配置详情", "index", i, "libraryID", config.LibraryID,
+				"interfaceID", config.InterfaceID, "hasIncrementalConfig", config.IncrementalConfig != nil)
+			if config.IncrementalConfig != nil {
+				slog.Debug("增量配置详情", "index", i,
+					"enabled", config.IncrementalConfig.Enabled,
+					"field", config.IncrementalConfig.IncrementalField,
+					"fieldType", config.IncrementalConfig.FieldType,
+					"lastSyncValue", config.IncrementalConfig.LastSyncValue,
+					"initialValue", config.IncrementalConfig.InitialValue)
+			}
+		}
+	} else {
+		return nil, fmt.Errorf("任务必须配置数据源：请配置 SQLQueries(SQL模式) 或 SourceLibraries(接口模式)")
+	}
+
+	// 添加各种规则配置
+	if len(task.KeyMatchingRules) > 0 {
+		var keyRules KeyMatchingRules
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.KeyMatchingRules)), &keyRules); err == nil {
+			configMap["key_matching_rules"] = keyRules
+		} else {
+			slog.Warn("解析KeyMatchingRules失败", "error", err)
+		}
+	}
+
+	if len(task.FieldMappingRules) > 0 {
+		// 直接使用 task.FieldMappingRules，它已经是 map[string]interface{} 类型
+		configMap["field_mapping_rules"] = task.FieldMappingRules
+		slog.Debug("添加字段映射规则到配置", "rules", task.FieldMappingRules)
+	}
+
+	// 添加数据治理规则配置
+	if len(task.QualityRuleConfigs) > 0 {
+		var qualityRuleConfigs []models.QualityRuleConfig
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.QualityRuleConfigs)), &qualityRuleConfigs); err == nil {
+			configMap["quality_rule_configs"] = qualityRuleConfigs
+		}
+	}
+
+	if len(task.CleansingRuleConfigs) > 0 {
+		var cleansingRuleConfigs []models.DataCleansingConfig
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.CleansingRuleConfigs)), &cleansingRuleConfigs); err == nil {
+			configMap["cleansing_rule_configs"] = cleansingRuleConfigs
+		}
+	}
+
+	if len(task.MaskingRuleConfigs) > 0 {
+		var maskingRuleConfigs []models.DataMaskingConfig
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.MaskingRuleConfigs)), &maskingRuleConfigs); err == nil {
+			configMap["masking_rule_configs"] = maskingRuleConfigs
+		}
+	}
+
+	if len(task.GovernanceConfig) > 0 {
+		var governanceConfig GovernanceExecutionConfig
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", task.GovernanceConfig)), &governanceConfig); err == nil {
+			configMap["governance_config"] = governanceConfig
+		}
+	}
+
+	// 添加执行选项
+	if req.Options != nil {
+		optionsBytes, _ := json.Marshal(req.Options)
+		var optionsMap map[string]interface{}
+		if err := json.Unmarshal(optionsBytes, &optionsMap); err == nil {
+			for key, value := range optionsMap {
+				configMap[key] = value
+			}
+		}
+	}
+
+	// 构建源库和接口列表
+	var sourceLibraries []string
+	var finalSourceInterfaces []string
+
+	for _, config := range sourceLibraryConfigs {
+		sourceLibraries = append(sourceLibraries, config.LibraryID)
+		finalSourceInterfaces = append(finalSourceInterfaces, config.InterfaceID)
+	}
+
+	syncRequest := &thematic_sync.SyncRequest{
+		TaskID:            taskID,
+		ExecutionID:       executionID, // 传递执行记录ID
+		ExecutionType:     req.ExecutionType,
+		SourceLibraries:   sourceLibraries,
+		SourceInterfaces:  finalSourceInterfaces,
+		TargetLibraryID:   task.ThematicLibraryID,
+		TargetInterfaceID: task.ThematicInterfaceID,
+		Config:            configMap,
+		Context:           ctx,
+	}
+
+	// 设置进度回调
+	tss.syncEngine.SetProgressCallback(func(progress *thematic_sync.SyncProgress) {
+		// 这里可以实现进度通知逻辑，比如通过WebSocket推送给前端
+		// 或者存储到缓存中供查询
+	})
+
+	// 执行同步
+	return tss.syncEngine.ExecuteSync(syncRequest)
+}
+
 // GetSyncExecution 获取同步执行记录
 func (tss *ThematicSyncService) GetSyncExecution(ctx context.Context, executionID string) (*models.ThematicSyncExecution, error) {
 	var execution models.ThematicSyncExecution
@@ -871,9 +1245,9 @@ func (tss *ThematicSyncService) PauseSyncTask(ctx context.Context, taskID string
 
 	// 暂停后需要重新加载调度器，移除该任务
 	if err := tss.ReloadScheduledTasks(); err != nil {
-		slog.Error("重新加载调度器失败: %v", err)
+		slog.Error("重新加载调度器失败", "error", err)
 	} else {
-		slog.Info("任务已暂停，调度器已更新 [任务ID: %s]", taskID)
+		slog.Info("任务已暂停，调度器已更新", "taskID", taskID)
 	}
 
 	return nil
@@ -905,9 +1279,9 @@ func (tss *ThematicSyncService) ActivateSyncTask(ctx context.Context, taskID str
 	// 激活后需要重新加载调度器，添加该任务
 	if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
 		if err := tss.ReloadScheduledTasks(); err != nil {
-			slog.Error("重新加载调度器失败: %v", err)
+			slog.Error("重新加载调度器失败", "error", err)
 		} else {
-			slog.Info("任务已激活，调度器已更新 [任务ID: %s]", taskID)
+			slog.Info("任务已激活，调度器已更新", "taskID", taskID)
 		}
 	}
 
@@ -1056,7 +1430,7 @@ func (tss *ThematicSyncService) StartScheduler() error {
 
 	// 加载现有的调度任务
 	if err := tss.loadScheduledTasks(); err != nil {
-		slog.Error("加载主题调度任务失败: %v", err)
+		slog.Error("加载主题调度任务失败", "error", err)
 		return err
 	}
 
@@ -1097,11 +1471,11 @@ func (tss *ThematicSyncService) loadScheduledTasks() error {
 
 	for _, task := range tasks {
 		if err := tss.addTaskToScheduler(&task); err != nil {
-			slog.Error("添加任务到调度器失败 [%s]: %v", task.ID, err)
+			slog.Error("添加任务到调度器失败", "taskID", task.ID, "error", err)
 		}
 	}
 
-	slog.Info("加载了 %d 个主题同步调度任务", len(tasks))
+	slog.Info("加载了主题同步调度任务", "count", len(tasks))
 	return nil
 }
 
@@ -1149,7 +1523,7 @@ func (tss *ThematicSyncService) addTaskToScheduler(task *models.ThematicSyncTask
 			return fmt.Errorf("添加Cron任务失败: %w", err)
 		}
 
-		slog.Info("添加主题Cron任务: %s [%s]", task.ID, task.CronExpression)
+		slog.Info("添加主题Cron任务", "taskID", task.ID, "cronExpression", task.CronExpression)
 
 	case "once":
 		if task.ScheduledTime != nil && task.ScheduledTime.After(time.Now()) {
@@ -1165,12 +1539,12 @@ func (tss *ThematicSyncService) addTaskToScheduler(task *models.ThematicSyncTask
 				}
 			}()
 
-			slog.Info("添加主题单次任务: %s [%s]", task.ID, task.ScheduledTime.Format("2006-01-02 15:04:05"))
+			slog.Info("添加主题单次任务", "taskID", task.ID, "scheduledTime", task.ScheduledTime.Format("2006-01-02 15:04:05"))
 		}
 
 	case "interval":
 		// 间隔任务由intervalChecker处理
-		slog.Info("添加主题间隔任务: %s [%d秒]", task.ID, task.IntervalSeconds)
+		slog.Info("添加主题间隔任务", "taskID", task.ID, "intervalSeconds", task.IntervalSeconds)
 	}
 
 	return nil
@@ -1192,7 +1566,7 @@ func (tss *ThematicSyncService) runIntervalChecker() {
 func (tss *ThematicSyncService) checkIntervalTasks() {
 	tasks, err := tss.getShouldExecuteNowTasks(tss.ctx)
 	if err != nil {
-		slog.Error("获取间隔任务失败: %v", err)
+		slog.Error("获取间隔任务失败", "error", err)
 		return
 	}
 
@@ -1205,7 +1579,7 @@ func (tss *ThematicSyncService) checkIntervalTasks() {
 
 // executeScheduledTask 执行调度任务（带分布式锁）
 func (tss *ThematicSyncService) executeScheduledTask(taskID string) {
-	slog.Info("执行主题调度任务: %s", taskID)
+	slog.Info("执行主题调度任务", "taskID", taskID)
 
 	// 如果有分布式锁，使用锁保护执行
 	if tss.distributedLock != nil {
@@ -1215,19 +1589,19 @@ func (tss *ThematicSyncService) executeScheduledTask(taskID string) {
 		// 尝试获取锁
 		locked, err := tss.distributedLock.TryLock(tss.ctx, lockKey, lockTTL)
 		if err != nil {
-			slog.Error("获取分布式锁失败 [%s]: %v", taskID, err)
+			slog.Error("获取分布式锁失败", "taskID", taskID, "error", err)
 			return
 		}
 
 		if !locked {
-			slog.Error("任务正在其他实例执行，跳过 [%s]", taskID)
+			slog.Error("任务正在其他实例执行，跳过", "taskID", taskID)
 			return
 		}
 
 		// 确保执行完毕后释放锁
 		defer func() {
 			if unlockErr := tss.distributedLock.Unlock(tss.ctx, lockKey); unlockErr != nil {
-				slog.Error("释放分布式锁失败 [%s]: %v", taskID, unlockErr)
+				slog.Error("释放分布式锁失败", "taskID", taskID, "error", unlockErr)
 			}
 		}()
 	}
@@ -1235,13 +1609,13 @@ func (tss *ThematicSyncService) executeScheduledTask(taskID string) {
 	// 获取任务详情
 	task, err := tss.GetSyncTask(tss.ctx, taskID)
 	if err != nil {
-		slog.Error("获取任务失败 [%s]: %v", taskID, err)
+		slog.Error("获取任务失败", "taskID", taskID, "error", err)
 		return
 	}
 
 	// 检查任务是否可以执行
 	if !task.CanStart() {
-		slog.Error("任务不能执行 [%s]: 状态=%s", taskID, task.Status)
+		slog.Error("任务不能执行", "taskID", taskID, "status", task.Status)
 		return
 	}
 
@@ -1254,7 +1628,7 @@ func (tss *ThematicSyncService) executeScheduledTask(taskID string) {
 	// 执行同步任务
 	_, err = tss.ExecuteSyncTask(tss.ctx, taskID, req)
 	if err != nil {
-		slog.Error("执行调度任务失败 [%s]: %v", taskID, err)
+		slog.Error("执行调度任务失败", "taskID", taskID, "error", err)
 		return
 	}
 
@@ -1266,10 +1640,10 @@ func (tss *ThematicSyncService) executeScheduledTask(taskID string) {
 			"last_sync_time": time.Now(),
 			"updated_at":     time.Now(),
 		}).Error; err != nil {
-		slog.Error("更新任务执行时间失败 [%s]: %v", taskID, err)
+		slog.Error("更新任务执行时间失败", "taskID", taskID, "error", err)
 	}
 
-	slog.Info("主题调度任务执行完成 [%s]", taskID)
+	slog.Info("主题调度任务执行完成", "taskID", taskID)
 }
 
 // AddScheduledTask 添加调度任务
