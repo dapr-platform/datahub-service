@@ -88,6 +88,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.SystemConfig{},
 		&models.QualityTask{},
 		&models.QualityTaskExecution{},
+		&models.QualityTaskFieldRule{},
+		&models.QualityIssueRecord{},
 		&models.DataLineage{},
 	)
 	if err != nil {

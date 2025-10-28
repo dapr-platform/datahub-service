@@ -2042,47 +2042,51 @@ definitions:
       description:
         example: 定期检测用户表数据质量
         type: string
+      field_rules:
+        items:
+          $ref: '#/definitions/governance.FieldRuleConfig'
+        minItems: 1
+        type: array
+      interface_id:
+        example: uuid-interface-123
+        type: string
       is_enabled:
         example: true
         type: boolean
+      library_id:
+        example: uuid-lib-123
+        type: string
+      library_type:
+        enum:
+        - thematic
+        - basic
+        example: thematic
+        type: string
       name:
         example: 用户表质量检测任务
         type: string
       notification_config:
-        type: object
+        $ref: '#/definitions/governance.NotificationConfigRequest'
       priority:
         example: 50
         type: integer
-      quality_rule_ids:
-        example:
-        - '["uuid-456"]'
-        items:
-          type: string
-        type: array
       schedule_config:
-        type: object
-      target_object_id:
-        example: uuid-123
+        $ref: '#/definitions/governance.ScheduleConfigRequest'
+      target_schema:
+        example: public
         type: string
-      target_object_type:
-        enum:
-        - interface
-        - thematic_interface
-        - table
-        example: interface
-        type: string
-      task_type:
-        enum:
-        - scheduled
-        - manual
-        - realtime
-        example: scheduled
+      target_table:
+        example: users
         type: string
     required:
+    - field_rules
+    - interface_id
+    - library_id
+    - library_type
     - name
-    - target_object_id
-    - target_object_type
-    - task_type
+    - schedule_config
+    - target_schema
+    - target_table
     type: object
   governance.DataCleansingTemplateListResponse:
     properties:
@@ -2326,6 +2330,53 @@ definitions:
         example: "1.0"
         type: string
     type: object
+  governance.FieldRuleConfig:
+    properties:
+      field_name:
+        example: email
+        type: string
+      is_enabled:
+        example: true
+        type: boolean
+      priority:
+        example: 50
+        type: integer
+      rule_template_id:
+        example: uuid-rule-123
+        type: string
+      runtime_config:
+        $ref: '#/definitions/governance.RuntimeConfig'
+      threshold:
+        $ref: '#/definitions/governance.ThresholdConfig'
+    required:
+    - field_name
+    - rule_template_id
+    type: object
+  governance.FieldRuleResponse:
+    properties:
+      field_name:
+        example: email
+        type: string
+      id:
+        example: uuid-123
+        type: string
+      is_enabled:
+        example: true
+        type: boolean
+      priority:
+        example: 50
+        type: integer
+      rule_name:
+        example: 邮箱格式检查
+        type: string
+      rule_template_id:
+        example: uuid-rule-123
+        type: string
+      runtime_config:
+        $ref: '#/definitions/governance.RuntimeConfig'
+      threshold:
+        $ref: '#/definitions/governance.ThresholdConfig'
+    type: object
   governance.MaskingRuleListResponse:
     properties:
       list:
@@ -2436,6 +2487,113 @@ definitions:
         type: string
       updated_by:
         example: admin
+        type: string
+    type: object
+  governance.NotificationConfigRequest:
+    properties:
+      channels:
+        example:
+        - '["email"'
+        - '"webhook"]'
+        items:
+          type: string
+        type: array
+      enabled:
+        example: true
+        type: boolean
+      notify_on_failure:
+        example: true
+        type: boolean
+      notify_on_success:
+        example: false
+        type: boolean
+      recipients:
+        example:
+        - '["admin@example.com"]'
+        items:
+          type: string
+        type: array
+    type: object
+  governance.NotificationConfigResponse:
+    properties:
+      channels:
+        example:
+        - '["email"]'
+        items:
+          type: string
+        type: array
+      enabled:
+        example: true
+        type: boolean
+      notify_on_failure:
+        example: true
+        type: boolean
+      notify_on_success:
+        example: false
+        type: boolean
+      recipients:
+        example:
+        - '["admin@example.com"]'
+        items:
+          type: string
+        type: array
+    type: object
+  governance.QualityIssueRecordListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/governance.QualityIssueRecordResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 100
+        type: integer
+    type: object
+  governance.QualityIssueRecordResponse:
+    properties:
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      execution_id:
+        example: uuid-456
+        type: string
+      expected_value:
+        example: valid email format
+        type: string
+      field_name:
+        example: email
+        type: string
+      field_value:
+        example: invalid-email
+        type: string
+      id:
+        example: uuid-123
+        type: string
+      issue_description:
+        example: 邮箱格式不正确
+        type: string
+      issue_type:
+        example: format_invalid
+        type: string
+      record_identifier:
+        example: id=123
+        type: string
+      rule_template_id:
+        example: uuid-rule-123
+        type: string
+      rule_template_name:
+        example: 邮箱格式检查
+        type: string
+      severity:
+        example: high
+        type: string
+      task_id:
+        example: uuid-789
         type: string
     type: object
   governance.QualityReportListResponse:
@@ -2653,6 +2811,9 @@ definitions:
       id:
         example: uuid-123
         type: string
+      issue_count:
+        example: 2
+        type: integer
       overall_score:
         example: 0.8
         type: number
@@ -2711,14 +2872,27 @@ definitions:
       failure_count:
         example: 1
         type: integer
+      field_rules:
+        items:
+          $ref: '#/definitions/governance.FieldRuleResponse'
+        type: array
       id:
         example: uuid-123
+        type: string
+      interface_id:
+        example: uuid-interface-123
         type: string
       is_enabled:
         example: true
         type: boolean
       last_executed:
         example: "2024-01-01T00:00:00Z"
+        type: string
+      library_id:
+        example: uuid-lib-123
+        type: string
+      library_type:
+        example: thematic
         type: string
       name:
         example: 用户表质量检测任务
@@ -2727,32 +2901,23 @@ definitions:
         example: "2024-01-02T00:00:00Z"
         type: string
       notification_config:
-        type: object
+        $ref: '#/definitions/governance.NotificationConfigResponse'
       priority:
         example: 50
         type: integer
-      quality_rule_ids:
-        example:
-        - '["uuid-789"]'
-        items:
-          type: string
-        type: array
       schedule_config:
-        type: object
+        $ref: '#/definitions/governance.ScheduleConfigResponse'
       status:
         example: pending
         type: string
       success_count:
         example: 4
         type: integer
-      target_object_id:
-        example: uuid-456
+      target_schema:
+        example: public
         type: string
-      target_object_type:
-        example: interface
-        type: string
-      task_type:
-        example: scheduled
+      target_table:
+        example: users
         type: string
       updated_at:
         example: "2024-01-01T00:00:00Z"
@@ -2812,6 +2977,58 @@ definitions:
     required:
     - object_id
     - object_type
+    type: object
+  governance.RuntimeConfig:
+    properties:
+      case_sensitive:
+        example: false
+        type: boolean
+      check_nullable:
+        example: true
+        type: boolean
+      custom_params:
+        description: 自定义参数
+        type: object
+      trim_whitespace:
+        example: true
+        type: boolean
+    type: object
+  governance.ScheduleConfigRequest:
+    properties:
+      cron_expr:
+        example: 0 0 * * *
+        type: string
+      interval:
+        example: 3600
+        type: integer
+      start_time:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      type:
+        enum:
+        - cron
+        - interval
+        - once
+        - manual
+        example: cron
+        type: string
+    required:
+    - type
+    type: object
+  governance.ScheduleConfigResponse:
+    properties:
+      cron_expr:
+        example: 0 0 * * *
+        type: string
+      interval:
+        example: 3600
+        type: integer
+      start_time:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      type:
+        example: cron
+        type: string
     type: object
   governance.SystemLogListResponse:
     properties:
@@ -3135,6 +3352,34 @@ definitions:
         example: 3
         type: integer
     type: object
+  governance.ThresholdConfig:
+    properties:
+      allowed_values:
+        example:
+        - '["active"'
+        - '"inactive"]'
+        items:
+          type: string
+        type: array
+      custom_threshold:
+        description: 扩展阈值
+        type: object
+      max_length:
+        example: 255
+        type: integer
+      max_value:
+        example: 100
+        type: number
+      min_length:
+        example: 1
+        type: integer
+      min_value:
+        example: 0
+        type: number
+      pattern:
+        example: ^[a-zA-Z0-9]+$
+        type: string
+    type: object
   governance.UpdateCleansingRuleRequest:
     properties:
       cleansing_logic:
@@ -3209,6 +3454,10 @@ definitions:
       description:
         example: 更新后的描述
         type: string
+      field_rules:
+        items:
+          $ref: '#/definitions/governance.FieldRuleConfig'
+        type: array
       is_enabled:
         example: false
         type: boolean
@@ -3216,18 +3465,12 @@ definitions:
         example: 更新后的质量检测任务
         type: string
       notification_config:
-        type: object
+        $ref: '#/definitions/governance.NotificationConfigRequest'
       priority:
         example: 80
         type: integer
-      quality_rule_ids:
-        example:
-        - '["uuid-789"]'
-        items:
-          type: string
-        type: array
       schedule_config:
-        type: object
+        $ref: '#/definitions/governance.ScheduleConfigRequest'
     type: object
   meta.CleansingRuleType:
     properties:
@@ -7064,6 +7307,62 @@ paths:
       summary: 获取数据血缘图
       tags:
       - 数据质量
+  /data-quality/issue-records:
+    get:
+      consumes:
+      - application/json
+      description: 根据任务ID、执行ID等条件查询质量问题记录列表
+      parameters:
+      - description: 任务ID
+        in: query
+        name: task_id
+        type: string
+      - description: 执行ID
+        in: query
+        name: execution_id
+        type: string
+      - description: 字段名
+        in: query
+        name: field_name
+        type: string
+      - description: 严重程度
+        enum:
+        - low
+        - medium
+        - high
+        - critical
+        in: query
+        name: severity
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityIssueRecordListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取质量问题记录列表
+      tags:
+      - 数据质量
   /data-quality/masking-rules:
     get:
       consumes:
@@ -7770,13 +8069,20 @@ paths:
         in: query
         name: status
         type: string
-      - description: 任务类型
+      - description: 库类型
         enum:
-        - scheduled
-        - manual
-        - realtime
+        - thematic
+        - basic
         in: query
-        name: task_type
+        name: library_type
+        type: string
+      - description: 库ID
+        in: query
+        name: library_id
+        type: string
+      - description: 接口ID
+        in: query
+        name: interface_id
         type: string
       produces:
       - application/json
@@ -7969,6 +8275,63 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 获取数据质量检测任务执行记录
+      tags:
+      - 数据质量
+  /data-quality/tasks/{id}/issue-records:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定质量检测任务的所有问题记录
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 执行ID
+        in: query
+        name: execution_id
+        type: string
+      - description: 字段名
+        in: query
+        name: field_name
+        type: string
+      - description: 严重程度
+        enum:
+        - low
+        - medium
+        - high
+        - critical
+        in: query
+        name: severity
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/governance.QualityIssueRecordListResponse'
+              type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取指定任务的问题记录
       tags:
       - 数据质量
   /data-quality/tasks/{id}/start:

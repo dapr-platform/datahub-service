@@ -158,6 +158,22 @@ func initServices() {
 		slog.Error("启动主题库同步任务调度器失败", "error", err)
 	}
 
+	// 启动质量检测调度器
+	qualityScheduler := GlobalGovernanceService.GetQualityScheduler()
+	if qualityScheduler != nil {
+		// 设置分布式锁
+		if GlobalDistributedLock != nil {
+			qualityScheduler.SetDistributedLock(GlobalDistributedLock)
+		}
+
+		// 启动调度器
+		if err := qualityScheduler.StartScheduler(); err != nil {
+			slog.Error("启动数据质量检测调度器失败", "error", err)
+		} else {
+			slog.Info("数据质量检测调度器启动成功")
+		}
+	}
+
 	slog.Info("服务初始化完成")
 }
 

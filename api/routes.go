@@ -300,7 +300,11 @@ func InitRoute(r *chi.Mux) {
 			r.Post("/{id}/start", dataQualityController.StartQualityTask)
 			r.Post("/{id}/stop", dataQualityController.StopQualityTask)
 			r.Get("/{id}/executions", dataQualityController.GetQualityTaskExecutions)
+			r.Get("/{id}/issue-records", dataQualityController.GetTaskIssueRecords)
 		})
+
+		// 质量问题记录管理
+		r.Get("/issue-records", dataQualityController.GetQualityIssueRecords)
 
 		// 数据血缘管理
 		r.Route("/data-lineage", func(r chi.Router) {

@@ -265,54 +265,133 @@ type CleansingExecutionResponse struct {
 
 // === 质量检测任务相关类型 ===
 
+// RuntimeConfig 运行时配置
+type RuntimeConfig struct {
+	CheckNullable  bool              `json:"check_nullable" example:"true"`
+	TrimWhitespace bool              `json:"trim_whitespace" example:"true"`
+	CaseSensitive  bool              `json:"case_sensitive" example:"false"`
+	CustomParams   map[string]string `json:"custom_params,omitempty" swaggertype:"object"` // 自定义参数
+}
+
+// ThresholdConfig 阈值配置
+type ThresholdConfig struct {
+	MinValue        *float64               `json:"min_value,omitempty" example:"0"`
+	MaxValue        *float64               `json:"max_value,omitempty" example:"100"`
+	MinLength       *int                   `json:"min_length,omitempty" example:"1"`
+	MaxLength       *int                   `json:"max_length,omitempty" example:"255"`
+	AllowedValues   []string               `json:"allowed_values,omitempty" example:"[\"active\",\"inactive\"]"`
+	Pattern         string                 `json:"pattern,omitempty" example:"^[a-zA-Z0-9]+$"`
+	CustomThreshold map[string]interface{} `json:"custom_threshold,omitempty" swaggertype:"object"` // 扩展阈值
+}
+
+// FieldRuleConfig 字段规则配置
+type FieldRuleConfig struct {
+	FieldName      string          `json:"field_name" binding:"required" example:"email"`
+	RuleTemplateID string          `json:"rule_template_id" binding:"required" example:"uuid-rule-123"`
+	RuntimeConfig  RuntimeConfig   `json:"runtime_config"`
+	Threshold      ThresholdConfig `json:"threshold"`
+	IsEnabled      bool            `json:"is_enabled" example:"true"`
+	Priority       int             `json:"priority" example:"50"`
+}
+
+// ScheduleConfigRequest 调度配置请求
+type ScheduleConfigRequest struct {
+	Type      string     `json:"type" binding:"required" example:"cron" enums:"cron,interval,once,manual"`
+	CronExpr  string     `json:"cron_expr,omitempty" example:"0 0 * * *"`
+	Interval  int64      `json:"interval,omitempty" example:"3600"`
+	StartTime *time.Time `json:"start_time,omitempty" example:"2024-01-01T00:00:00Z"`
+}
+
+// NotificationConfigRequest 通知配置请求
+type NotificationConfigRequest struct {
+	Enabled         bool     `json:"enabled" example:"true"`
+	NotifyOnSuccess bool     `json:"notify_on_success" example:"false"`
+	NotifyOnFailure bool     `json:"notify_on_failure" example:"true"`
+	Recipients      []string `json:"recipients" example:"[\"admin@example.com\"]"`
+	Channels        []string `json:"channels" example:"[\"email\",\"webhook\"]"`
+}
+
 // CreateQualityTaskRequest 创建质量检测任务请求
 type CreateQualityTaskRequest struct {
-	Name               string                 `json:"name" binding:"required" example:"用户表质量检测任务"`
-	Description        string                 `json:"description" example:"定期检测用户表数据质量"`
-	TaskType           string                 `json:"task_type" binding:"required" example:"scheduled" enums:"scheduled,manual,realtime"`
-	TargetObjectID     string                 `json:"target_object_id" binding:"required" example:"uuid-123"`
-	TargetObjectType   string                 `json:"target_object_type" binding:"required" example:"interface" enums:"interface,thematic_interface,table"`
-	QualityRuleIDs     []string               `json:"quality_rule_ids" example:"[\"uuid-456\"]"`
-	ScheduleConfig     map[string]interface{} `json:"schedule_config" swaggertype:"object"`
-	NotificationConfig map[string]interface{} `json:"notification_config" swaggertype:"object"`
-	Priority           int                    `json:"priority" example:"50"`
-	IsEnabled          bool                   `json:"is_enabled" example:"true"`
+	Name               string                    `json:"name" binding:"required" example:"用户表质量检测任务"`
+	Description        string                    `json:"description" example:"定期检测用户表数据质量"`
+	LibraryType        string                    `json:"library_type" binding:"required" example:"thematic" enums:"thematic,basic"`
+	LibraryID          string                    `json:"library_id" binding:"required" example:"uuid-lib-123"`
+	InterfaceID        string                    `json:"interface_id" binding:"required" example:"uuid-interface-123"`
+	TargetSchema       string                    `json:"target_schema" binding:"required" example:"public"`
+	TargetTable        string                    `json:"target_table" binding:"required" example:"users"`
+	FieldRules         []FieldRuleConfig         `json:"field_rules" binding:"required,min=1"`
+	ScheduleConfig     ScheduleConfigRequest     `json:"schedule_config" binding:"required"`
+	NotificationConfig NotificationConfigRequest `json:"notification_config"`
+	Priority           int                       `json:"priority" example:"50"`
+	IsEnabled          bool                      `json:"is_enabled" example:"true"`
 }
 
 // UpdateQualityTaskRequest 更新质量检测任务请求
 type UpdateQualityTaskRequest struct {
-	Name               string                 `json:"name,omitempty" example:"更新后的质量检测任务"`
-	Description        string                 `json:"description,omitempty" example:"更新后的描述"`
-	QualityRuleIDs     []string               `json:"quality_rule_ids,omitempty" example:"[\"uuid-789\"]"`
-	ScheduleConfig     map[string]interface{} `json:"schedule_config,omitempty" swaggertype:"object"`
-	NotificationConfig map[string]interface{} `json:"notification_config,omitempty" swaggertype:"object"`
-	Priority           *int                   `json:"priority,omitempty" example:"80"`
-	IsEnabled          *bool                  `json:"is_enabled,omitempty" example:"false"`
+	Name               string                     `json:"name,omitempty" example:"更新后的质量检测任务"`
+	Description        string                     `json:"description,omitempty" example:"更新后的描述"`
+	FieldRules         []FieldRuleConfig          `json:"field_rules,omitempty"`
+	ScheduleConfig     *ScheduleConfigRequest     `json:"schedule_config,omitempty"`
+	NotificationConfig *NotificationConfigRequest `json:"notification_config,omitempty"`
+	Priority           *int                       `json:"priority,omitempty" example:"80"`
+	IsEnabled          *bool                      `json:"is_enabled,omitempty" example:"false"`
+}
+
+// FieldRuleResponse 字段规则响应
+type FieldRuleResponse struct {
+	ID             string          `json:"id" example:"uuid-123"`
+	FieldName      string          `json:"field_name" example:"email"`
+	RuleTemplateID string          `json:"rule_template_id" example:"uuid-rule-123"`
+	RuleName       string          `json:"rule_name" example:"邮箱格式检查"`
+	RuntimeConfig  RuntimeConfig   `json:"runtime_config"`
+	Threshold      ThresholdConfig `json:"threshold"`
+	IsEnabled      bool            `json:"is_enabled" example:"true"`
+	Priority       int             `json:"priority" example:"50"`
+}
+
+// ScheduleConfigResponse 调度配置响应
+type ScheduleConfigResponse struct {
+	Type      string     `json:"type" example:"cron"`
+	CronExpr  string     `json:"cron_expr,omitempty" example:"0 0 * * *"`
+	Interval  int64      `json:"interval,omitempty" example:"3600"`
+	StartTime *time.Time `json:"start_time,omitempty" example:"2024-01-01T00:00:00Z"`
+}
+
+// NotificationConfigResponse 通知配置响应
+type NotificationConfigResponse struct {
+	Enabled         bool     `json:"enabled" example:"true"`
+	NotifyOnSuccess bool     `json:"notify_on_success" example:"false"`
+	NotifyOnFailure bool     `json:"notify_on_failure" example:"true"`
+	Recipients      []string `json:"recipients" example:"[\"admin@example.com\"]"`
+	Channels        []string `json:"channels" example:"[\"email\"]"`
 }
 
 // QualityTaskResponse 质量检测任务响应
 type QualityTaskResponse struct {
-	ID                 string                 `json:"id" example:"uuid-123"`
-	Name               string                 `json:"name" example:"用户表质量检测任务"`
-	Description        string                 `json:"description" example:"定期检测用户表数据质量"`
-	TaskType           string                 `json:"task_type" example:"scheduled"`
-	TargetObjectID     string                 `json:"target_object_id" example:"uuid-456"`
-	TargetObjectType   string                 `json:"target_object_type" example:"interface"`
-	QualityRuleIDs     []string               `json:"quality_rule_ids" example:"[\"uuid-789\"]"`
-	ScheduleConfig     map[string]interface{} `json:"schedule_config" swaggertype:"object"`
-	NotificationConfig map[string]interface{} `json:"notification_config" swaggertype:"object"`
-	Status             string                 `json:"status" example:"pending"`
-	Priority           int                    `json:"priority" example:"50"`
-	IsEnabled          bool                   `json:"is_enabled" example:"true"`
-	LastExecuted       *time.Time             `json:"last_executed,omitempty" example:"2024-01-01T00:00:00Z"`
-	NextExecution      *time.Time             `json:"next_execution,omitempty" example:"2024-01-02T00:00:00Z"`
-	ExecutionCount     int64                  `json:"execution_count" example:"5"`
-	SuccessCount       int64                  `json:"success_count" example:"4"`
-	FailureCount       int64                  `json:"failure_count" example:"1"`
-	CreatedAt          time.Time              `json:"created_at" example:"2024-01-01T00:00:00Z"`
-	CreatedBy          string                 `json:"created_by" example:"admin"`
-	UpdatedAt          time.Time              `json:"updated_at" example:"2024-01-01T00:00:00Z"`
-	UpdatedBy          string                 `json:"updated_by" example:"admin"`
+	ID                 string                     `json:"id" example:"uuid-123"`
+	Name               string                     `json:"name" example:"用户表质量检测任务"`
+	Description        string                     `json:"description" example:"定期检测用户表数据质量"`
+	LibraryType        string                     `json:"library_type" example:"thematic"`
+	LibraryID          string                     `json:"library_id" example:"uuid-lib-123"`
+	InterfaceID        string                     `json:"interface_id" example:"uuid-interface-123"`
+	TargetSchema       string                     `json:"target_schema" example:"public"`
+	TargetTable        string                     `json:"target_table" example:"users"`
+	FieldRules         []FieldRuleResponse        `json:"field_rules"`
+	ScheduleConfig     ScheduleConfigResponse     `json:"schedule_config"`
+	NotificationConfig NotificationConfigResponse `json:"notification_config"`
+	Status             string                     `json:"status" example:"pending"`
+	Priority           int                        `json:"priority" example:"50"`
+	IsEnabled          bool                       `json:"is_enabled" example:"true"`
+	LastExecuted       *time.Time                 `json:"last_executed,omitempty" example:"2024-01-01T00:00:00Z"`
+	NextExecution      *time.Time                 `json:"next_execution,omitempty" example:"2024-01-02T00:00:00Z"`
+	ExecutionCount     int64                      `json:"execution_count" example:"5"`
+	SuccessCount       int64                      `json:"success_count" example:"4"`
+	FailureCount       int64                      `json:"failure_count" example:"1"`
+	CreatedAt          time.Time                  `json:"created_at" example:"2024-01-01T00:00:00Z"`
+	CreatedBy          string                     `json:"created_by" example:"admin"`
+	UpdatedAt          time.Time                  `json:"updated_at" example:"2024-01-01T00:00:00Z"`
+	UpdatedBy          string                     `json:"updated_by" example:"admin"`
 }
 
 // QualityTaskListResponse 质量检测任务列表响应
@@ -336,6 +415,7 @@ type QualityTaskExecutionResponse struct {
 	PassedRules        int                    `json:"passed_rules" example:"4"`
 	FailedRules        int                    `json:"failed_rules" example:"1"`
 	OverallScore       float64                `json:"overall_score" example:"0.8"`
+	IssueCount         int64                  `json:"issue_count" example:"2"`
 	ExecutionResults   map[string]interface{} `json:"execution_results" swaggertype:"object"`
 	ErrorMessage       string                 `json:"error_message,omitempty"`
 	TriggerSource      string                 `json:"trigger_source" example:"manual"`
@@ -350,6 +430,31 @@ type QualityTaskExecutionListResponse struct {
 	Total int64                          `json:"total" example:"50"`
 	Page  int                            `json:"page" example:"1"`
 	Size  int                            `json:"size" example:"10"`
+}
+
+// QualityIssueRecordResponse 质量问题记录响应
+type QualityIssueRecordResponse struct {
+	ID               string    `json:"id" example:"uuid-123"`
+	ExecutionID      string    `json:"execution_id" example:"uuid-456"`
+	TaskID           string    `json:"task_id" example:"uuid-789"`
+	FieldName        string    `json:"field_name" example:"email"`
+	RuleTemplateName string    `json:"rule_template_name" example:"邮箱格式检查"`
+	RuleTemplateID   string    `json:"rule_template_id" example:"uuid-rule-123"`
+	RecordIdentifier string    `json:"record_identifier" example:"id=123"`
+	IssueType        string    `json:"issue_type" example:"format_invalid"`
+	IssueDescription string    `json:"issue_description" example:"邮箱格式不正确"`
+	FieldValue       string    `json:"field_value" example:"invalid-email"`
+	ExpectedValue    string    `json:"expected_value" example:"valid email format"`
+	Severity         string    `json:"severity" example:"high"`
+	CreatedAt        time.Time `json:"created_at" example:"2024-01-01T00:00:00Z"`
+}
+
+// QualityIssueRecordListResponse 质量问题记录列表响应
+type QualityIssueRecordListResponse struct {
+	List  []QualityIssueRecordResponse `json:"list"`
+	Total int64                        `json:"total" example:"100"`
+	Page  int                          `json:"page" example:"1"`
+	Size  int                          `json:"size" example:"10"`
 }
 
 // === 系统日志相关类型 ===

@@ -2433,6 +2433,93 @@ const docTemplate = `{
                 }
             }
         },
+        "/data-quality/issue-records": {
+            "get": {
+                "description": "根据任务ID、执行ID等条件查询质量问题记录列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "获取质量问题记录列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "task_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "执行ID",
+                        "name": "execution_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "字段名",
+                        "name": "field_name",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "critical"
+                        ],
+                        "type": "string",
+                        "description": "严重程度",
+                        "name": "severity",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.QualityIssueRecordListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/data-quality/masking-rules": {
             "get": {
                 "description": "分页获取数据脱敏规则列表",
@@ -3546,13 +3633,24 @@ const docTemplate = `{
                     },
                     {
                         "enum": [
-                            "scheduled",
-                            "manual",
-                            "realtime"
+                            "thematic",
+                            "basic"
                         ],
                         "type": "string",
-                        "description": "任务类型",
-                        "name": "task_type",
+                        "description": "库类型",
+                        "name": "library_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "库ID",
+                        "name": "library_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "接口ID",
+                        "name": "interface_id",
                         "in": "query"
                     }
                 ],
@@ -3844,6 +3942,94 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/governance.QualityTaskExecutionListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/data-quality/tasks/{id}/issue-records": {
+            "get": {
+                "description": "获取指定质量检测任务的所有问题记录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据质量"
+                ],
+                "summary": "获取指定任务的问题记录",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "执行ID",
+                        "name": "execution_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "字段名",
+                        "name": "field_name",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "critical"
+                        ],
+                        "type": "string",
+                        "description": "严重程度",
+                        "name": "severity",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/governance.QualityIssueRecordListResponse"
                                         }
                                     }
                                 }
@@ -13652,64 +13838,68 @@ const docTemplate = `{
         "governance.CreateQualityTaskRequest": {
             "type": "object",
             "required": [
+                "field_rules",
+                "interface_id",
+                "library_id",
+                "library_type",
                 "name",
-                "target_object_id",
-                "target_object_type",
-                "task_type"
+                "schedule_config",
+                "target_schema",
+                "target_table"
             ],
             "properties": {
                 "description": {
                     "type": "string",
                     "example": "定期检测用户表数据质量"
                 },
+                "field_rules": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/governance.FieldRuleConfig"
+                    }
+                },
+                "interface_id": {
+                    "type": "string",
+                    "example": "uuid-interface-123"
+                },
                 "is_enabled": {
                     "type": "boolean",
                     "example": true
+                },
+                "library_id": {
+                    "type": "string",
+                    "example": "uuid-lib-123"
+                },
+                "library_type": {
+                    "type": "string",
+                    "enum": [
+                        "thematic",
+                        "basic"
+                    ],
+                    "example": "thematic"
                 },
                 "name": {
                     "type": "string",
                     "example": "用户表质量检测任务"
                 },
                 "notification_config": {
-                    "type": "object"
+                    "$ref": "#/definitions/governance.NotificationConfigRequest"
                 },
                 "priority": {
                     "type": "integer",
                     "example": 50
                 },
-                "quality_rule_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "[\"uuid-456\"]"
-                    ]
-                },
                 "schedule_config": {
-                    "type": "object"
+                    "$ref": "#/definitions/governance.ScheduleConfigRequest"
                 },
-                "target_object_id": {
+                "target_schema": {
                     "type": "string",
-                    "example": "uuid-123"
+                    "example": "public"
                 },
-                "target_object_type": {
+                "target_table": {
                     "type": "string",
-                    "enum": [
-                        "interface",
-                        "thematic_interface",
-                        "table"
-                    ],
-                    "example": "interface"
-                },
-                "task_type": {
-                    "type": "string",
-                    "enum": [
-                        "scheduled",
-                        "manual",
-                        "realtime"
-                    ],
-                    "example": "scheduled"
+                    "example": "users"
                 }
             }
         },
@@ -14052,6 +14242,72 @@ const docTemplate = `{
                 }
             }
         },
+        "governance.FieldRuleConfig": {
+            "type": "object",
+            "required": [
+                "field_name",
+                "rule_template_id"
+            ],
+            "properties": {
+                "field_name": {
+                    "type": "string",
+                    "example": "email"
+                },
+                "is_enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "priority": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "rule_template_id": {
+                    "type": "string",
+                    "example": "uuid-rule-123"
+                },
+                "runtime_config": {
+                    "$ref": "#/definitions/governance.RuntimeConfig"
+                },
+                "threshold": {
+                    "$ref": "#/definitions/governance.ThresholdConfig"
+                }
+            }
+        },
+        "governance.FieldRuleResponse": {
+            "type": "object",
+            "properties": {
+                "field_name": {
+                    "type": "string",
+                    "example": "email"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "uuid-123"
+                },
+                "is_enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "priority": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "rule_name": {
+                    "type": "string",
+                    "example": "邮箱格式检查"
+                },
+                "rule_template_id": {
+                    "type": "string",
+                    "example": "uuid-rule-123"
+                },
+                "runtime_config": {
+                    "$ref": "#/definitions/governance.RuntimeConfig"
+                },
+                "threshold": {
+                    "$ref": "#/definitions/governance.ThresholdConfig"
+                }
+            }
+        },
         "governance.MaskingRuleListResponse": {
             "type": "object",
             "properties": {
@@ -14205,6 +14461,157 @@ const docTemplate = `{
                 "updated_by": {
                     "type": "string",
                     "example": "admin"
+                }
+            }
+        },
+        "governance.NotificationConfigRequest": {
+            "type": "object",
+            "properties": {
+                "channels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"email\"",
+                        "\"webhook\"]"
+                    ]
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "notify_on_failure": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "notify_on_success": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "recipients": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"admin@example.com\"]"
+                    ]
+                }
+            }
+        },
+        "governance.NotificationConfigResponse": {
+            "type": "object",
+            "properties": {
+                "channels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"email\"]"
+                    ]
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "notify_on_failure": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "notify_on_success": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "recipients": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"admin@example.com\"]"
+                    ]
+                }
+            }
+        },
+        "governance.QualityIssueRecordListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/governance.QualityIssueRecordResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "governance.QualityIssueRecordResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "execution_id": {
+                    "type": "string",
+                    "example": "uuid-456"
+                },
+                "expected_value": {
+                    "type": "string",
+                    "example": "valid email format"
+                },
+                "field_name": {
+                    "type": "string",
+                    "example": "email"
+                },
+                "field_value": {
+                    "type": "string",
+                    "example": "invalid-email"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "uuid-123"
+                },
+                "issue_description": {
+                    "type": "string",
+                    "example": "邮箱格式不正确"
+                },
+                "issue_type": {
+                    "type": "string",
+                    "example": "format_invalid"
+                },
+                "record_identifier": {
+                    "type": "string",
+                    "example": "id=123"
+                },
+                "rule_template_id": {
+                    "type": "string",
+                    "example": "uuid-rule-123"
+                },
+                "rule_template_name": {
+                    "type": "string",
+                    "example": "邮箱格式检查"
+                },
+                "severity": {
+                    "type": "string",
+                    "example": "high"
+                },
+                "task_id": {
+                    "type": "string",
+                    "example": "uuid-789"
                 }
             }
         },
@@ -14509,6 +14916,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "uuid-123"
                 },
+                "issue_count": {
+                    "type": "integer",
+                    "example": 2
+                },
                 "overall_score": {
                     "type": "number",
                     "example": 0.8
@@ -14589,9 +15000,19 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 1
                 },
+                "field_rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/governance.FieldRuleResponse"
+                    }
+                },
                 "id": {
                     "type": "string",
                     "example": "uuid-123"
+                },
+                "interface_id": {
+                    "type": "string",
+                    "example": "uuid-interface-123"
                 },
                 "is_enabled": {
                     "type": "boolean",
@@ -14600,6 +15021,14 @@ const docTemplate = `{
                 "last_executed": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
+                },
+                "library_id": {
+                    "type": "string",
+                    "example": "uuid-lib-123"
+                },
+                "library_type": {
+                    "type": "string",
+                    "example": "thematic"
                 },
                 "name": {
                     "type": "string",
@@ -14610,23 +15039,14 @@ const docTemplate = `{
                     "example": "2024-01-02T00:00:00Z"
                 },
                 "notification_config": {
-                    "type": "object"
+                    "$ref": "#/definitions/governance.NotificationConfigResponse"
                 },
                 "priority": {
                     "type": "integer",
                     "example": 50
                 },
-                "quality_rule_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "[\"uuid-789\"]"
-                    ]
-                },
                 "schedule_config": {
-                    "type": "object"
+                    "$ref": "#/definitions/governance.ScheduleConfigResponse"
                 },
                 "status": {
                     "type": "string",
@@ -14636,17 +15056,13 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 4
                 },
-                "target_object_id": {
+                "target_schema": {
                     "type": "string",
-                    "example": "uuid-456"
+                    "example": "public"
                 },
-                "target_object_type": {
+                "target_table": {
                     "type": "string",
-                    "example": "interface"
-                },
-                "task_type": {
-                    "type": "string",
-                    "example": "scheduled"
+                    "example": "users"
                 },
                 "updated_at": {
                     "type": "string",
@@ -14729,6 +15145,78 @@ const docTemplate = `{
                         "thematic_interface"
                     ],
                     "example": "interface"
+                }
+            }
+        },
+        "governance.RuntimeConfig": {
+            "type": "object",
+            "properties": {
+                "case_sensitive": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "check_nullable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "custom_params": {
+                    "description": "自定义参数",
+                    "type": "object"
+                },
+                "trim_whitespace": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "governance.ScheduleConfigRequest": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "cron_expr": {
+                    "type": "string",
+                    "example": "0 0 * * *"
+                },
+                "interval": {
+                    "type": "integer",
+                    "example": 3600
+                },
+                "start_time": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "cron",
+                        "interval",
+                        "once",
+                        "manual"
+                    ],
+                    "example": "cron"
+                }
+            }
+        },
+        "governance.ScheduleConfigResponse": {
+            "type": "object",
+            "properties": {
+                "cron_expr": {
+                    "type": "string",
+                    "example": "0 0 * * *"
+                },
+                "interval": {
+                    "type": "integer",
+                    "example": 3600
+                },
+                "start_time": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "cron"
                 }
             }
         },
@@ -15193,6 +15681,45 @@ const docTemplate = `{
                 }
             }
         },
+        "governance.ThresholdConfig": {
+            "type": "object",
+            "properties": {
+                "allowed_values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"active\"",
+                        "\"inactive\"]"
+                    ]
+                },
+                "custom_threshold": {
+                    "description": "扩展阈值",
+                    "type": "object"
+                },
+                "max_length": {
+                    "type": "integer",
+                    "example": 255
+                },
+                "max_value": {
+                    "type": "number",
+                    "example": 100
+                },
+                "min_length": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "min_value": {
+                    "type": "number",
+                    "example": 0
+                },
+                "pattern": {
+                    "type": "string",
+                    "example": "^[a-zA-Z0-9]+$"
+                }
+            }
+        },
         "governance.UpdateCleansingRuleRequest": {
             "type": "object",
             "properties": {
@@ -15300,6 +15827,12 @@ const docTemplate = `{
                     "type": "string",
                     "example": "更新后的描述"
                 },
+                "field_rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/governance.FieldRuleConfig"
+                    }
+                },
                 "is_enabled": {
                     "type": "boolean",
                     "example": false
@@ -15309,23 +15842,14 @@ const docTemplate = `{
                     "example": "更新后的质量检测任务"
                 },
                 "notification_config": {
-                    "type": "object"
+                    "$ref": "#/definitions/governance.NotificationConfigRequest"
                 },
                 "priority": {
                     "type": "integer",
                     "example": 80
                 },
-                "quality_rule_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "[\"uuid-789\"]"
-                    ]
-                },
                 "schedule_config": {
-                    "type": "object"
+                    "$ref": "#/definitions/governance.ScheduleConfigRequest"
                 }
             }
         },

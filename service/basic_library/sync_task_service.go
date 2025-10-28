@@ -249,7 +249,7 @@ func (s *SyncTaskService) CreateSyncTask(ctx context.Context, req *CreateSyncTas
 
 	// 注意：草稿状态的任务不会自动添加到调度器
 	// 需要手动激活任务后才会加入调度
-	slog.Info("任务已创建 [任务ID: %s, 状态: %s, 触发类型: %s]", task.ID, task.Status, task.TriggerType)
+	slog.Info("任务已创建", "task_id", task.ID, "status", task.Status, "trigger_type", task.TriggerType)
 
 	return task, nil
 }
@@ -321,6 +321,7 @@ type UpdateSyncTaskRequest struct {
 	InterfaceConfigs []SyncTaskInterfaceConfig `json:"interface_configs,omitempty"`
 	UpdatedBy        string                    `json:"updated_by"`
 	TaskType         string                    `json:"task_type,omitempty"`
+	ScheduledTime    *time.Time                `json:"scheduled_time,omitempty"`
 }
 
 // GetSyncTaskListRequest 获取基础库同步任务列表请求
@@ -433,7 +434,7 @@ func (s *SyncTaskService) GetSyncTaskList(ctx context.Context, req *GetSyncTaskL
 	for i := range tasks {
 		if err := s.loadLibraryInfo(&tasks[i]); err != nil {
 			// 记录错误但不阻塞
-			slog.Error("加载库信息失败: %v\n", err.Error())
+			slog.Error("加载库信息失败", "error", err)
 		}
 	}
 
@@ -507,6 +508,9 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 	}
 	if req.TaskType != "" {
 		updates["task_type"] = req.TaskType
+	}
+	if req.ScheduledTime != nil {
+		updates["scheduled_time"] = req.ScheduledTime
 	}
 
 	// 更新任务基本信息
@@ -608,32 +612,33 @@ func (s *SyncTaskService) UpdateSyncTask(ctx context.Context, taskID string, req
 
 	// 处理状态变化（激活/暂停）
 	if statusChanged {
-		slog.Info("任务状态变化: %s -> %s [任务ID: %s]", oldStatus, newStatus, taskID)
+		slog.Info("任务状态变化", "task_id", taskID, "old_status", oldStatus, "new_status", newStatus)
 
 		switch newStatus {
 		case meta.SyncTaskStatusActive:
 			// 激活任务：添加到调度器
 			if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
 				if err := s.AddScheduledTask(&task); err != nil {
-					slog.Error("添加任务到调度器失败 [%s]: %v", taskID, err.Error())
+					slog.Error("添加任务到调度器失败", "task_id", taskID, "error", err)
 				} else {
-					slog.Info("任务已激活并添加到调度器 [任务ID: %s]", taskID)
+					slog.Info("任务已激活并添加到调度器", "task_id", taskID)
 				}
 			}
 		case meta.SyncTaskStatusPaused:
 			// 暂停任务：从调度器移除
 			if err := s.RemoveScheduledTask(taskID); err != nil {
-				slog.Error("从调度器移除任务失败 [%s]: %v", taskID, err.Error())
+				slog.Error("从调度器移除任务失败", "task_id", taskID, "error", err)
 			} else {
-				slog.Info("任务已暂停并从调度器移除 [任务ID: %s]", taskID)
+				slog.Info("任务已暂停并从调度器移除", "task_id", taskID)
 			}
 		}
 	} else if scheduleChanged {
 		// 如果只是修改了调度配置（未改变状态），重新加载调度器
+		slog.Info("任务调度配置已更新，准备重新加载调度器", "task_id", taskID)
 		if err := s.ReloadScheduledTasks(); err != nil {
-			slog.Error("重新加载调度器失败: %v", err.Error())
+			slog.Error("重新加载调度器失败", "error", err)
 		} else {
-			slog.Info("调度配置已更新，调度器已重新加载 [任务ID: %s]", taskID)
+			slog.Info("调度配置已更新，调度器已重新加载", "task_id", taskID)
 		}
 	}
 
@@ -775,7 +780,7 @@ func (s *SyncTaskService) executeTaskWithInterfaces(ctx context.Context, task *m
 		}
 
 		totalProcessed += response.UpdatedRows
-		slog.Debug("接口 %s 执行成功，更新行数", "count", taskInterface.InterfaceID, response.UpdatedRows)
+		slog.Debug("接口执行成功", "interface_id", taskInterface.InterfaceID, "updated_rows", response.UpdatedRows)
 	}
 
 	// 更新任务执行状态
@@ -904,14 +909,14 @@ func (s *SyncTaskService) CancelSyncTask(ctx context.Context, taskID string) err
 	// 如果任务正在运行，需要调用同步引擎取消当前执行
 	if task.ExecutionStatus == meta.SyncExecutionStatusRunning {
 		// 注意：这里需要调用同步引擎取消任务
-		slog.Info("停止运行中的任务: %s\n", taskID)
+		slog.Info("停止运行中的任务", "task_id", taskID)
 		// 更新执行状态
 		s.updateTaskExecutionStatus(taskID, meta.SyncExecutionStatusFailed, "任务被暂停")
 	}
 
 	// 从调度器中移除任务
 	if err := s.RemoveScheduledTask(taskID); err != nil {
-		slog.Error("从调度器移除任务失败 [%s]: %v", taskID, err.Error())
+		slog.Error("从调度器移除任务失败", "task_id", taskID, "error", err)
 	}
 
 	return nil
@@ -1189,25 +1194,48 @@ func (s *SyncTaskService) UpdateSyncTaskExecution(ctx context.Context, execution
 
 // calculateNextRunTime 计算下次执行时间
 func (s *SyncTaskService) calculateNextRunTime(task *models.SyncTask) error {
+	slog.Debug("计算下次执行时间", "task_id", task.ID, "trigger_type", task.TriggerType, "interval_seconds", task.IntervalSeconds, "cron_expression", task.CronExpression)
+
 	switch task.TriggerType {
 	case meta.SyncTaskTriggerManual:
 		// 手动执行，不设置下次执行时间
 		task.NextRunTime = nil
+		slog.Debug("手动任务，不设置下次执行时间", "task_id", task.ID)
+
 	case meta.SyncTaskTriggerOnce:
 		// 单次执行，使用计划执行时间
 		task.NextRunTime = task.ScheduledTime
+		slog.Debug("单次任务", "task_id", task.ID, "scheduled_time", task.ScheduledTime)
+
 	case meta.SyncTaskTriggerInterval:
 		// 间隔执行，设置为当前时间加上间隔
 		if task.IntervalSeconds > 0 {
 			nextTime := time.Now().Add(time.Duration(task.IntervalSeconds) * time.Second)
 			task.NextRunTime = &nextTime
+			slog.Debug("间隔任务", "task_id", task.ID, "interval_seconds", task.IntervalSeconds, "next_run_time", nextTime.Format("2006-01-02 15:04:05"))
+		} else {
+			slog.Warn("间隔任务的间隔时间无效", "task_id", task.ID, "interval_seconds", task.IntervalSeconds)
+			return fmt.Errorf("间隔任务的间隔时间必须大于0")
 		}
+
 	case meta.SyncTaskTriggerCron:
-		// Cron表达式执行，需要解析Cron表达式计算下次执行时间
-		// 这里可以使用第三方库如 github.com/robfig/cron/v3 来解析
-		// 暂时简化处理，设置为1小时后
-		nextTime := time.Now().Add(time.Hour)
+		// Cron表达式执行，使用cron库解析表达式计算下次执行时间
+		if task.CronExpression == "" {
+			slog.Warn("Cron任务缺少表达式", "task_id", task.ID)
+			return fmt.Errorf("Cron任务缺少表达式")
+		}
+
+		// 解析Cron表达式 - 使用支持秒的解析器（6个字段：秒 分 时 日 月 周）
+		parser := cron.NewParser(cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+		schedule, err := parser.Parse(task.CronExpression)
+		if err != nil {
+			slog.Error("解析Cron表达式失败", "task_id", task.ID, "cron_expression", task.CronExpression, "error", err)
+			return fmt.Errorf("解析Cron表达式失败: %w", err)
+		}
+
+		nextTime := schedule.Next(time.Now())
 		task.NextRunTime = &nextTime
+		slog.Debug("Cron任务", "task_id", task.ID, "cron_expression", task.CronExpression, "next_run_time", nextTime.Format("2006-01-02 15:04:05"))
 	}
 
 	return nil
@@ -1297,9 +1325,9 @@ func (s *SyncTaskService) ActivateSyncTask(ctx context.Context, taskID string) e
 	if task.TriggerType == "cron" || task.TriggerType == "interval" || task.TriggerType == "once" {
 		task.Status = meta.SyncTaskStatusActive
 		if err := s.AddScheduledTask(&task); err != nil {
-			slog.Error("添加任务到调度器失败 [%s]: %v", taskID, err.Error())
+			slog.Error("添加任务到调度器失败", "task_id", taskID, "error", err)
 		} else {
-			slog.Info("任务已激活并添加到调度器 [任务ID: %s, 触发类型: %s]", taskID, task.TriggerType)
+			slog.Info("任务已激活并添加到调度器", "task_id", taskID, "trigger_type", task.TriggerType)
 		}
 	}
 
@@ -1341,7 +1369,7 @@ func (s *SyncTaskService) StartScheduler() error {
 
 	// 加载现有的调度任务
 	if err := s.loadScheduledTasks(); err != nil {
-		slog.Error("加载调度任务失败: %v", err.Error())
+		slog.Error("加载调度任务失败", "error", err)
 		return err
 	}
 
@@ -1374,59 +1402,96 @@ func (s *SyncTaskService) StopScheduler() {
 
 // loadScheduledTasks 加载调度任务
 func (s *SyncTaskService) loadScheduledTasks() error {
+	slog.Info("开始加载调度任务")
+
 	// 获取所有待执行的调度任务
 	tasks, err := s.GetScheduledTasks(s.ctx)
 	if err != nil {
+		slog.Error("获取调度任务失败", "error", err)
 		return fmt.Errorf("获取调度任务失败: %w", err)
 	}
 
+	slog.Info("找到调度任务", "count", len(tasks))
+
+	successCount := 0
+	failedCount := 0
 	for _, task := range tasks {
+		slog.Debug("加载任务", "task_id", task.ID, "trigger_type", task.TriggerType, "status", task.Status)
+
 		if err := s.addTaskToScheduler(&task); err != nil {
-			slog.Error("添加任务到调度器失败 [%s]: %v", task.ID, err.Error())
+			slog.Error("添加任务到调度器失败", "task_id", task.ID, "error", err)
+			failedCount++
+		} else {
+			successCount++
 		}
 	}
 
-	slog.Info("加载了 %d 个调度任务", len(tasks))
+	slog.Info("调度任务加载完成", "total", len(tasks), "success", successCount, "failed", failedCount)
 	return nil
 }
 
 // addTaskToScheduler 添加任务到调度器
 func (s *SyncTaskService) addTaskToScheduler(task *models.SyncTask) error {
+	slog.Info("开始添加任务到调度器", "task_id", task.ID, "trigger_type", task.TriggerType, "cron_expression", task.CronExpression, "interval_seconds", task.IntervalSeconds)
+
 	switch task.TriggerType {
 	case "cron":
 		if task.CronExpression == "" {
 			return fmt.Errorf("Cron任务缺少表达式")
 		}
 
+		// 验证并添加Cron任务
+		// cron.New(cron.WithSeconds()) 需要6个字段：秒 分 时 日 月 周
+		taskID := task.ID // 捕获任务ID避免闭包问题
 		_, err := s.cron.AddFunc(task.CronExpression, func() {
-			s.executeScheduledTask(task.ID)
+			s.executeScheduledTask(taskID)
 		})
 		if err != nil {
+			slog.Error("添加Cron任务失败", "task_id", task.ID, "cron_expression", task.CronExpression, "error", err, "help", "Cron表达式需要6个字段（秒 分 时 日 月 周），例如：0 */5 * * * *（每5分钟）")
 			return fmt.Errorf("添加Cron任务失败: %w", err)
 		}
 
-		slog.Info("添加Cron任务: %s [%s]", task.ID, task.CronExpression)
+		slog.Info("添加Cron任务成功", "task_id", task.ID, "cron_expression", task.CronExpression)
 
 	case "once":
 		if task.ScheduledTime != nil && task.ScheduledTime.After(time.Now()) {
+			// 捕获任务ID和执行时间，避免闭包问题
+			taskID := task.ID
+			scheduledTime := *task.ScheduledTime
+			waitDuration := time.Until(scheduledTime)
+
 			go func() {
-				timer := time.NewTimer(time.Until(*task.ScheduledTime))
+				timer := time.NewTimer(waitDuration)
 				defer timer.Stop()
+
+				slog.Info("单次任务等待执行", "task_id", taskID, "scheduled_time", scheduledTime.Format("2006-01-02 15:04:05"), "wait_duration", waitDuration)
 
 				select {
 				case <-timer.C:
-					s.executeScheduledTask(task.ID)
+					slog.Info("单次任务时间到，开始执行", "task_id", taskID)
+					s.executeScheduledTask(taskID)
 				case <-s.ctx.Done():
+					slog.Warn("单次任务被取消（调度器关闭）", "task_id", taskID)
 					return
 				}
 			}()
 
-			slog.Info("添加单次任务: %s [%s]", task.ID, task.ScheduledTime.Format("2006-01-02 15:04:05"))
+			slog.Info("添加单次任务成功", "task_id", task.ID, "scheduled_time", task.ScheduledTime.Format("2006-01-02 15:04:05"), "wait_duration", waitDuration)
+		} else {
+			if task.ScheduledTime == nil {
+				slog.Warn("单次任务缺少执行时间", "task_id", task.ID)
+			} else {
+				slog.Warn("单次任务的执行时间已过期", "task_id", task.ID, "scheduled_time", task.ScheduledTime.Format("2006-01-02 15:04:05"), "now", time.Now().Format("2006-01-02 15:04:05"))
+			}
 		}
 
 	case "interval":
 		// 间隔任务由intervalChecker处理
-		slog.Info("添加间隔任务: %s [%d秒]", task.ID, task.IntervalSeconds)
+		if task.IntervalSeconds <= 0 {
+			slog.Warn("间隔任务的间隔时间无效", "task_id", task.ID, "interval_seconds", task.IntervalSeconds)
+			return fmt.Errorf("间隔任务的间隔时间必须大于0")
+		}
+		slog.Info("添加间隔任务成功", "task_id", task.ID, "interval_seconds", task.IntervalSeconds)
 	}
 
 	return nil
@@ -1446,14 +1511,21 @@ func (s *SyncTaskService) runIntervalChecker() {
 
 // checkIntervalTasks 检查间隔任务
 func (s *SyncTaskService) checkIntervalTasks() {
+	slog.Debug("开始检查间隔任务", "timestamp", time.Now().Format("2006-01-02 15:04:05"))
+
 	tasks, err := s.getShouldExecuteNowTasks(s.ctx)
 	if err != nil {
-		slog.Error("获取间隔任务失败: %v", err.Error())
+		slog.Error("获取间隔任务失败", "error", err)
 		return
 	}
 
+	slog.Debug("找到待检查的任务", "count", len(tasks))
+
 	for _, task := range tasks {
+		slog.Debug("检查任务", "task_id", task.ID, "trigger_type", task.TriggerType, "next_run_time", task.NextRunTime, "should_execute", task.ShouldExecuteNow())
+
 		if task.TriggerType == "interval" && task.ShouldExecuteNow() {
+			slog.Info("间隔任务达到执行时间，准备执行", "task_id", task.ID, "next_run_time", task.NextRunTime)
 			go s.executeScheduledTask(task.ID)
 		}
 	}
@@ -1461,7 +1533,7 @@ func (s *SyncTaskService) checkIntervalTasks() {
 
 // executeScheduledTask 执行调度任务（带分布式锁）
 func (s *SyncTaskService) executeScheduledTask(taskID string) {
-	slog.Info("执行调度任务: %s", taskID)
+	slog.Info("执行调度任务", "task_id", taskID)
 
 	// 如果有分布式锁，使用锁保护执行
 	if s.distributedLock != nil {
@@ -1471,19 +1543,19 @@ func (s *SyncTaskService) executeScheduledTask(taskID string) {
 		// 尝试获取锁
 		locked, err := s.distributedLock.TryLock(s.ctx, lockKey, lockTTL)
 		if err != nil {
-			slog.Error("获取分布式锁失败 [%s]: %v", taskID, err.Error())
+			slog.Error("获取分布式锁失败", "task_id", taskID, "error", err)
 			return
 		}
 
 		if !locked {
-			slog.Error("任务正在其他实例执行，跳过 [%s]", taskID)
+			slog.Warn("任务正在其他实例执行，跳过", "task_id", taskID)
 			return
 		}
 
 		// 确保执行完毕后释放锁
 		defer func() {
 			if unlockErr := s.distributedLock.Unlock(s.ctx, lockKey); unlockErr != nil {
-				slog.Error("释放分布式锁失败 [%s]: %v", taskID, unlockErr.Error())
+				slog.Error("释放分布式锁失败", "task_id", taskID, "error", unlockErr)
 			}
 		}()
 	}
@@ -1491,23 +1563,28 @@ func (s *SyncTaskService) executeScheduledTask(taskID string) {
 	// 获取任务详情
 	task, err := s.GetSyncTaskByID(s.ctx, taskID)
 	if err != nil {
-		slog.Error("获取任务失败 [%s]: %v", taskID, err.Error())
+		slog.Error("获取任务失败", "task_id", taskID, "error", err)
 		return
 	}
 
 	// 检查任务是否可以执行
 	if !task.CanStart() {
-		slog.Error("任务不能执行 [%s]: 状态=%s", taskID, task.Status)
+		slog.Warn("任务不能执行", "task_id", taskID, "status", task.Status, "execution_status", task.ExecutionStatus)
 		return
 	}
 
 	// 直接调用启动任务方法
 	if err := s.StartSyncTask(s.ctx, taskID); err != nil {
-		slog.Error("启动调度任务失败 [%s]: %v", taskID, err.Error())
+		slog.Error("启动调度任务失败", "task_id", taskID, "error", err)
 		return
 	}
 
-	slog.Info("调度任务已启动 [%s]", taskID)
+	// 更新下次执行时间
+	if err := s.UpdateTaskNextRunTime(s.ctx, taskID); err != nil {
+		slog.Error("更新下次执行时间失败", "task_id", taskID, "error", err)
+	}
+
+	slog.Info("调度任务已启动", "task_id", taskID)
 }
 
 // AddScheduledTask 添加调度任务

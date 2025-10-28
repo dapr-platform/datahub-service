@@ -278,30 +278,65 @@ func (q *QualityIssueTracker) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+// ScheduleType 调度类型
+type ScheduleType string
+
+const (
+	ScheduleTypeCron     ScheduleType = "cron"     // cron表达式
+	ScheduleTypeInterval ScheduleType = "interval" // 间隔执行
+	ScheduleTypeOnce     ScheduleType = "once"     // 一次性执行
+	ScheduleTypeManual   ScheduleType = "manual"   // 手动执行
+)
+
+// ScheduleConfig 调度配置结构体
+type ScheduleConfig struct {
+	Type      string     `json:"type"`       // cron, interval, once, manual
+	CronExpr  string     `json:"cron_expr"`  // cron表达式 (当type=cron时)
+	Interval  int64      `json:"interval"`   // 间隔秒数 (当type=interval时)
+	StartTime *time.Time `json:"start_time"` // 开始时间 (当type=once时)
+}
+
+// NotificationConfig 通知配置结构体
+type NotificationConfig struct {
+	Enabled         bool     `json:"enabled"`
+	NotifyOnSuccess bool     `json:"notify_on_success"`
+	NotifyOnFailure bool     `json:"notify_on_failure"`
+	Recipients      []string `json:"recipients"`
+	Channels        []string `json:"channels"` // email, webhook等
+}
+
 // QualityTask 质量检测任务模型
 type QualityTask struct {
-	ID                 string           `gorm:"type:varchar(50);primaryKey" json:"id"`
-	Name               string           `gorm:"type:varchar(100);not null" json:"name"`
-	Description        string           `gorm:"type:text" json:"description"`
-	TaskType           string           `gorm:"type:varchar(30);not null" json:"task_type"` // scheduled, manual, realtime
-	TargetObjectID     string           `gorm:"type:varchar(50);not null" json:"target_object_id"`
-	TargetObjectType   string           `gorm:"type:varchar(30);not null" json:"target_object_type"` // interface, thematic_interface, table
-	QualityRuleIDs     JSONBStringArray `gorm:"type:jsonb" json:"quality_rule_ids"`                  // 关联的质量规则ID列表
-	ScheduleConfig     JSONB            `gorm:"type:jsonb" json:"schedule_config"`                   // 调度配置
-	NotificationConfig JSONB            `gorm:"type:jsonb" json:"notification_config"`               // 通知配置
-	Status             string           `gorm:"type:varchar(20);default:'pending'" json:"status"`    // pending, running, completed, failed, cancelled
-	Priority           int              `gorm:"default:50" json:"priority"`                          // 优先级 (1-100)
-	IsEnabled          bool             `gorm:"default:true" json:"is_enabled"`
-	LastExecuted       *time.Time       `json:"last_executed,omitempty"`
-	NextExecution      *time.Time       `json:"next_execution,omitempty"`
-	ExecutionCount     int64            `gorm:"default:0" json:"execution_count"`
-	SuccessCount       int64            `gorm:"default:0" json:"success_count"`
-	FailureCount       int64            `gorm:"default:0" json:"failure_count"`
-	CreatedBy          string           `gorm:"type:varchar(50)" json:"created_by"`
-	UpdatedBy          string           `gorm:"type:varchar(50)" json:"updated_by"`
-	CreatedAt          time.Time        `json:"created_at"`
-	UpdatedAt          time.Time        `json:"updated_at"`
-	DeletedAt          time.Time        `gorm:"index" json:"deleted_at,omitempty"`
+	ID              string     `gorm:"type:varchar(50);primaryKey" json:"id"`
+	Name            string     `gorm:"type:varchar(100);not null" json:"name"`
+	Description     string     `gorm:"type:text" json:"description"`
+	LibraryType     string     `gorm:"type:varchar(30);not null;index" json:"library_type"` // thematic(主题库), basic(基础库)
+	LibraryID       string     `gorm:"type:varchar(50);not null;index" json:"library_id"`   // 库ID
+	InterfaceID     string     `gorm:"type:varchar(50);not null;index" json:"interface_id"` // 接口ID
+	TargetSchema    string     `gorm:"type:varchar(100)" json:"target_schema"`              // 目标schema
+	TargetTable     string     `gorm:"type:varchar(100)" json:"target_table"`               // 目标表名
+	ScheduleType    string     `gorm:"type:varchar(20);not null" json:"schedule_type"`      // cron, interval, once, manual
+	CronExpression  string     `gorm:"type:varchar(100)" json:"cron_expression"`            // cron表达式
+	IntervalSeconds int64      `gorm:"default:0" json:"interval_seconds"`                   // 间隔秒数
+	ScheduledTime   *time.Time `json:"scheduled_time"`                                      // 计划执行时间(once类型)
+	NotifyEnabled   bool       `gorm:"default:false" json:"notify_enabled"`
+	NotifyOnSuccess bool       `gorm:"default:false" json:"notify_on_success"`
+	NotifyOnFailure bool       `gorm:"default:true" json:"notify_on_failure"`
+	Recipients      JSONB      `gorm:"type:jsonb" json:"recipients"`                     // 通知接收人列表
+	NotifyChannels  JSONB      `gorm:"type:jsonb" json:"notify_channels"`                // 通知渠道
+	Status          string     `gorm:"type:varchar(30);default:'pending'" json:"status"` // pending, running, completed, failed, completed_with_issues
+	Priority        int        `gorm:"default:50" json:"priority"`                       // 优先级 (1-100)
+	IsEnabled       bool       `gorm:"default:true" json:"is_enabled"`
+	LastExecuted    *time.Time `json:"last_executed,omitempty"`
+	NextExecution   *time.Time `json:"next_execution,omitempty"`
+	ExecutionCount  int64      `gorm:"default:0" json:"execution_count"`
+	SuccessCount    int64      `gorm:"default:0" json:"success_count"`
+	FailureCount    int64      `gorm:"default:0" json:"failure_count"`
+	CreatedBy       string     `gorm:"type:varchar(50)" json:"created_by"`
+	UpdatedBy       string     `gorm:"type:varchar(50)" json:"updated_by"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+	DeletedAt       time.Time  `gorm:"index" json:"deleted_at,omitempty"`
 }
 
 // TableName 指定表名
@@ -339,11 +374,12 @@ type QualityTaskExecution struct {
 	StartTime          time.Time  `json:"start_time"`
 	EndTime            *time.Time `json:"end_time,omitempty"`
 	Duration           int64      `json:"duration"`                                // 执行时长，毫秒
-	Status             string     `gorm:"type:varchar(20);not null" json:"status"` // running, completed, failed, cancelled
+	Status             string     `gorm:"type:varchar(30);not null" json:"status"` // running, completed, failed, cancelled, completed_with_issues
 	TotalRulesExecuted int        `json:"total_rules_executed"`
 	PassedRules        int        `json:"passed_rules"`
 	FailedRules        int        `json:"failed_rules"`
 	OverallScore       float64    `json:"overall_score"`                       // 总体质量评分 (0-1)
+	IssueCount         int64      `json:"issue_count"`                         // 问题记录数量
 	ExecutionResults   JSONB      `gorm:"type:jsonb" json:"execution_results"` // 执行结果详情
 	ErrorMessage       string     `gorm:"type:text" json:"error_message,omitempty"`
 	TriggerSource      string     `gorm:"type:varchar(50)" json:"trigger_source"` // 触发来源
@@ -419,5 +455,73 @@ func (d *DataLineage) BeforeUpdate(tx *gorm.DB) error {
 	if d.UpdatedBy == "" {
 		d.UpdatedBy = "system"
 	}
+	return nil
+}
+
+// QualityTaskFieldRule 质量检测任务字段规则配置模型
+type QualityTaskFieldRule struct {
+	ID             string    `gorm:"type:varchar(50);primaryKey" json:"id"`
+	TaskID         string    `gorm:"type:varchar(50);not null;index" json:"task_id"`    // 关联任务ID
+	FieldName      string    `gorm:"type:varchar(100);not null" json:"field_name"`      // 字段名称
+	RuleTemplateID string    `gorm:"type:varchar(50);not null" json:"rule_template_id"` // 规则模板ID
+	RuntimeConfig  JSONB     `gorm:"type:jsonb" json:"runtime_config"`                  // 运行时配置
+	Threshold      JSONB     `gorm:"type:jsonb" json:"threshold"`                       // 阈值配置
+	IsEnabled      bool      `gorm:"default:true" json:"is_enabled"`
+	Priority       int       `gorm:"default:50" json:"priority"` // 规则执行优先级
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	DeletedAt      time.Time `gorm:"index" json:"deleted_at,omitempty"`
+}
+
+// TableName 指定表名
+func (QualityTaskFieldRule) TableName() string {
+	return "quality_task_field_rules"
+}
+
+// BeforeCreate 创建前钩子
+func (q *QualityTaskFieldRule) BeforeCreate(tx *gorm.DB) error {
+	if q.ID == "" {
+		q.ID = uuid.New().String()
+	}
+	return nil
+}
+
+// BeforeUpdate 更新前钩子
+func (q *QualityTaskFieldRule) BeforeUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// QualityIssueRecord 质量问题数据记录模型
+type QualityIssueRecord struct {
+	ID               string    `gorm:"type:varchar(50);primaryKey" json:"id"`
+	ExecutionID      string    `gorm:"type:varchar(50);not null;index" json:"execution_id"` // 关联执行记录ID
+	TaskID           string    `gorm:"type:varchar(50);not null;index" json:"task_id"`      // 关联任务ID
+	FieldName        string    `gorm:"type:varchar(100);not null;index" json:"field_name"`  // 问题字段名
+	RuleTemplateID   string    `gorm:"type:varchar(50);not null" json:"rule_template_id"`   // 触发的规则ID
+	RecordIdentifier string    `gorm:"type:text;not null" json:"record_identifier"`         // 问题数据的主键/唯一标识
+	IssueType        string    `gorm:"type:varchar(50);not null" json:"issue_type"`         // 问题类型
+	IssueDescription string    `gorm:"type:text;not null" json:"issue_description"`         // 问题描述
+	FieldValue       string    `gorm:"type:text" json:"field_value"`                        // 问题字段值
+	ExpectedValue    string    `gorm:"type:text" json:"expected_value"`                     // 期望值
+	Severity         string    `gorm:"type:varchar(20);not null;index" json:"severity"`     // 严重程度: low, medium, high, critical
+	CreatedAt        time.Time `json:"created_at"`
+	DeletedAt        time.Time `gorm:"index" json:"deleted_at,omitempty"`
+}
+
+// TableName 指定表名
+func (QualityIssueRecord) TableName() string {
+	return "quality_issue_records"
+}
+
+// BeforeCreate 创建前钩子
+func (q *QualityIssueRecord) BeforeCreate(tx *gorm.DB) error {
+	if q.ID == "" {
+		q.ID = uuid.New().String()
+	}
+	return nil
+}
+
+// BeforeUpdate 更新前钩子
+func (q *QualityIssueRecord) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }

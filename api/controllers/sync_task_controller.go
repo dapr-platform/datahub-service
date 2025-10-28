@@ -348,6 +348,16 @@ func (c *SyncTaskController) UpdateSyncTask(w http.ResponseWriter, r *http.Reque
 			})
 		}
 	}
+	// 解析计划执行时间
+	var scheduledTime *time.Time
+	if req.ScheduledTime != nil && *req.ScheduledTime != "" {
+		if parsedTime, err := time.Parse(time.RFC3339, *req.ScheduledTime); err != nil {
+			render.JSON(w, r, BadRequestResponse("无效的计划执行时间格式", err))
+			return
+		} else {
+			scheduledTime = &parsedTime
+		}
+	}
 
 	// 创建更新请求
 	updateReq := &basic_library.UpdateSyncTaskRequest{
@@ -360,6 +370,7 @@ func (c *SyncTaskController) UpdateSyncTask(w http.ResponseWriter, r *http.Reque
 		InterfaceConfigs: interfaceConfigs,
 		UpdatedBy:        req.UpdatedBy,
 		TaskType:         req.TaskType,
+		ScheduledTime:    scheduledTime,
 	}
 
 	task, err := c.syncTaskService.UpdateSyncTask(r.Context(), taskID, updateReq)

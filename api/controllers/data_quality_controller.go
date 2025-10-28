@@ -1142,7 +1142,9 @@ func (c *DataQualityController) CreateQualityTask(w http.ResponseWriter, r *http
 // @Param page query int false "页码" default(1)
 // @Param size query int false "每页数量" default(10)
 // @Param status query string false "任务状态" Enums(pending,running,completed,failed,cancelled)
-// @Param task_type query string false "任务类型" Enums(scheduled,manual,realtime)
+// @Param library_type query string false "库类型" Enums(thematic,basic)
+// @Param library_id query string false "库ID"
+// @Param interface_id query string false "接口ID"
 // @Success 200 {object} APIResponse{data=governance.QualityTaskListResponse} "获取成功"
 // @Failure 500 {object} APIResponse "服务器内部错误"
 // @Router /data-quality/tasks [get]
@@ -1157,9 +1159,11 @@ func (c *DataQualityController) GetQualityTasks(w http.ResponseWriter, r *http.R
 	}
 
 	status := r.URL.Query().Get("status")
-	taskType := r.URL.Query().Get("task_type")
+	libraryType := r.URL.Query().Get("library_type")
+	libraryID := r.URL.Query().Get("library_id")
+	interfaceID := r.URL.Query().Get("interface_id")
 
-	tasks, total, err := c.governanceService.GetQualityTasks(page, size, status, taskType)
+	tasks, total, err := c.governanceService.GetQualityTasks(page, size, status, libraryType, libraryID, interfaceID)
 	if err != nil {
 		render.JSON(w, r, InternalErrorResponse("获取数据质量检测任务列表失败", err))
 		return
@@ -1846,4 +1850,98 @@ func (c *DataQualityController) TestRulePreview(w http.ResponseWriter, r *http.R
 	}
 
 	render.JSON(w, r, SuccessResponse("预览规则执行效果成功", result))
+}
+
+// === 质量问题记录管理 ===
+
+// GetQualityIssueRecords 获取质量问题记录列表
+// @Summary 获取质量问题记录列表
+// @Description 根据任务ID、执行ID等条件查询质量问题记录列表
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param task_id query string false "任务ID"
+// @Param execution_id query string false "执行ID"
+// @Param field_name query string false "字段名"
+// @Param severity query string false "严重程度" Enums(low,medium,high,critical)
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页数量" default(10)
+// @Success 200 {object} APIResponse{data=governance.QualityIssueRecordListResponse} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/issue-records [get]
+func (c *DataQualityController) GetQualityIssueRecords(w http.ResponseWriter, r *http.Request) {
+	taskID := r.URL.Query().Get("task_id")
+	executionID := r.URL.Query().Get("execution_id")
+	fieldName := r.URL.Query().Get("field_name")
+	severity := r.URL.Query().Get("severity")
+
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
+	if size <= 0 {
+		size = 10
+	}
+
+	records, total, err := c.governanceService.GetQualityIssueRecords(taskID, executionID, page, size, fieldName, severity)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取质量问题记录列表失败", err))
+		return
+	}
+
+	response := governance.QualityIssueRecordListResponse{
+		List:  records,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取质量问题记录列表成功", response))
+}
+
+// GetTaskIssueRecords 获取指定任务的问题记录
+// @Summary 获取指定任务的问题记录
+// @Description 获取指定质量检测任务的所有问题记录
+// @Tags 数据质量
+// @Accept json
+// @Produce json
+// @Param id path string true "任务ID"
+// @Param execution_id query string false "执行ID"
+// @Param field_name query string false "字段名"
+// @Param severity query string false "严重程度" Enums(low,medium,high,critical)
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页数量" default(10)
+// @Success 200 {object} APIResponse{data=governance.QualityIssueRecordListResponse} "获取成功"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /data-quality/tasks/{id}/issue-records [get]
+func (c *DataQualityController) GetTaskIssueRecords(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "id")
+	executionID := r.URL.Query().Get("execution_id")
+	fieldName := r.URL.Query().Get("field_name")
+	severity := r.URL.Query().Get("severity")
+
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
+	if size <= 0 {
+		size = 10
+	}
+
+	records, total, err := c.governanceService.GetQualityIssueRecords(taskID, executionID, page, size, fieldName, severity)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取质量问题记录失败", err))
+		return
+	}
+
+	response := governance.QualityIssueRecordListResponse{
+		List:  records,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取质量问题记录成功", response))
 }
