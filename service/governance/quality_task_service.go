@@ -15,6 +15,7 @@ import (
 	"datahub-service/service/models"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -714,25 +715,80 @@ func (s *GovernanceService) checkFieldRule(rule *models.QualityTaskFieldRule, va
 		return false, "规则模板不存在"
 	}
 
-	// 基于规则检查类型执行不同的检查逻辑
-	// 简化实现：根据规则名称判断类型
-	ruleName := strings.ToLower(template.Name)
-	if strings.Contains(ruleName, "completeness") || strings.Contains(ruleName, "非空") || strings.Contains(ruleName, "完整") {
+	// 基于规则类型执行不同的检查逻辑
+	switch template.Type {
+	case "completeness":
 		return s.checkCompleteness(rule, value)
-	} else if strings.Contains(ruleName, "accuracy") || strings.Contains(ruleName, "格式") || strings.Contains(ruleName, "准确") {
-		return s.checkAccuracy(rule, value)
-	} else if strings.Contains(ruleName, "consistency") || strings.Contains(ruleName, "一致") {
+	case "accuracy":
+		return s.checkAccuracyRule(rule, &template, value)
+	case "consistency":
 		return s.checkConsistency(rule, value)
-	} else if strings.Contains(ruleName, "validity") || strings.Contains(ruleName, "有效") || strings.Contains(ruleName, "范围") {
-		return s.checkValidity(rule, value)
-	} else if strings.Contains(ruleName, "uniqueness") || strings.Contains(ruleName, "唯一") {
+	case "validity":
+		return s.checkValidityRule(rule, &template, value)
+	case "uniqueness":
 		return s.checkUniqueness(rule, value)
+	default:
+		// 兼容旧的基于名称的判断
+		ruleName := strings.ToLower(template.Name)
+		if strings.Contains(ruleName, "completeness") || strings.Contains(ruleName, "非空") || strings.Contains(ruleName, "完整") {
+			return s.checkCompleteness(rule, value)
+		} else if strings.Contains(ruleName, "accuracy") || strings.Contains(ruleName, "格式") || strings.Contains(ruleName, "准确") {
+			return s.checkAccuracyRule(rule, &template, value)
+		} else if strings.Contains(ruleName, "consistency") || strings.Contains(ruleName, "一致") {
+			return s.checkConsistency(rule, value)
+		} else if strings.Contains(ruleName, "validity") || strings.Contains(ruleName, "有效") || strings.Contains(ruleName, "范围") {
+			return s.checkValidityRule(rule, &template, value)
+		} else if strings.Contains(ruleName, "uniqueness") || strings.Contains(ruleName, "唯一") {
+			return s.checkUniqueness(rule, value)
+		}
 	}
 	return true, ""
 }
 
 // checkCompleteness 检查完整性（非空检查）
 func (s *GovernanceService) checkCompleteness(rule *models.QualityTaskFieldRule, value interface{}) (bool, string) {
+	// 检查是否需要检查null值（根据runtime_config）
+	checkNullable := true
+	if val, exists := rule.RuntimeConfig["check_nullable"]; exists {
+		if b, ok := val.(bool); ok {
+			checkNullable = b
+		}
+	}
+
+	// 检查null值
+	if value == nil {
+		if checkNullable {
+			return false, "字段值为空"
+		}
+		return true, "" // 不检查null，跳过
+	}
+
+	strValue := fmt.Sprintf("%v", value)
+	
+	// 检查是否需要trim空白字符
+	trimWhitespace := true
+	if val, exists := rule.RuntimeConfig["trim_whitespace"]; exists {
+		if b, ok := val.(bool); ok {
+			trimWhitespace = b
+		}
+	}
+	
+	if trimWhitespace {
+		strValue = strings.TrimSpace(strValue)
+	}
+	
+	if strValue == "" {
+		if checkNullable {
+			return false, "字段值为空字符串"
+		}
+		return true, "" // 不检查空字符串，跳过
+	}
+
+	return true, ""
+}
+
+// checkAccuracy 检查准确性（格式/模式检查）- 废弃，使用checkAccuracyRule
+func (s *GovernanceService) checkAccuracy(rule *models.QualityTaskFieldRule, value interface{}) (bool, string) {
 	if value == nil {
 		return false, "字段值为空"
 	}
@@ -742,21 +798,80 @@ func (s *GovernanceService) checkCompleteness(rule *models.QualityTaskFieldRule,
 		return false, "字段值为空字符串"
 	}
 
-	return true, ""
-}
-
-// checkAccuracy 检查准确性（格式/模式检查）
-func (s *GovernanceService) checkAccuracy(rule *models.QualityTaskFieldRule, value interface{}) (bool, string) {
-	if value == nil {
-		return true, "" // null值跳过
-	}
-
 	// 检查Pattern
 	if pattern, ok := rule.Threshold["pattern"].(string); ok && pattern != "" {
-		strValue := fmt.Sprintf("%v", value)
 		// 简单的模式匹配（实际应使用regexp）
 		if !strings.Contains(strValue, strings.TrimSuffix(strings.TrimPrefix(pattern, "%"), "%")) {
 			return false, fmt.Sprintf("不匹配模式: %s", pattern)
+		}
+	}
+
+	return true, ""
+}
+
+// checkAccuracyRule 检查准确性（使用模板和正则表达式）
+func (s *GovernanceService) checkAccuracyRule(rule *models.QualityTaskFieldRule, template *models.QualityRuleTemplate, value interface{}) (bool, string) {
+	// 检查是否需要检查null值（根据runtime_config）
+	checkNullable := true
+	if val, exists := rule.RuntimeConfig["check_nullable"]; exists {
+		if b, ok := val.(bool); ok {
+			checkNullable = b
+		}
+	}
+
+	// 检查null值
+	if value == nil {
+		if checkNullable {
+			return false, "字段值为空"
+		}
+		return true, "" // 不检查null，跳过
+	}
+
+	strValue := fmt.Sprintf("%v", value)
+	
+	// 检查是否需要trim空白字符
+	trimWhitespace := true
+	if val, exists := rule.RuntimeConfig["trim_whitespace"]; exists {
+		if b, ok := val.(bool); ok {
+			trimWhitespace = b
+		}
+	}
+	
+	if trimWhitespace {
+		strValue = strings.TrimSpace(strValue)
+	}
+	
+	if strValue == "" {
+		if checkNullable {
+			return false, "字段值为空字符串"
+		}
+		return true, "" // 不检查空字符串，跳过
+	}
+
+	// 从模板的RuleLogic中获取正则表达式
+	var regexPattern string
+	if pattern, ok := template.RuleLogic["regex_pattern"].(string); ok {
+		regexPattern = pattern
+	}
+
+	// 如果有正则表达式，进行匹配
+	if regexPattern != "" {
+		// 处理转义字符（JSON中的双反斜杠）
+		regexPattern = strings.ReplaceAll(regexPattern, "\\\\", "\\")
+		
+		matched, err := regexp.MatchString(regexPattern, strValue)
+		if err != nil {
+			return false, fmt.Sprintf("正则表达式错误: %v", err)
+		}
+		if !matched {
+			return false, fmt.Sprintf("格式不正确，不匹配模式: %s", regexPattern)
+		}
+	}
+
+	// 检查Threshold中的pattern（简单模式匹配）
+	if pattern, ok := rule.Threshold["pattern"].(string); ok && pattern != "" {
+		if !strings.Contains(strValue, strings.TrimSuffix(strings.TrimPrefix(pattern, "%"), "%")) {
+			return false, fmt.Sprintf("不包含必需的字符: %s", pattern)
 		}
 	}
 
@@ -787,10 +902,15 @@ func (s *GovernanceService) checkConsistency(rule *models.QualityTaskFieldRule, 
 	return true, ""
 }
 
-// checkValidity 检查有效性（范围检查）
+// checkValidity 检查有效性（范围检查）- 废弃，使用checkValidityRule
 func (s *GovernanceService) checkValidity(rule *models.QualityTaskFieldRule, value interface{}) (bool, string) {
 	if value == nil {
-		return true, ""
+		return false, "字段值为空"
+	}
+
+	strValue := fmt.Sprintf("%v", value)
+	if strings.TrimSpace(strValue) == "" {
+		return false, "字段值为空字符串"
 	}
 
 	// 数值范围检查
@@ -811,7 +931,6 @@ func (s *GovernanceService) checkValidity(rule *models.QualityTaskFieldRule, val
 	}
 
 	// 长度检查
-	strValue := fmt.Sprintf("%v", value)
 	if minLength, ok := rule.Threshold["min_length"].(float64); ok {
 		if len(strValue) < int(minLength) {
 			return false, fmt.Sprintf("长度 %d 小于最小长度 %d", len(strValue), int(minLength))
@@ -821,6 +940,113 @@ func (s *GovernanceService) checkValidity(rule *models.QualityTaskFieldRule, val
 	if maxLength, ok := rule.Threshold["max_length"].(float64); ok {
 		if len(strValue) > int(maxLength) {
 			return false, fmt.Sprintf("长度 %d 大于最大长度 %d", len(strValue), int(maxLength))
+		}
+	}
+
+	return true, ""
+}
+
+// checkValidityRule 检查有效性（使用模板和正则表达式）
+func (s *GovernanceService) checkValidityRule(rule *models.QualityTaskFieldRule, template *models.QualityRuleTemplate, value interface{}) (bool, string) {
+	// 检查是否需要检查null值（根据runtime_config）
+	checkNullable := true
+	if val, exists := rule.RuntimeConfig["check_nullable"]; exists {
+		if b, ok := val.(bool); ok {
+			checkNullable = b
+		}
+	}
+
+	// 检查null值
+	if value == nil {
+		if checkNullable {
+			return false, "字段值为空"
+		}
+		return true, "" // 不检查null，跳过
+	}
+
+	strValue := fmt.Sprintf("%v", value)
+	
+	// 检查是否需要trim空白字符
+	trimWhitespace := true
+	if val, exists := rule.RuntimeConfig["trim_whitespace"]; exists {
+		if b, ok := val.(bool); ok {
+			trimWhitespace = b
+		}
+	}
+	
+	if trimWhitespace {
+		strValue = strings.TrimSpace(strValue)
+	}
+	
+	if strValue == "" {
+		if checkNullable {
+			return false, "字段值为空字符串"
+		}
+		return true, "" // 不检查空字符串，跳过
+	}
+
+	// 从模板的RuleLogic中获取正则表达式和验证类型
+	var regexPattern string
+	var validationType string
+	if pattern, ok := template.RuleLogic["regex_pattern"].(string); ok {
+		regexPattern = pattern
+	}
+	if vtype, ok := template.RuleLogic["validation_type"].(string); ok {
+		validationType = vtype
+	}
+
+	// 处理手机号验证
+	if validationType == "phone" {
+		// 检查是否允许国际号码
+		allowInternational := false
+		if runtime, ok := rule.RuntimeConfig["allow_international"]; ok {
+			if allow, ok := runtime.(bool); ok {
+				allowInternational = allow
+			}
+		}
+
+		// 处理转义字符
+		regexPattern = strings.ReplaceAll(regexPattern, "\\\\", "\\")
+
+		// 如果允许国际号码，添加额外的匹配规则
+		if allowInternational {
+			// 中国手机号 或 国际号码（+开头，后跟国家代码和号码）
+			chinaPattern := regexPattern
+			intlPattern := `^\+\d{1,3}\d{7,14}$`
+			
+			// 先尝试中国号码
+			if matched, _ := regexp.MatchString(chinaPattern, strValue); matched {
+				return true, ""
+			}
+			// 再尝试国际号码
+			if matched, _ := regexp.MatchString(intlPattern, strValue); matched {
+				return true, ""
+			}
+			return false, "手机号格式不正确（支持中国号码或国际号码）"
+		} else {
+			// 只验证中国手机号
+			matched, err := regexp.MatchString(regexPattern, strValue)
+			if err != nil {
+				return false, fmt.Sprintf("正则表达式错误: %v", err)
+			}
+			if !matched {
+				return false, "手机号格式不正确（仅支持中国大陆手机号）"
+			}
+		}
+		return true, ""
+	}
+
+	// 如果有正则表达式，进行匹配
+	if regexPattern != "" {
+		// 处理转义字符（JSON中的双反斜杠）
+		regexPattern = strings.ReplaceAll(regexPattern, "\\\\", "\\")
+		
+		matched, err := regexp.MatchString(regexPattern, strValue)
+		if err != nil {
+			return false, fmt.Sprintf("正则表达式错误: %v", err)
+		}
+		if !matched {
+			return false, fmt.Sprintf("格式不正确，不匹配模式: %s", regexPattern)
 		}
 	}
 

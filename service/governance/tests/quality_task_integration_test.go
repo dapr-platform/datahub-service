@@ -118,6 +118,7 @@ func setupTestTable(t *testing.T, db *gorm.DB) {
 			id SERIAL PRIMARY KEY,
 			username VARCHAR(50) NOT NULL,
 			email VARCHAR(100),
+			mobile VARCHAR(20),
 			age INTEGER,
 			status VARCHAR(20),
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -128,15 +129,17 @@ func setupTestTable(t *testing.T, db *gorm.DB) {
 
 	// 插入测试数据
 	insertDataSQL := fmt.Sprintf(`
-		INSERT INTO %s.%s (username, email, age, status) VALUES
-			('user1', 'user1@example.com', 25, 'active'),
-			('user2', 'user2@example.com', 30, 'active'),
-			('user3', NULL, 28, 'inactive'),
-			('user4', 'invalid-email', 35, 'active'),
-			('user5', 'user5@example.com', 15, 'active'),
-			('user6', 'user6@example.com', 200, 'active'),
-			('user7', 'user7@example.com', 40, 'suspended'),
-			('', 'user8@example.com', 32, 'active')
+		INSERT INTO %s.%s (username, email, mobile, age, status) VALUES
+			('user1', 'user1@example.com', '13812345678', 25, 'active'),
+			('user2', 'user2@example.com', '13987654321', 30, 'active'),
+			('user3', NULL, NULL, 28, 'inactive'),
+			('user4', 'invalid-email', '12345678901', 35, 'active'),
+			('user5', 'user5@example.com', '', 15, 'active'),
+			('user6', 'user6@example.com', '19900001111', 200, 'active'),
+			('user7', 'user7@example.com', '+8613800138000', 40, 'suspended'),
+			('', 'user8@example.com', '13611112222', 32, 'active'),
+			('user9', '', '13711113333', 27, 'active'),
+			('user10', 'user10@example.com', 'abcdefghijk', 29, 'active')
 	`, testSchema, testTable)
 	err = db.Exec(insertDataSQL).Error
 	require.NoError(t, err, "插入测试数据失败")
@@ -185,7 +188,7 @@ func createQualityTask(t *testing.T, templateIDs map[string]string) string {
 	// 构建任务创建请求
 	requestBody := map[string]interface{}{
 		"name":               "用户表质量检测-集成测试",
-		"description":        "测试用户表的数据质量",
+		"description":        "测试用户表的数据质量（包含username、email、mobile字段检测）",
 		"task_type":          "scheduled",
 		"target_object_id":   "test-users-table",
 		"target_object_type": "table",
@@ -224,6 +227,27 @@ func createQualityTask(t *testing.T, templateIDs map[string]string) string {
 				},
 				"is_enabled": true,
 				"priority":   85,
+			},
+			{
+				"field_name":       "mobile",
+				"rule_template_id": templateIDs["手机号有效性检查"],
+				"runtime_config": map[string]interface{}{
+					"allow_international": false,
+				},
+				"threshold":  map[string]interface{}{},
+				"is_enabled": true,
+				"priority":   80,
+			},
+			{
+				"field_name":       "mobile",
+				"rule_template_id": templateIDs["字段完整性检查模板"],
+				"runtime_config": map[string]interface{}{
+					"check_nullable":  false,
+					"trim_whitespace": true,
+				},
+				"threshold":  map[string]interface{}{},
+				"is_enabled": true,
+				"priority":   75,
 			},
 		},
 		"schedule_config": map[string]interface{}{
@@ -434,7 +458,7 @@ func verifyIssueRecords(t *testing.T, taskID string) {
 
 // testIssueRecordFilters 测试问题记录过滤
 func testIssueRecordFilters(t *testing.T, taskID string) {
-	t.Run("按字段名过滤", func(t *testing.T) {
+	t.Run("按字段名过滤-username", func(t *testing.T) {
 		url := fmt.Sprintf("%s/data-quality/tasks/%s/issue-records?field_name=username", baseURL, taskID)
 		resp, err := http.Get(url)
 		require.NoError(t, err, "查询问题记录请求失败")
@@ -455,6 +479,47 @@ func testIssueRecordFilters(t *testing.T, taskID string) {
 				assert.Equal(t, "username", record["field_name"], "应该都是username字段")
 			}
 		}
+	})
+
+	t.Run("按字段名过滤-mobile", func(t *testing.T) {
+		url := fmt.Sprintf("%s/data-quality/tasks/%s/issue-records?field_name=mobile", baseURL, taskID)
+		resp, err := http.Get(url)
+		require.NoError(t, err, "查询问题记录请求失败")
+		defer resp.Body.Close()
+
+		var response map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&response)
+
+		data, _ := response["data"].(map[string]interface{})
+		list, _ := data["list"].([]interface{})
+
+		t.Logf("mobile字段问题记录数: %d", len(list))
+
+		// 打印mobile字段的问题记录
+		for i, item := range list {
+			if i >= 5 {
+				break
+			}
+			record, ok := item.(map[string]interface{})
+			if ok {
+				t.Logf("  mobile问题 %d: 值='%v', 描述='%v'", i+1, record["field_value"], record["issue_description"])
+			}
+		}
+	})
+
+	t.Run("按字段名过滤-email", func(t *testing.T) {
+		url := fmt.Sprintf("%s/data-quality/tasks/%s/issue-records?field_name=email", baseURL, taskID)
+		resp, err := http.Get(url)
+		require.NoError(t, err, "查询问题记录请求失败")
+		defer resp.Body.Close()
+
+		var response map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&response)
+
+		data, _ := response["data"].(map[string]interface{})
+		list, _ := data["list"].([]interface{})
+
+		t.Logf("email字段问题记录数: %d", len(list))
 	})
 
 	t.Run("按严重程度过滤", func(t *testing.T) {
@@ -609,6 +674,102 @@ func TestQualityScheduler(t *testing.T) {
 	t.Logf("  执行次数: %d", task.ExecutionCount)
 
 	// 清理
+	deleteTask(t, taskID)
+}
+
+// TestInternationalPhoneNumber 测试国际号码支持
+func TestInternationalPhoneNumber(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. 连接数据库
+	db := setupDatabase(t)
+	defer cleanupDatabase(t, db)
+
+	// 2. 创建测试表和数据（包含国际号码）
+	setupTestTable(t, db)
+	defer cleanupTestTable(t, db)
+
+	// 3. 获取内置规则模板ID
+	templateIDs := getBuiltinTemplateIDs(t, db)
+
+	// 4. 创建支持国际号码的质量检测任务
+	requestBody := map[string]interface{}{
+		"name":               "国际手机号质量检测",
+		"description":        "测试国际手机号验证",
+		"task_type":          "scheduled",
+		"target_object_id":   "test-users-table",
+		"target_object_type": "table",
+		"target_schema":      testSchema,
+		"target_table":       testTable,
+		"field_rules": []map[string]interface{}{
+			{
+				"field_name":       "mobile",
+				"rule_template_id": templateIDs["手机号有效性检查"],
+				"runtime_config": map[string]interface{}{
+					"allow_international": true, // 允许国际号码
+				},
+				"threshold":  map[string]interface{}{},
+				"is_enabled": true,
+				"priority":   100,
+			},
+		},
+		"schedule_config": map[string]interface{}{
+			"type": "manual",
+		},
+		"notification_config": map[string]interface{}{
+			"enabled": false,
+		},
+		"priority":   50,
+		"is_enabled": true,
+	}
+
+	jsonData, _ := json.Marshal(requestBody)
+	url := fmt.Sprintf("%s/data-quality/tasks", baseURL)
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	require.NoError(t, err, "创建任务请求失败")
+	defer resp.Body.Close()
+
+	var response map[string]interface{}
+	body, _ := io.ReadAll(resp.Body)
+	json.Unmarshal(body, &response)
+
+	data, _ := response["data"].(map[string]interface{})
+	taskID, _ := data["id"].(string)
+
+	t.Logf("国际号码任务创建成功: %s", taskID)
+
+	// 5. 执行任务
+	executeTask(t, taskID)
+
+	// 6. 等待任务完成
+	waitForTaskCompletion(t, ctx, db, taskID, testTimeout)
+
+	// 7. 验证执行结果
+	verifyExecutionResults(t, db, taskID)
+
+	// 8. 查看问题记录（国际号码应该被接受）
+	issueURL := fmt.Sprintf("%s/data-quality/tasks/%s/issue-records?field_name=mobile", baseURL, taskID)
+	issueResp, err := http.Get(issueURL)
+	require.NoError(t, err, "查询问题记录请求失败")
+	defer issueResp.Body.Close()
+
+	var issueResponse map[string]interface{}
+	issueBody, _ := io.ReadAll(issueResp.Body)
+	json.Unmarshal(issueBody, &issueResponse)
+
+	issueData, _ := issueResponse["data"].(map[string]interface{})
+	issueList, _ := issueData["list"].([]interface{})
+
+	t.Logf("国际号码任务-mobile字段问题记录数: %d", len(issueList))
+	for i, item := range issueList {
+		if i >= 3 {
+			break
+		}
+		record, _ := item.(map[string]interface{})
+		t.Logf("  问题 %d: 值='%v', 描述='%v'", i+1, record["field_value"], record["issue_description"])
+	}
+
+	// 9. 清理任务
 	deleteTask(t, taskID)
 }
 
