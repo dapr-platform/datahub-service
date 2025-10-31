@@ -68,7 +68,7 @@ echo ""
 echo "=== 运行集成测试 ==="
 echo ""
 
-go test -v ./service/governance/tests -run TestQualityTaskIntegration -timeout 60s
+go test -v ./service/governance/tests -run TestInternationalPhoneNumber -timeout 60s
 
 TEST_RESULT=$?
 

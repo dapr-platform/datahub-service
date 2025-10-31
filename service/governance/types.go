@@ -267,10 +267,10 @@ type CleansingExecutionResponse struct {
 
 // RuntimeConfig 运行时配置
 type RuntimeConfig struct {
-	CheckNullable  bool              `json:"check_nullable" example:"true"`
-	TrimWhitespace bool              `json:"trim_whitespace" example:"true"`
-	CaseSensitive  bool              `json:"case_sensitive" example:"false"`
-	CustomParams   map[string]string `json:"custom_params,omitempty" swaggertype:"object"` // 自定义参数
+	CheckNullable  bool           `json:"check_nullable" example:"true"`
+	TrimWhitespace bool           `json:"trim_whitespace" example:"true"`
+	CaseSensitive  bool           `json:"case_sensitive" example:"false"`
+	CustomParams   map[string]any `json:"custom_params,omitempty" swaggertype:"object"` // 自定义参数
 }
 
 // ThresholdConfig 阈值配置

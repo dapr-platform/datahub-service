@@ -706,7 +706,12 @@ func TestInternationalPhoneNumber(t *testing.T) {
 				"field_name":       "mobile",
 				"rule_template_id": templateIDs["手机号有效性检查"],
 				"runtime_config": map[string]interface{}{
-					"allow_international": true, // 允许国际号码
+					"check_nullable":  true,
+					"trim_whitespace": true,
+					"case_sensitive":  false,
+					"custom_params": map[string]any{
+						"allow_international": true, // 允许国际号码
+					},
 				},
 				"threshold":  map[string]interface{}{},
 				"is_enabled": true,

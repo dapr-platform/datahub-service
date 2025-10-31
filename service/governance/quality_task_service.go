@@ -176,7 +176,7 @@ func (s *GovernanceService) buildTaskResponse(task *models.QualityTask) (*Qualit
 			if caseSensitive, ok := fieldRule.RuntimeConfig["case_sensitive"].(bool); ok {
 				runtimeConfig.CaseSensitive = caseSensitive
 			}
-			if customParams, ok := fieldRule.RuntimeConfig["custom_params"].(map[string]string); ok {
+			if customParams, ok := fieldRule.RuntimeConfig["custom_params"].(map[string]any); ok {
 				runtimeConfig.CustomParams = customParams
 			}
 		}
@@ -764,7 +764,7 @@ func (s *GovernanceService) checkCompleteness(rule *models.QualityTaskFieldRule,
 	}
 
 	strValue := fmt.Sprintf("%v", value)
-	
+
 	// 检查是否需要trim空白字符
 	trimWhitespace := true
 	if val, exists := rule.RuntimeConfig["trim_whitespace"]; exists {
@@ -772,11 +772,11 @@ func (s *GovernanceService) checkCompleteness(rule *models.QualityTaskFieldRule,
 			trimWhitespace = b
 		}
 	}
-	
+
 	if trimWhitespace {
 		strValue = strings.TrimSpace(strValue)
 	}
-	
+
 	if strValue == "" {
 		if checkNullable {
 			return false, "字段值为空字符串"
@@ -828,7 +828,7 @@ func (s *GovernanceService) checkAccuracyRule(rule *models.QualityTaskFieldRule,
 	}
 
 	strValue := fmt.Sprintf("%v", value)
-	
+
 	// 检查是否需要trim空白字符
 	trimWhitespace := true
 	if val, exists := rule.RuntimeConfig["trim_whitespace"]; exists {
@@ -836,11 +836,11 @@ func (s *GovernanceService) checkAccuracyRule(rule *models.QualityTaskFieldRule,
 			trimWhitespace = b
 		}
 	}
-	
+
 	if trimWhitespace {
 		strValue = strings.TrimSpace(strValue)
 	}
-	
+
 	if strValue == "" {
 		if checkNullable {
 			return false, "字段值为空字符串"
@@ -854,16 +854,35 @@ func (s *GovernanceService) checkAccuracyRule(rule *models.QualityTaskFieldRule,
 		regexPattern = pattern
 	}
 
+	// 获取custom_params中的配置（模板特定参数）
+	var customParams map[string]interface{}
+	if cp, exists := rule.RuntimeConfig["custom_params"]; exists {
+		if params, ok := cp.(map[string]interface{}); ok {
+			customParams = params
+		}
+	}
+
+	// 检查strict_mode（邮箱验证专用）
+	strictMode := false
+	if customParams != nil {
+		if sm, ok := customParams["strict_mode"].(bool); ok {
+			strictMode = sm
+		}
+	}
+
 	// 如果有正则表达式，进行匹配
 	if regexPattern != "" {
 		// 处理转义字符（JSON中的双反斜杠）
 		regexPattern = strings.ReplaceAll(regexPattern, "\\\\", "\\")
-		
+
 		matched, err := regexp.MatchString(regexPattern, strValue)
 		if err != nil {
 			return false, fmt.Sprintf("正则表达式错误: %v", err)
 		}
 		if !matched {
+			if strictMode {
+				return false, fmt.Sprintf("格式不正确（严格模式），不匹配模式: %s", regexPattern)
+			}
 			return false, fmt.Sprintf("格式不正确，不匹配模式: %s", regexPattern)
 		}
 	}
@@ -965,7 +984,7 @@ func (s *GovernanceService) checkValidityRule(rule *models.QualityTaskFieldRule,
 	}
 
 	strValue := fmt.Sprintf("%v", value)
-	
+
 	// 检查是否需要trim空白字符
 	trimWhitespace := true
 	if val, exists := rule.RuntimeConfig["trim_whitespace"]; exists {
@@ -973,11 +992,11 @@ func (s *GovernanceService) checkValidityRule(rule *models.QualityTaskFieldRule,
 			trimWhitespace = b
 		}
 	}
-	
+
 	if trimWhitespace {
 		strValue = strings.TrimSpace(strValue)
 	}
-	
+
 	if strValue == "" {
 		if checkNullable {
 			return false, "字段值为空字符串"
@@ -995,12 +1014,20 @@ func (s *GovernanceService) checkValidityRule(rule *models.QualityTaskFieldRule,
 		validationType = vtype
 	}
 
+	// 获取custom_params中的配置（模板特定参数）
+	var customParams map[string]interface{}
+	if cp, exists := rule.RuntimeConfig["custom_params"]; exists {
+		if params, ok := cp.(map[string]interface{}); ok {
+			customParams = params
+		}
+	}
+
 	// 处理手机号验证
 	if validationType == "phone" {
-		// 检查是否允许国际号码
+		// 检查是否允许国际号码（从custom_params中获取）
 		allowInternational := false
-		if runtime, ok := rule.RuntimeConfig["allow_international"]; ok {
-			if allow, ok := runtime.(bool); ok {
+		if customParams != nil {
+			if allow, ok := customParams["allow_international"].(bool); ok {
 				allowInternational = allow
 			}
 		}
@@ -1013,7 +1040,7 @@ func (s *GovernanceService) checkValidityRule(rule *models.QualityTaskFieldRule,
 			// 中国手机号 或 国际号码（+开头，后跟国家代码和号码）
 			chinaPattern := regexPattern
 			intlPattern := `^\+\d{1,3}\d{7,14}$`
-			
+
 			// 先尝试中国号码
 			if matched, _ := regexp.MatchString(chinaPattern, strValue); matched {
 				return true, ""
@@ -1040,7 +1067,7 @@ func (s *GovernanceService) checkValidityRule(rule *models.QualityTaskFieldRule,
 	if regexPattern != "" {
 		// 处理转义字符（JSON中的双反斜杠）
 		regexPattern = strings.ReplaceAll(regexPattern, "\\\\", "\\")
-		
+
 		matched, err := regexp.MatchString(regexPattern, strValue)
 		if err != nil {
 			return false, fmt.Sprintf("正则表达式错误: %v", err)
