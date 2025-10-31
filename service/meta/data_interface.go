@@ -28,14 +28,13 @@ type DataInterfaceConfigField struct {
 	Dependencies []FieldDependency `json:"dependencies,omitempty"` // 字段依赖关系
 }
 type DataInterfaceConfigVariable struct {
-	Name          string `json:"name"`
-	Type          string `json:"type"` // number,timestamp,db_field
-	InitValue     string `json:"init_value"`
-	AutoIncrement bool   `json:"auto_increment"`
-	IncrementStep string `json:"increment_step"` //number 类型时，步长, timestamp 类型时，格式为 "1s", "1m", "1h", "1d"
-	DbTable       string `json:"db_table"`       // db_field 类型时，表名
-	DbField       string `json:"db_field"`       // db_field 类型时，字段名
-	Description   string `json:"description"`
+	Name        string `json:"name"`
+	Type        string `json:"type"`     // string,number,timestamp,db_field
+	Value       string `json:"value"`    //固定值或者 current_time 表示当前时间,current_time+1d 表示当前时间加1天
+	Format      string `json:"format"`   // timestamp 类型时，格式为 "2006-01-02T15:04:05Z"
+	DbTable     string `json:"db_table"` // db_field 类型时，表名
+	DbField     string `json:"db_field"` // db_field 类型时，字段名
+	Description string `json:"description"`
 }
 
 // FieldDependency 字段依赖关系

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -208,10 +209,46 @@ func (h *HTTPAuthDataSource) executeHTTPRequest(ctx context.Context, request *Ex
 	// 构建请求URL
 	url := h.baseURL
 	if request.Query != "" {
-		if strings.Contains(url, "?") {
-			url += "&" + request.Query
+		// 如果baseURL以/结尾且Query以/开头，去掉一个/
+		if strings.HasSuffix(url, "/") && strings.HasPrefix(request.Query, "/") {
+			url = url[:len(url)-1] + request.Query
+		} else if !strings.HasSuffix(url, "/") && !strings.HasPrefix(request.Query, "/") {
+			// 如果baseURL不以/结尾且Query不以/开头，添加/
+			url = url + "/" + request.Query
 		} else {
-			url += "?" + request.Query
+			// 其他情况直接拼接
+			url = url + request.Query
+		}
+	}
+
+	// 添加查询参数
+	if request.Params != nil && len(request.Params) > 0 {
+		// 过滤出真正的查询参数（排除method、headers、body等元数据）
+		queryParams := make([]string, 0)
+		for key, value := range request.Params {
+			// 跳过元数据字段
+			if key == "method" || key == "headers" || key == "body" || key == "use_form_data" {
+				continue
+			}
+			// 格式化查询参数值并进行URL编码
+			var paramValue string
+			if strValue, ok := value.(string); ok {
+				paramValue = strValue
+			} else {
+				paramValue = fmt.Sprintf("%v", value)
+			}
+			// URL编码参数值
+			encodedValue := h.urlEncodeQueryParam(paramValue)
+			queryParams = append(queryParams, fmt.Sprintf("%s=%s", key, encodedValue))
+		}
+
+		// 将查询参数拼接到URL
+		if len(queryParams) > 0 {
+			if strings.Contains(url, "?") {
+				url += "&" + strings.Join(queryParams, "&")
+			} else {
+				url += "?" + strings.Join(queryParams, "&")
+			}
 		}
 	}
 
@@ -1161,6 +1198,12 @@ func (h *HTTPAuthDataSource) GetSessionData(key string) interface{} {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.sessionData[key]
+}
+
+// urlEncodeQueryParam 对查询参数值进行URL编码
+func (h *HTTPAuthDataSource) urlEncodeQueryParam(value string) string {
+	// 使用url.QueryEscape进行编码，它会将空格编码为%20，冒号编码为%3A等
+	return url.QueryEscape(value)
 }
 
 // UpdateSessionData 更新会话数据（供外部调用）

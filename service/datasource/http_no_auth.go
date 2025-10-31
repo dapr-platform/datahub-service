@@ -373,6 +373,10 @@ func (h *HTTPNoAuthDataSource) buildFullURL(urlPath string, params map[string]in
 
 		query := u.Query()
 		for key, value := range params {
+			// 跳过元数据字段
+			if key == "method" || key == "headers" || key == "body" || key == "use_form_data" {
+				continue
+			}
 			query.Set(key, fmt.Sprintf("%v", value))
 		}
 		u.RawQuery = query.Encode()

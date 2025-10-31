@@ -15982,9 +15982,6 @@ const docTemplate = `{
         "meta.DataInterfaceConfigVariable": {
             "type": "object",
             "properties": {
-                "auto_increment": {
-                    "type": "boolean"
-                },
                 "db_field": {
                     "description": "db_field 类型时，字段名",
                     "type": "string"
@@ -15996,18 +15993,19 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "increment_step": {
-                    "description": "number 类型时，步长, timestamp 类型时，格式为 \"1s\", \"1m\", \"1h\", \"1d\"",
-                    "type": "string"
-                },
-                "init_value": {
+                "format": {
+                    "description": "timestamp 类型时，格式为 \"2006-01-02T15:04:05Z\"",
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
                 },
                 "type": {
-                    "description": "number,timestamp,db_field",
+                    "description": "string,number,timestamp,db_field",
+                    "type": "string"
+                },
+                "value": {
+                    "description": "固定值或者 current_time 表示当前时间,current_time+1d 表示当前时间加1天",
                     "type": "string"
                 }
             }

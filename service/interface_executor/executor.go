@@ -46,16 +46,17 @@ func NewInterfaceExecutor(db *gorm.DB, datasourceManager datasource.DataSourceMa
 
 // ExecuteRequest 接口执行请求
 type ExecuteRequest struct {
-	InterfaceID    string                 `json:"interface_id"`
-	InterfaceType  string                 `json:"interface_type"`          // basic_library, thematic_library
-	ExecuteType    string                 `json:"execute_type"`            // preview, test, sync (支持batch_sync和realtime_sync)
-	SyncStrategy   string                 `json:"sync_strategy,omitempty"` // full, incremental, realtime
-	Parameters     map[string]interface{} `json:"parameters,omitempty"`
-	Options        map[string]interface{} `json:"options,omitempty"`
-	Limit          int                    `json:"limit,omitempty"`           // 用于预览时限制数据量
-	LastSyncTime   interface{}            `json:"last_sync_time,omitempty"`  // 增量同步的最后同步时间
-	IncrementalKey string                 `json:"incremental_key,omitempty"` // 增量同步的关键字段
-	BatchSize      int                    `json:"batch_size,omitempty"`      // 批处理大小
+	InterfaceID   string                 `json:"interface_id"`
+	InterfaceType string                 `json:"interface_type"`          // basic_library, thematic_library
+	ExecuteType   string                 `json:"execute_type"`            // preview, test, sync
+	SyncStrategy  string                 `json:"sync_strategy,omitempty"` // full, incremental (仅当ExecuteType=sync时使用)
+	Parameters    map[string]interface{} `json:"parameters,omitempty"`
+	Options       map[string]interface{} `json:"options,omitempty"`
+	Limit         int                    `json:"limit,omitempty"` // 用于预览时限制数据量
+	// 已废弃字段（向后兼容，系统将自动从配置中获取）:
+	// - LastSyncTime/LastSyncValue: 由系统根据incremental_config自动查询
+	// - IncrementalKey/IncrementalField: 从incremental_config.incremental_field读取
+	// - BatchSize: 移至Options["batch_size"]
 }
 
 // ExecuteResponse 接口执行响应
