@@ -301,14 +301,38 @@ func (s *Service) DeleteBasicLibrary(library *models.BasicLibrary) error {
 	s.db.Model(&models.DataInterface{}).Where("library_id = ?", library.ID).Count(&interfaceCount)
 
 	if dataSourceCount > 0 || interfaceCount > 0 {
-		return errors.New("无法删除：存在关联的数据源或接口")
+		return errors.New("无法删除：存在关联的数据源或接口，请先删除相关数据源和接口")
 	}
+
+	// 开启事务，确保级联删除的原子性
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 1. 删除主题数据血缘记录（外键约束：thematic_data_lineages.source_library_id）
+	if err := tx.Where("source_library_id = ?", library.ID).Delete(&models.ThematicDataLineage{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("删除关联的主题数据血缘记录失败: %w", err)
+	}
+
+	// 2. 删除基础库记录
+	if err := tx.Delete(&models.BasicLibrary{}, "id = ?", library.ID).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("删除基础库记录失败: %w", err)
+	}
+
+	// 3. 删除数据库schema
 	err := database.DeleteSchema(s.db, library.NameEn)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("删除数据基础库schema失败: %v", err)
 	}
 
-	return s.db.Delete(&models.BasicLibrary{}, "id = ?", library.ID).Error
+	// 提交事务
+	return tx.Commit().Error
 }
 
 // === 数据接口操作 ===

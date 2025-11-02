@@ -188,7 +188,7 @@ func (s *DatasourceService) DeleteDataSource(dataSource *models.DataSource) erro
 	s.db.Model(&models.DataInterface{}).Where("data_source_id = ?", dataSource.ID).Count(&interfaceCount)
 
 	if interfaceCount > 0 {
-		return errors.New("无法删除：存在关联的数据接口")
+		return errors.New("无法删除：存在关联的数据接口，请先删除相关接口")
 	}
 
 	// 先从管理器移除数据源
@@ -198,12 +198,29 @@ func (s *DatasourceService) DeleteDataSource(dataSource *models.DataSource) erro
 		slog.Info("数据源已从管理器移除", "datasource_id", dataSource.ID)
 	}
 
-	// 删除相关的状态记录
-	s.db.Where("data_source_id = ?", dataSource.ID).Delete(&models.DataSourceStatus{})
+	// 开启事务，确保级联删除的原子性
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
-	// 删除数据源记录
-	if err := s.db.Delete(&models.DataSource{}, "id = ?", dataSource.ID).Error; err != nil {
-		return err
+	// 1. 删除数据源状态记录
+	if err := tx.Where("data_source_id = ?", dataSource.ID).Delete(&models.DataSourceStatus{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("删除数据源状态记录失败: %w", err)
+	}
+
+	// 2. 删除数据源记录
+	if err := tx.Delete(&models.DataSource{}, "id = ?", dataSource.ID).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("删除数据源记录失败: %w", err)
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("提交事务失败: %w", err)
 	}
 
 	slog.Info("数据源删除成功", "datasource_id", dataSource.ID)

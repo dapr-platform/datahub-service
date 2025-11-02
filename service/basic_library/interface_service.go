@@ -162,16 +162,49 @@ func (s *InterfaceService) DeleteDataInterface(interfaceData *models.DataInterfa
 		return errors.New("接口不存在")
 	}
 
-	// 删除关联的清洗规则
-	s.db.Where("interface_id = ?", interfaceData.ID).Delete(&models.CleansingRule{})
+	// 开启事务，确保级联删除的原子性
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
-	// 删除表结构
-	err := s.schemaService.ManageTableSchema(interfaceData.ID, "drop_table", interfaceData.BasicLibrary.NameEn, interfaceData.NameEn, []models.TableField{})
-	if err != nil {
-		return fmt.Errorf("删除表结构失败: %w", err)
+	// 1. 删除主题数据血缘记录（外键约束：thematic_data_lineages.source_interface_id）
+	if err := tx.Where("source_interface_id = ?", interfaceData.ID).Delete(&models.ThematicDataLineage{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("删除关联的主题数据血缘记录失败: %w", err)
 	}
 
-	return s.db.Delete(interfaceData).Error
+	// 2. 删除关联的清洗规则
+	if err := tx.Where("interface_id = ?", interfaceData.ID).Delete(&models.CleansingRule{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("删除关联的清洗规则失败: %w", err)
+	}
+
+	// 3. 删除接口状态记录
+	if err := tx.Where("interface_id = ?", interfaceData.ID).Delete(&models.InterfaceStatus{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("删除接口状态记录失败: %w", err)
+	}
+
+	// 4. 删除表结构（如果表已创建）
+	if interfaceData.IsTableCreated {
+		err := s.schemaService.ManageTableSchema(interfaceData.ID, "drop_table", interfaceData.BasicLibrary.NameEn, interfaceData.NameEn, []models.TableField{})
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("删除表结构失败: %w", err)
+		}
+	}
+
+	// 5. 删除接口记录本身
+	if err := tx.Delete(interfaceData).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("删除接口记录失败: %w", err)
+	}
+
+	// 提交事务
+	return tx.Commit().Error
 }
 
 // GetDataInterface 获取数据接口详情
