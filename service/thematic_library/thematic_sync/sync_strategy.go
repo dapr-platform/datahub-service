@@ -38,6 +38,8 @@ func NewFullSyncStrategy(db *gorm.DB) *FullSyncStrategy {
 
 // ProcessSync 处理全量同步
 func (fss *FullSyncStrategy) ProcessSync(sourceRecords []map[string]interface{}, request *SyncRequest, result *SyncExecutionResult) error {
+	slog.Info("全量同步策略：处理删除不存在的记录", "sourceRecordCount", len(sourceRecords))
+	
 	// 获取主题接口信息
 	var thematicInterface models.ThematicInterface
 	if err := fss.db.Preload("ThematicLibrary").First(&thematicInterface, "id = ?", request.TargetInterfaceID).Error; err != nil {
@@ -51,20 +53,25 @@ func (fss *FullSyncStrategy) ProcessSync(sourceRecords []map[string]interface{},
 	// 获取主键字段
 	primaryKeyFields := fss.getThematicPrimaryKeyFields(&thematicInterface)
 	if len(primaryKeyFields) == 0 {
-		slog.Debug("主题接口没有配置主键字段")
+		slog.Warn("主题接口没有配置主键字段，无法执行删除操作")
+		return nil
 	}
+
+	slog.Debug("全量同步策略配置", "targetTable", fullTableName, "primaryKeyFields", primaryKeyFields)
 
 	// 全量同步策略：
 	// 1. 获取目标表中现有的所有记录ID
 	// 2. 构建源数据的记录ID集合
 	// 3. 找出需要删除的记录（在目标表中存在但在源数据中不存在）
 	// 4. 执行删除操作
-	// 5. 执行插入/更新操作
+	// 5. 执行插入/更新操作（在writeDataToTable中执行）
 
 	existingIDs, err := fss.getExistingRecordIDs(fullTableName, primaryKeyFields)
 	if err != nil {
 		return fmt.Errorf("获取现有记录ID失败: %w", err)
 	}
+
+	slog.Debug("获取目标表现有记录", "existingCount", len(existingIDs))
 
 	// 构建源数据ID集合
 	sourceIDSet := make(map[string]bool)
@@ -74,6 +81,8 @@ func (fss *FullSyncStrategy) ProcessSync(sourceRecords []map[string]interface{},
 			sourceIDSet[id] = true
 		}
 	}
+
+	slog.Debug("构建源数据ID集合", "sourceIDCount", len(sourceIDSet))
 
 	// 找出需要删除的记录ID
 	var idsToDelete []string
@@ -85,12 +94,15 @@ func (fss *FullSyncStrategy) ProcessSync(sourceRecords []map[string]interface{},
 
 	// 执行删除操作
 	if len(idsToDelete) > 0 {
+		slog.Info("全量同步：开始删除不存在的记录", "deleteCount", len(idsToDelete))
 		deletedCount, err := fss.deleteRecords(fullTableName, primaryKeyFields, idsToDelete)
 		if err != nil {
 			return fmt.Errorf("删除记录失败: %w", err)
 		}
 		result.ErrorRecordCount += deletedCount  // 这里用ErrorRecordCount记录删除的数量
-		slog.Debug("删除了", "count", deletedCount) // 条记录
+		slog.Info("全量同步：删除完成", "deletedCount", deletedCount)
+	} else {
+		slog.Debug("全量同步：无需删除记录")
 	}
 
 	return nil
@@ -257,34 +269,12 @@ func NewIncrementalSyncStrategy(db *gorm.DB) *IncrementalSyncStrategy {
 
 // ProcessSync 处理增量同步 - 只处理新增和更新，不删除数据
 func (iss *IncrementalSyncStrategy) ProcessSync(sourceRecords []map[string]interface{}, request *SyncRequest, result *SyncExecutionResult) error {
-	slog.Debug("增量同步策略处理记录", "count", len(sourceRecords))
+	slog.Info("增量同步策略：仅处理新增和更新，不删除原有数据", "recordCount", len(sourceRecords))
 
-	// 获取主题接口信息
-	var thematicInterface models.ThematicInterface
-	if err := iss.db.Preload("ThematicLibrary").First(&thematicInterface, "id = ?", request.TargetInterfaceID).Error; err != nil {
-		return fmt.Errorf("获取主题接口信息失败: %w", err)
-	}
-
-	schema := thematicInterface.ThematicLibrary.NameEn
-	tableName := thematicInterface.NameEn
-	fullTableName := fmt.Sprintf("%s.%s", schema, tableName)
-
-	// 获取主键字段
-	primaryKeyFields := iss.getThematicPrimaryKeyFields(&thematicInterface)
-	if len(primaryKeyFields) == 0 {
-		slog.Debug("主题接口没有配置主键字段")
-	}
-
-	// 增量同步：只执行 INSERT ON CONFLICT UPDATE（不删除）
-	insertedCount, updatedCount, err := iss.upsertRecords(fullTableName, primaryKeyFields, sourceRecords)
-	if err != nil {
-		return fmt.Errorf("增量同步数据失败: %w", err)
-	}
-
-	result.InsertedRecordCount += insertedCount
-	result.UpdatedRecordCount += updatedCount
-
-	slog.Debug("增量同步完成", "inserted", insertedCount, "updated", updatedCount)
+	// 增量同步策略不需要删除操作，直接返回
+	// 实际的插入/更新操作在 writeDataToTable 中执行
+	slog.Debug("增量同步模式：跳过删除操作")
+	
 	return nil
 }
 

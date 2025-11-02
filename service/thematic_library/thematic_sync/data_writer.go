@@ -49,26 +49,55 @@ func NewDataWriter(db *gorm.DB) *DataWriter {
 
 // WriteData 写入数据 - 支持不同的同步策略
 func (dw *DataWriter) WriteData(processedRecords []map[string]interface{}, request *SyncRequest, result *SyncExecutionResult, governanceResult *GovernanceExecutionResult) error {
-	// 从请求配置中获取同步模式，默认为全量同步
-	syncMode := "full"
-	if modeInterface, exists := request.Config["sync_mode"]; exists {
-		if mode, ok := modeInterface.(string); ok && mode != "" {
-			syncMode = mode
-		}
-	}
+	// 从请求配置中获取同步模式
+	// 优先从配置中获取，如果没有则根据增量配置判断
+	syncMode := dw.determineSyncMode(request)
+
+	slog.Debug("数据写入模式", "syncMode", syncMode, "recordCount", len(processedRecords))
 
 	// 创建同步策略
 	strategy := dw.strategyFactory.CreateStrategy(syncMode)
 
-	// 使用策略处理删除同步（仅全量同步需要）
+	// 使用策略处理删除同步（仅全量同步需要删除不存在的记录）
 	if syncMode == "full" {
+		slog.Debug("全量同步模式：开始处理删除操作")
 		if err := strategy.ProcessSync(processedRecords, request, result); err != nil {
 			return fmt.Errorf("同步策略处理失败: %w", err)
 		}
+	} else {
+		slog.Debug("增量同步模式：跳过删除操作，仅进行插入/更新")
 	}
 
 	// 继续执行原有的插入/更新逻辑
 	return dw.writeDataToTable(processedRecords, request, result, governanceResult)
+}
+
+// determineSyncMode 判断同步模式
+func (dw *DataWriter) determineSyncMode(request *SyncRequest) string {
+	// 1. 优先从配置中获取明确指定的同步模式
+	if modeInterface, exists := request.Config["sync_mode"]; exists {
+		if mode, ok := modeInterface.(string); ok && mode != "" {
+			slog.Debug("从配置中获取同步模式", "syncMode", mode)
+			return mode
+		}
+	}
+
+	// 2. 根据源库配置中的增量配置判断
+	if sourceLibrariesInterface, exists := request.Config["source_libraries"]; exists {
+		if sourceLibraries, ok := sourceLibrariesInterface.([]SourceLibraryConfig); ok {
+			// 检查是否有启用增量同步的配置
+			for _, config := range sourceLibraries {
+				if config.IncrementalConfig != nil && config.IncrementalConfig.Enabled {
+					slog.Debug("检测到增量配置，使用增量同步模式", "libraryID", config.LibraryID)
+					return "incremental"
+				}
+			}
+		}
+	}
+
+	// 3. 默认使用全量同步
+	slog.Debug("未检测到同步模式配置，使用默认全量同步")
+	return "full"
 }
 
 // writeDataToTable 写入数据到表 - 原有的写入逻辑
