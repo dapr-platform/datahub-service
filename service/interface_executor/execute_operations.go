@@ -171,8 +171,11 @@ func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo Int
 				syncStrategy = "incremental"
 				slog.Debug("ExecuteSync - 设置同步策略为增量", "sync_strategy", syncStrategy)
 
-				// 获取增量字段名（源字段）
+				// 获取增量字段名（源字段）- 兼容 increment_field 和 incremental_field 两种字段名
 				sourceFieldName := cast.ToString(configMap["incremental_field"])
+				if sourceFieldName == "" {
+					sourceFieldName = cast.ToString(configMap["increment_field"])
+				}
 				slog.Debug("ExecuteSync - 增量字段名", "incremental_field", sourceFieldName)
 
 				if sourceFieldName == "" {
@@ -182,7 +185,7 @@ func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo Int
 						Message:     "增量配置缺少字段名",
 						Duration:    time.Since(startTime).Milliseconds(),
 						ExecuteType: request.ExecuteType,
-						Error:       "incremental_field is required in incremental_config",
+						Error:       "incremental_field or increment_field is required in incremental_config",
 					}, fmt.Errorf("增量配置缺少字段名")
 				}
 
