@@ -666,6 +666,16 @@ func (qb *QueryBuilder) buildMessagingTestRequest(parameters map[string]interfac
 	return request, nil
 }
 
+// safeTimeIn 安全地转换时间到指定时区，处理nil Location的情况
+func safeTimeIn(t time.Time, loc *time.Location) time.Time {
+	// 检查时间是否有有效的Location
+	if t.Location() == nil {
+		// 如果没有Location，假设它已经是目标时区的时间
+		return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), loc)
+	}
+	return t.In(loc)
+}
+
 // buildDatabaseSyncRequest 构建数据库同步请求
 func (qb *QueryBuilder) buildDatabaseSyncRequest(syncStrategy string, parameters map[string]interface{}) (*ExecuteRequest, error) {
 	slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 开始构建数据库同步请求", "sync_strategy", syncStrategy, "parameters", parameters)
@@ -725,17 +735,17 @@ func (qb *QueryBuilder) buildDatabaseSyncRequest(syncStrategy string, parameters
 						switch v := lastSyncValue.(type) {
 						case string:
 							if t, err := time.Parse(time.RFC3339, v); err == nil {
-								localTime := t.In(shanghaiLoc)
+								localTime := safeTimeIn(t, shanghaiLoc)
 								formattedValue = localTime.Format("2006-01-02 15:04:05")
 							} else {
 								formattedValue = v
 							}
 						case time.Time:
-							localTime := v.In(shanghaiLoc)
+							localTime := safeTimeIn(v, shanghaiLoc)
 							formattedValue = localTime.Format("2006-01-02 15:04:05")
 						case *time.Time:
 							if v != nil {
-								localTime := v.In(shanghaiLoc)
+								localTime := safeTimeIn(*v, shanghaiLoc)
 								formattedValue = localTime.Format("2006-01-02 15:04:05")
 							} else {
 								formattedValue = ""
@@ -851,17 +861,17 @@ func (qb *QueryBuilder) buildDatabaseSyncRequestWithPagination(syncStrategy stri
 						switch v := lastSyncTime.(type) {
 						case string:
 							if t, err := time.Parse(time.RFC3339, v); err == nil {
-								localTime := t.In(shanghaiLoc)
+								localTime := safeTimeIn(t, shanghaiLoc)
 								formattedTime = localTime.Format("2006-01-02 15:04:05")
 							} else {
 								formattedTime = v
 							}
 						case time.Time:
-							localTime := v.In(shanghaiLoc)
+							localTime := safeTimeIn(v, shanghaiLoc)
 							formattedTime = localTime.Format("2006-01-02 15:04:05")
 						case *time.Time:
 							if v != nil {
-								localTime := v.In(shanghaiLoc)
+								localTime := safeTimeIn(*v, shanghaiLoc)
 								formattedTime = localTime.Format("2006-01-02 15:04:05")
 							} else {
 								formattedTime = ""
@@ -1358,7 +1368,7 @@ func (qb *QueryBuilder) buildDatabaseIncrementalRequest(syncStrategy string, par
 			// 尝试解析为时间，如果是时间格式则转换为本地时区格式（不带时区）
 			if t, err := time.Parse(time.RFC3339, v); err == nil {
 				// 转换到上海时区，并使用不带时区的格式
-				localTime := t.In(shanghaiLoc)
+				localTime := safeTimeIn(t, shanghaiLoc)
 				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
 					"original", v, "parsed", t, "local", localTime, "formatted", formattedValue)
@@ -1367,14 +1377,14 @@ func (qb *QueryBuilder) buildDatabaseIncrementalRequest(syncStrategy string, par
 			}
 		case time.Time:
 			// time.Time 类型，转换到上海时区，使用不带时区的格式
-			localTime := v.In(shanghaiLoc)
+			localTime := safeTimeIn(v, shanghaiLoc)
 			formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 			slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
 				"original", v, "local", localTime, "formatted", formattedValue)
 		case *time.Time:
 			// *time.Time 指针类型，转换到上海时区，使用不带时区的格式
 			if v != nil {
-				localTime := v.In(shanghaiLoc)
+				localTime := safeTimeIn(*v, shanghaiLoc)
 				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
 					"original", *v, "local", localTime, "formatted", formattedValue)
@@ -1386,12 +1396,12 @@ func (qb *QueryBuilder) buildDatabaseIncrementalRequest(syncStrategy string, par
 		default:
 			// 检查是否是 time.Time 类型（通过类型断言）
 			if t, ok := v.(time.Time); ok {
-				localTime := t.In(shanghaiLoc)
+				localTime := safeTimeIn(t, shanghaiLoc)
 				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
 					"original", t, "local", localTime, "formatted", formattedValue)
 			} else if t, ok := v.(*time.Time); ok && t != nil {
-				localTime := t.In(shanghaiLoc)
+				localTime := safeTimeIn(*t, shanghaiLoc)
 				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
 					"original", *t, "local", localTime, "formatted", formattedValue)
@@ -1423,7 +1433,7 @@ func (qb *QueryBuilder) buildDatabaseIncrementalRequest(syncStrategy string, par
 				}
 
 				if parseErr == nil {
-					localTime := parsedTime.In(shanghaiLoc)
+					localTime := safeTimeIn(parsedTime, shanghaiLoc)
 					formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 					slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
 						"original", strVal, "parsed", parsedTime, "local", localTime, "formatted", formattedValue)
