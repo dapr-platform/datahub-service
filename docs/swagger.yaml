@@ -8918,6 +8918,50 @@ paths:
       summary: 获取表结构
       tags:
       - 数据查看
+  /data-view/record-by-pk:
+    get:
+      consumes:
+      - application/json
+      description: 根据schema、table和主键值查询单条记录（用于查看质量问题的原始数据）
+      parameters:
+      - description: Schema名称
+        in: query
+        name: schema_name
+        required: true
+        type: string
+      - description: 表名
+        in: query
+        name: table_name
+        required: true
+        type: string
+      - description: 记录标识符
+        example: '"id=123" or "key1=val1&key2=val2"'
+        in: query
+        name: record_identifier
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据主键值获取单条记录
+      tags:
+      - 数据查看
   /events/broadcast:
     post:
       consumes:

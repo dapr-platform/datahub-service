@@ -15,6 +15,7 @@ import (
 	"datahub-service/service/models"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -614,6 +615,19 @@ func (s *GovernanceService) executeQualityTask(execution *models.QualityTaskExec
 		return
 	}
 
+	// 获取目标表的主键字段列表（用于构建记录标识）
+	// 导入全局服务需要在包顶部导入 "datahub-service/service"
+	// 为了避免循环依赖，这里直接通过数据库查询获取主键
+	primaryKeys, err := s.getPrimaryKeysFromDB(task.TargetSchema, task.TargetTable)
+	if err != nil {
+		// 如果获取主键失败，记录警告但不中断执行，使用行号作为标识
+		slog.Warn("获取主键失败，将使用行号作为记录标识",
+			"schema", task.TargetSchema,
+			"table", task.TargetTable,
+			"error", err)
+		primaryKeys = []string{} // 使用空列表，后续会用行号
+	}
+
 	// 构建查询SQL：SELECT * FROM schema.table
 	tableName := fmt.Sprintf("%s.%s", task.TargetSchema, task.TargetTable)
 
@@ -638,6 +652,14 @@ func (s *GovernanceService) executeQualityTask(execution *models.QualityTaskExec
 		columnMap[col.Name()] = i
 	}
 
+	// 构建主键字段索引列表
+	primaryKeyIndexes := make([]int, 0, len(primaryKeys))
+	for _, pkField := range primaryKeys {
+		if idx, exists := columnMap[pkField]; exists {
+			primaryKeyIndexes = append(primaryKeyIndexes, idx)
+		}
+	}
+
 	// 统计变量
 	var totalChecks, passedChecks, failedChecks int64
 	var issueCount int64
@@ -658,11 +680,8 @@ func (s *GovernanceService) executeQualityTask(execution *models.QualityTaskExec
 			continue
 		}
 
-		// 构建记录标识（使用第一个列作为标识，或行号）
-		recordID := fmt.Sprintf("row_%d", rowNum)
-		if len(values) > 0 && values[0] != nil {
-			recordID = fmt.Sprintf("%v", values[0])
-		}
+		// 构建记录标识（使用主键字段的值）
+		recordID := s.buildRecordIdentifier(primaryKeys, primaryKeyIndexes, values, rowNum)
 
 		// 对每个字段规则进行检查
 		for _, fieldRule := range fieldRules {
@@ -1118,6 +1137,71 @@ func (s *GovernanceService) determineSeverity(rule *models.QualityTaskFieldRule)
 		return "medium"
 	}
 	return "low"
+}
+
+// getPrimaryKeysFromDB 从数据库获取表的主键列
+func (s *GovernanceService) getPrimaryKeysFromDB(schemaName, tableName string) ([]string, error) {
+	query := `
+		SELECT kcu.column_name
+		FROM information_schema.table_constraints tc
+		JOIN information_schema.key_column_usage kcu 
+			ON tc.constraint_name = kcu.constraint_name
+			AND tc.table_schema = kcu.table_schema
+		WHERE tc.constraint_type = 'PRIMARY KEY'
+			AND tc.table_schema = $1
+			AND tc.table_name = $2
+		ORDER BY kcu.ordinal_position
+	`
+
+	var primaryKeys []string
+	rows, err := s.db.Raw(query, schemaName, tableName).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var columnName string
+		if err := rows.Scan(&columnName); err != nil {
+			return nil, err
+		}
+		primaryKeys = append(primaryKeys, columnName)
+	}
+
+	return primaryKeys, nil
+}
+
+// buildRecordIdentifier 构建记录标识符
+// 使用主键字段值构建，如果没有主键则使用行号
+func (s *GovernanceService) buildRecordIdentifier(primaryKeys []string, primaryKeyIndexes []int, values []interface{}, rowNum int) string {
+	// 如果没有主键或主键值为空，使用行号
+	if len(primaryKeyIndexes) == 0 {
+		return fmt.Sprintf("row_%d", rowNum)
+	}
+
+	// 构建主键值组合: key1=value1&key2=value2
+	var parts []string
+	for i, pkIdx := range primaryKeyIndexes {
+		pkName := primaryKeys[i]
+		pkValue := values[pkIdx]
+
+		// 处理 NULL 值
+		if pkValue == nil {
+			parts = append(parts, fmt.Sprintf("%s=NULL", pkName))
+		} else {
+			// 转换为字符串，处理字节数组
+			var valueStr string
+			switch v := pkValue.(type) {
+			case []byte:
+				valueStr = string(v)
+			default:
+				valueStr = fmt.Sprintf("%v", v)
+			}
+			parts = append(parts, fmt.Sprintf("%s=%s", pkName, valueStr))
+		}
+	}
+
+	return strings.Join(parts, "&")
 }
 
 // finishExecution 完成执行并更新状态

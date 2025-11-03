@@ -227,7 +227,7 @@ func (s *SchemaService) alterTable(schemaName, tableName string, fields []models
 	}
 
 	// 获取当前主键
-	currentPrimaryKeys, err := s.getPrimaryKeys(schemaName, tableName)
+	currentPrimaryKeys, err := s.GetPrimaryKeys(schemaName, tableName)
 	if err != nil {
 		return fmt.Errorf("获取主键失败: %v", err)
 	}
@@ -758,8 +758,8 @@ func (s *SchemaService) DropIndex(schemaName, indexName string) error {
 	return s.db.Exec(dropSQL).Error
 }
 
-// getPrimaryKeys 获取表的主键列
-func (s *SchemaService) getPrimaryKeys(schemaName, tableName string) ([]string, error) {
+// GetPrimaryKeys 获取表的主键列
+func (s *SchemaService) GetPrimaryKeys(schemaName, tableName string) ([]string, error) {
 	query := `
 		SELECT kcu.column_name
 		FROM information_schema.table_constraints tc

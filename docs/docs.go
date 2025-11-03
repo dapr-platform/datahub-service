@@ -4711,6 +4711,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/data-view/record-by-pk": {
+            "get": {
+                "description": "根据schema、table和主键值查询单条记录（用于查看质量问题的原始数据）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据查看"
+                ],
+                "summary": "根据主键值获取单条记录",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Schema名称",
+                        "name": "schema_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "表名",
+                        "name": "table_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"id=123\" or \"key1=val1\u0026key2=val2\"",
+                        "description": "记录标识符",
+                        "name": "record_identifier",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/data-view/{library_type}/{library_id}/tables": {
             "get": {
                 "description": "获取指定基础库或主题库的所有数据接口(表)信息",

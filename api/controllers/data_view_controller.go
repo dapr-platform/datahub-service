@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -344,6 +345,169 @@ func (c *DataViewController) GetTableStructure(w http.ResponseWriter, r *http.Re
 	}
 
 	render.JSON(w, r, SuccessResponse("获取表结构成功", response))
+}
+
+// GetRecordByPrimaryKey 根据主键值获取单条记录
+// @Summary 根据主键值获取单条记录
+// @Description 根据schema、table和主键值查询单条记录（用于查看质量问题的原始数据）
+// @Tags 数据查看
+// @Accept json
+// @Produce json
+// @Param schema_name query string true "Schema名称"
+// @Param table_name query string true "表名"
+// @Param record_identifier query string true "记录标识符" example("id=123" or "key1=val1&key2=val2")
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 404 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /data-view/record-by-pk [get]
+func (c *DataViewController) GetRecordByPrimaryKey(w http.ResponseWriter, r *http.Request) {
+	schemaName := r.URL.Query().Get("schema_name")
+	tableName := r.URL.Query().Get("table_name")
+	recordIdentifier := r.URL.Query().Get("record_identifier")
+
+	// 验证参数
+	if schemaName == "" || tableName == "" || recordIdentifier == "" {
+		render.JSON(w, r, BadRequestResponse("缺少必要参数: schema_name, table_name, record_identifier", nil))
+		return
+	}
+
+	slog.Debug("GetRecordByPrimaryKey - 请求参数",
+		"schema", schemaName,
+		"table", tableName,
+		"identifier", recordIdentifier)
+
+	// 解析 recordIdentifier (格式: key1=value1&key2=value2 或 row_123)
+	whereConditions, whereValues, err := c.parseRecordIdentifier(recordIdentifier, schemaName, tableName)
+	if err != nil {
+		render.JSON(w, r, BadRequestResponse("无效的记录标识符: "+err.Error(), err))
+		return
+	}
+
+	// 构建查询SQL
+	fullTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
+
+	// 查询记录
+	var record map[string]interface{}
+	result := c.db.Table(fullTableName).Where(whereConditions, whereValues...).Take(&record)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			render.JSON(w, r, NotFoundResponse("记录不存在", result.Error))
+			return
+		}
+		slog.Error("GetRecordByPrimaryKey - 查询记录失败", "error", result.Error)
+		render.JSON(w, r, InternalErrorResponse("查询记录失败: "+result.Error.Error(), result.Error))
+		return
+	}
+
+	response := map[string]interface{}{
+		"schema_name":       schemaName,
+		"table_name":        tableName,
+		"record_identifier": recordIdentifier,
+		"record":            record,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取记录成功", response))
+// GetRecordByPrimaryKey 根据主键值获取单条记录
+// @Summary 根据主键值获取单条记录
+// @Description 根据schema、table和主键值查询单条记录（用于查看质量问题的原始数据）
+// @Tags 数据查看
+// @Accept json
+// @Produce json
+// @Param schema_name query string true "Schema名称"
+// @Param table_name query string true "表名"
+// @Param record_identifier query string true "记录标识符" example("id=123" or "key1=val1&key2=val2")
+// @Success 200 {object} APIResponse
+// @Failure 400 {object} APIResponse
+// @Failure 404 {object} APIResponse
+// @Failure 500 {object} APIResponse
+// @Router /data-view/record-by-pk [get]
+func (c *DataViewController) GetRecordByPrimaryKey(w http.ResponseWriter, r *http.Request) {
+	schemaName := r.URL.Query().Get("schema_name")
+	tableName := r.URL.Query().Get("table_name")
+	recordIdentifier := r.URL.Query().Get("record_identifier")
+
+	// 验证参数
+	if schemaName == "" || tableName == "" || recordIdentifier == "" {
+		render.JSON(w, r, BadRequestResponse("缺少必要参数: schema_name, table_name, record_identifier", nil))
+		return
+	}
+
+	slog.Debug("GetRecordByPrimaryKey - 请求参数",
+		"schema", schemaName,
+		"table", tableName,
+		"identifier", recordIdentifier)
+
+	// 解析 recordIdentifier (格式: key1=value1&key2=value2 或 row_123)
+	whereConditions, whereValues, err := c.parseRecordIdentifier(recordIdentifier, schemaName, tableName)
+	if err != nil {
+		render.JSON(w, r, BadRequestResponse("无效的记录标识符: "+err.Error(), err))
+		return
+	}
+
+	// 构建查询SQL
+	fullTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
+
+	// 查询记录
+	var record map[string]interface{}
+	result := c.db.Table(fullTableName).Where(whereConditions, whereValues...).Take(&record)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			render.JSON(w, r, NotFoundResponse("记录不存在", result.Error))
+			return
+		}
+		slog.Error("GetRecordByPrimaryKey - 查询记录失败", "error", result.Error)
+		render.JSON(w, r, InternalErrorResponse("查询记录失败: "+result.Error.Error(), result.Error))
+		return
+	}
+
+	response := map[string]interface{}{
+		"schema_name":       schemaName,
+		"table_name":        tableName,
+		"record_identifier": recordIdentifier,
+		"record":            record,
+	}
+
+	render.JSON(w, r, SuccessResponse("获取记录成功", response))
+}}
+
+// parseRecordIdentifier 解析记录标识符
+// 支持格式: "id=123" 或 "key1=val1&key2=val2" 或 "row_123"
+func (c *DataViewController) parseRecordIdentifier(identifier, schemaName, tableName string) (string, []interface{}, error) {
+	// 特殊处理: 如果是 row_N 格式，说明表没有主键，无法查询
+	if strings.HasPrefix(identifier, "row_") {
+		return "", nil, fmt.Errorf("表没有主键，无法通过行号查询原始数据")
+	}
+
+	// 解析 key=value 格式
+	pairs := strings.Split(identifier, "&")
+	if len(pairs) == 0 {
+		return "", nil, fmt.Errorf("记录标识符格式错误")
+	}
+
+	var whereParts []string
+	var whereValues []interface{}
+
+	for _, pair := range pairs {
+		parts := strings.SplitN(pair, "=", 2)
+		if len(parts) != 2 {
+			return "", nil, fmt.Errorf("记录标识符格式错误: %s", pair)
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		// 处理 NULL 值
+		if value == "NULL" {
+			whereParts = append(whereParts, fmt.Sprintf("%s IS NULL", key))
+		} else {
+			whereParts = append(whereParts, fmt.Sprintf("%s = ?", key))
+			whereValues = append(whereValues, value)
+		}
+	}
+
+	whereConditions := strings.Join(whereParts, " AND ")
+	return whereConditions, whereValues, nil
 }
 
 // LibraryInfo 库信息

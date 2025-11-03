@@ -498,6 +498,9 @@ func InitRoute(r *chi.Mux) {
 
 		// 获取表结构
 		r.Get("/{library_type}/{library_id}/tables/{table_name}/structure", dataViewController.GetTableStructure)
+
+		// 根据主键值获取单条记录（用于查看质量问题的原始数据）
+		r.Get("/record-by-pk", dataViewController.GetRecordByPrimaryKey)
 	})
 
 	// HTTP POST数据源管理（需要认证）
