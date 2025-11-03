@@ -666,16 +666,6 @@ func (qb *QueryBuilder) buildMessagingTestRequest(parameters map[string]interfac
 	return request, nil
 }
 
-// safeTimeIn 安全地转换时间到指定时区，处理nil Location的情况
-func safeTimeIn(t time.Time, loc *time.Location) time.Time {
-	// 检查时间是否有有效的Location
-	if t.Location() == nil {
-		// 如果没有Location，假设它已经是目标时区的时间
-		return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), loc)
-	}
-	return t.In(loc)
-}
-
 // buildDatabaseSyncRequest 构建数据库同步请求
 func (qb *QueryBuilder) buildDatabaseSyncRequest(syncStrategy string, parameters map[string]interface{}) (*ExecuteRequest, error) {
 	slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 开始构建数据库同步请求", "sync_strategy", syncStrategy, "parameters", parameters)
@@ -728,34 +718,8 @@ func (qb *QueryBuilder) buildDatabaseSyncRequest(syncStrategy string, parameters
 					}
 
 					if lastSyncValue, exists := parameters["last_sync_value"]; exists {
-						// 格式化时间值，确保时区正确
-						shanghaiLoc, _ := time.LoadLocation("Asia/Shanghai")
-						var formattedValue string
-
-						switch v := lastSyncValue.(type) {
-						case string:
-							if t, err := time.Parse(time.RFC3339, v); err == nil {
-								localTime := safeTimeIn(t, shanghaiLoc)
-								formattedValue = localTime.Format("2006-01-02 15:04:05")
-							} else {
-								formattedValue = v
-							}
-						case time.Time:
-							localTime := safeTimeIn(v, shanghaiLoc)
-							formattedValue = localTime.Format("2006-01-02 15:04:05")
-						case *time.Time:
-							if v != nil {
-								localTime := safeTimeIn(*v, shanghaiLoc)
-								formattedValue = localTime.Format("2006-01-02 15:04:05")
-							} else {
-								formattedValue = ""
-							}
-						default:
-							formattedValue = fmt.Sprintf("%v", v)
-						}
-
-						query = fmt.Sprintf("SELECT * FROM %s WHERE %s > '%s'", tableStr, incrementalField, formattedValue)
-						slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 构建增量查询（有上次同步值）", "query", query, "last_sync_value", lastSyncValue, "formatted_value", formattedValue)
+						query = fmt.Sprintf("SELECT * FROM %s WHERE %s > '%v'", tableStr, incrementalField, lastSyncValue)
+						slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 构建增量查询（有上次同步值）", "query", query, "last_sync_value", lastSyncValue)
 					} else {
 						query = fmt.Sprintf("SELECT * FROM %s", tableStr)
 						slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 构建增量查询（无上次同步值，退化为全量）", "query", query)
@@ -854,34 +818,8 @@ func (qb *QueryBuilder) buildDatabaseSyncRequestWithPagination(syncStrategy stri
 					}
 
 					if lastSyncTime, exists := parameters["last_sync_time"]; exists {
-						// 格式化时间值，确保时区正确
-						shanghaiLoc, _ := time.LoadLocation("Asia/Shanghai")
-						var formattedTime string
-
-						switch v := lastSyncTime.(type) {
-						case string:
-							if t, err := time.Parse(time.RFC3339, v); err == nil {
-								localTime := safeTimeIn(t, shanghaiLoc)
-								formattedTime = localTime.Format("2006-01-02 15:04:05")
-							} else {
-								formattedTime = v
-							}
-						case time.Time:
-							localTime := safeTimeIn(v, shanghaiLoc)
-							formattedTime = localTime.Format("2006-01-02 15:04:05")
-						case *time.Time:
-							if v != nil {
-								localTime := safeTimeIn(*v, shanghaiLoc)
-								formattedTime = localTime.Format("2006-01-02 15:04:05")
-							} else {
-								formattedTime = ""
-							}
-						default:
-							formattedTime = fmt.Sprintf("%v", v)
-						}
-
-						query = fmt.Sprintf("SELECT * FROM %s WHERE %s > '%s'", tableStr, incrementField, formattedTime)
-						slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 构建增量查询（有上次同步值）", "query", query, "last_sync_value", lastSyncTime, "formatted_time", formattedTime)
+						query = fmt.Sprintf("SELECT * FROM %s WHERE %s > '%v'", tableStr, incrementField, lastSyncTime)
+						slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 构建增量查询（有上次同步值）", "query", query, "last_sync_value", lastSyncTime)
 					} else {
 						query = fmt.Sprintf("SELECT * FROM %s", tableStr)
 						slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 构建增量查询（无上次同步值，退化为全量）", "query", query)
@@ -1358,36 +1296,45 @@ func (qb *QueryBuilder) buildDatabaseIncrementalRequest(syncStrategy string, par
 			"batch_size", incrementalParams.BatchSize)
 
 		// 格式化增量值（根据类型决定是否加引号）
-		// 对于时间类型，如果本地数据库是 timestamp without time zone，
-		// 需要将时间转换为本地时区（Asia/Shanghai），去除时区信息
-		shanghaiLoc, _ := time.LoadLocation("Asia/Shanghai")
-
+		// 注意: 如果本地数据库字段是 timestamp without time zone，需要将时间转换为 Asia/Shanghai 时区
 		var formattedValue string
+
+		// 加载 Asia/Shanghai 时区
+		shanghaiLocation, tzErr := time.LoadLocation("Asia/Shanghai")
+		if tzErr != nil {
+			slog.Warn("QueryBuilder.buildDatabaseIncrementalRequest - 加载Asia/Shanghai时区失败，使用UTC", "error", tzErr)
+			shanghaiLocation = time.UTC
+		}
+
 		switch v := incrementalParams.LastSyncValue.(type) {
 		case string:
-			// 尝试解析为时间，如果是时间格式则转换为本地时区格式（不带时区）
+			// 尝试解析为时间，如果是时间格式则转换为 Asia/Shanghai 时区的无时区格式
 			if t, err := time.Parse(time.RFC3339, v); err == nil {
-				// 转换到上海时区，并使用不带时区的格式
-				localTime := safeTimeIn(t, shanghaiLoc)
+				// 转换为 Asia/Shanghai 时区，然后格式化为 timestamp without time zone 格式
+				localTime := t.In(shanghaiLocation)
 				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-					"original", v, "parsed", t, "local", localTime, "formatted", formattedValue)
+					"original", v,
+					"utc", t.Format(time.RFC3339),
+					"local", localTime.Format("2006-01-02 15:04:05"))
 			} else {
 				formattedValue = fmt.Sprintf("'%s'", v)
 			}
 		case time.Time:
-			// time.Time 类型，转换到上海时区，使用不带时区的格式
-			localTime := safeTimeIn(v, shanghaiLoc)
+			// time.Time 类型，转换为 Asia/Shanghai 时区的 timestamp without time zone 格式
+			localTime := v.In(shanghaiLocation)
 			formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 			slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-				"original", v, "local", localTime, "formatted", formattedValue)
+				"original", v.Format(time.RFC3339),
+				"local", localTime.Format("2006-01-02 15:04:05"))
 		case *time.Time:
-			// *time.Time 指针类型，转换到上海时区，使用不带时区的格式
+			// *time.Time 指针类型，转换为 Asia/Shanghai 时区的 timestamp without time zone 格式
 			if v != nil {
-				localTime := safeTimeIn(*v, shanghaiLoc)
+				localTime := v.In(shanghaiLocation)
 				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-					"original", *v, "local", localTime, "formatted", formattedValue)
+					"original", v.Format(time.RFC3339),
+					"local", localTime.Format("2006-01-02 15:04:05"))
 			} else {
 				formattedValue = "NULL"
 			}
@@ -1396,47 +1343,27 @@ func (qb *QueryBuilder) buildDatabaseIncrementalRequest(syncStrategy string, par
 		default:
 			// 检查是否是 time.Time 类型（通过类型断言）
 			if t, ok := v.(time.Time); ok {
-				localTime := safeTimeIn(t, shanghaiLoc)
+				localTime := t.In(shanghaiLocation)
 				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-					"original", t, "local", localTime, "formatted", formattedValue)
+					"original", t.Format(time.RFC3339),
+					"local", localTime.Format("2006-01-02 15:04:05"))
 			} else if t, ok := v.(*time.Time); ok && t != nil {
-				localTime := safeTimeIn(*t, shanghaiLoc)
+				localTime := t.In(shanghaiLocation)
 				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-					"original", *t, "local", localTime, "formatted", formattedValue)
+					"original", t.Format(time.RFC3339),
+					"local", localTime.Format("2006-01-02 15:04:05"))
 			} else {
 				// 默认情况：尝试解析为字符串
 				strVal := fmt.Sprintf("%v", v)
-				// 尝试多种时间格式解析
-				var parsedTime time.Time
-				var parseErr error
-
-				timeFormats := []string{
-					"2006-01-02 15:04:05.999999999 -0700 MST",
-					"2006-01-02 15:04:05.999999999 -0700",
-					"2006-01-02 15:04:05 -0700",
-					time.RFC3339Nano,
-					time.RFC3339,
-					"2006-01-02 15:04:05",
-					"2006-01-02T15:04:05",
-				}
-
-				for _, format := range timeFormats {
-					if t, err := time.Parse(format, strVal); err == nil {
-						parsedTime = t
-						parseErr = nil
-						break
-					} else {
-						parseErr = err
-					}
-				}
-
-				if parseErr == nil {
-					localTime := safeTimeIn(parsedTime, shanghaiLoc)
+				// 尝试解析 Go 的默认时间格式（包含时区信息）
+				if t, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", strVal); err == nil {
+					localTime := t.In(shanghaiLocation)
 					formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
 					slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-						"original", strVal, "parsed", parsedTime, "local", localTime, "formatted", formattedValue)
+						"original", strVal,
+						"local", localTime.Format("2006-01-02 15:04:05"))
 				} else {
 					formattedValue = fmt.Sprintf("'%s'", strVal)
 				}
