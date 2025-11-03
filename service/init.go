@@ -14,6 +14,8 @@ package service
 import (
 	"context"
 	"datahub-service/service/basic_library"
+	"datahub-service/service/cleanup"
+	"datahub-service/service/config"
 	"datahub-service/service/database"
 	"datahub-service/service/datasource"
 	"datahub-service/service/distributed_lock"
@@ -41,7 +43,9 @@ var (
 	GlobalSyncTaskService        *basic_library.SyncTaskService // 现在包含调度功能
 	GlobalGovernanceService      *governance.GovernanceService
 	GlobalSharingService         *sharing.SharingService
-	GlobalDistributedLock        *distributed_lock.RedisLock // Redis分布式锁
+	GlobalDistributedLock        *distributed_lock.RedisLock   // Redis分布式锁
+	GlobalConfigService          *config.ConfigService          // 配置服务
+	GlobalLogCleanupService      *cleanup.LogCleanupService    // 日志清理服务
 )
 
 func init() {
@@ -112,6 +116,9 @@ func runMigrations() {
 
 // initServices 初始化服务
 func initServices() {
+	// 初始化配置服务（优先初始化，其他服务可能需要）
+	GlobalConfigService = config.NewConfigService(DB)
+	
 	// 初始化事件服务
 	GlobalEventService = event.NewEventService(DB)
 	// 将事件服务作为参数传递给BasicLibraryService
@@ -172,6 +179,14 @@ func initServices() {
 		} else {
 			slog.Info("数据质量检测调度器启动成功")
 		}
+	}
+
+	// 初始化并启动日志清理服务
+	GlobalLogCleanupService = cleanup.NewLogCleanupService(DB, GlobalConfigService)
+	if err := GlobalLogCleanupService.StartScheduledCleanup(); err != nil {
+		slog.Error("启动日志清理调度器失败", "error", err)
+	} else {
+		slog.Info("日志清理调度器启动成功")
 	}
 
 	slog.Info("服务初始化完成")

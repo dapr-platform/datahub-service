@@ -481,6 +481,20 @@ func createDefaultSyncConfigurations(db *gorm.DB) error {
 			Environment: "default",
 			Description: "默认的并发同步任务数",
 		},
+		{
+			ID:          uuid.New().String(),
+			Key:         "basic_sync_log_retention_days",
+			Value:       "7",
+			Environment: "default",
+			Description: "基础库同步任务执行日志保存天数",
+		},
+		{
+			ID:          uuid.New().String(),
+			Key:         "thematic_sync_log_retention_days",
+			Value:       "7",
+			Environment: "default",
+			Description: "主题库同步任务执行日志保存天数",
+		},
 	}
 
 	for _, config := range defaultConfigs {

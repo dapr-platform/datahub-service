@@ -1058,7 +1058,7 @@ func (s *GovernanceService) checkValidityRule(rule *models.QualityTaskFieldRule,
 		if allowInternational {
 			// 中国手机号 或 国际号码（+开头，后跟国家代码和号码）
 			chinaPattern := regexPattern
-			intlPattern := `^\+\d{1,3}\d{7,14}$`
+			intlPattern := `^\+?\d{1,3}\d{7,14}$`
 
 			// 先尝试中国号码
 			if matched, _ := regexp.MatchString(chinaPattern, strValue); matched {

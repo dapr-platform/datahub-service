@@ -940,6 +940,137 @@ func (fm *FieldMapper) processRow(tx *gorm.DB, row map[string]interface{}, fullT
 	return nil
 }
 
+// UpsertTableData 使用UPSERT操作更新表数据（增量同步）
+// 不删除现有数据，只插入新数据或更新已存在的数据
+func (fm *FieldMapper) UpsertTableData(ctx context.Context, db *gorm.DB, interfaceInfo InterfaceInfo, data []map[string]interface{}) (int64, error) {
+	// 构造表名
+	schemaName := interfaceInfo.GetSchemaName()
+	tableName := interfaceInfo.GetTableName()
+	var fullTableName string
+	if schemaName != "" {
+		fullTableName = fmt.Sprintf(`"%s"."%s"`, schemaName, tableName)
+	} else {
+		fullTableName = fmt.Sprintf(`"%s"`, tableName)
+	}
+
+	slog.Debug("FieldMapper.UpsertTableData - 开始UPSERT表数据（增量同步）")
+	slog.Debug("UpsertTableData - 表名", "value", fullTableName)
+	slog.Debug("UpsertTableData - 原始数据行数", "count", len(data))
+
+	if len(data) == 0 {
+		return 0, nil
+	}
+
+	// 1. 获取表的主键信息
+	primaryKeys, err := fm.getPrimaryKeys(db, schemaName, tableName)
+	if err != nil || len(primaryKeys) == 0 {
+		slog.Warn("UpsertTableData - 获取主键信息失败或表没有主键，无法执行UPSERT操作", "error", err)
+		return 0, fmt.Errorf("表必须有主键才能执行UPSERT操作")
+	}
+
+	slog.Debug("UpsertTableData - 表的主键", "primary_keys", primaryKeys)
+
+	// 2. 对数据进行去重处理（基于主键）
+	deduplicatedData := fm.deduplicateData(data, primaryKeys, interfaceInfo)
+	slog.Debug("UpsertTableData - 去重后数据行数", "count", len(deduplicatedData))
+	if len(data) > len(deduplicatedData) {
+		slog.Info("UpsertTableData - 发现并去除重复数据",
+			"original_count", len(data),
+			"deduplicated_count", len(deduplicatedData),
+			"removed_count", len(data)-len(deduplicatedData))
+	}
+
+	// 3. 开启事务
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("UpsertTableData - 事务回滚，原因", "error", r)
+			tx.Rollback()
+		}
+	}()
+
+	// 4. 使用UPSERT插入或更新数据
+	var upsertedRows int64
+	parseConfig := interfaceInfo.GetParseConfig()
+
+	for i, row := range deduplicatedData {
+		// 只对第一行数据输出详细调试信息
+		if i == 0 {
+			slog.Debug("UpsertTableData - 处理第一行数据", "row_index", i+1, "row_data", row)
+		} else if i%100 == 0 {
+			slog.Debug("UpsertTableData - 已处理", "count", i+1)
+		}
+
+		// 应用字段映射
+		mappedRow := fm.ApplyFieldMapping(row, parseConfig, i == 0)
+		if i == 0 {
+			slog.Debug("UpsertTableData - 字段映射后的数据", "data", mappedRow)
+		}
+
+		// 构建UPSERT SQL (PostgreSQL: INSERT ... ON CONFLICT ... DO UPDATE)
+		columns := make([]string, 0, len(mappedRow))
+		placeholders := make([]string, 0, len(mappedRow))
+		values := make([]interface{}, 0, len(mappedRow))
+		updateParts := make([]string, 0, len(mappedRow))
+
+		for col, val := range mappedRow {
+			columns = append(columns, fmt.Sprintf(`"%s"`, col))
+			placeholders = append(placeholders, "?")
+			processedVal := fm.ProcessValueForDatabase(col, val, interfaceInfo, i == 0)
+			values = append(values, processedVal)
+
+			// 非主键字段才需要更新
+			isPrimaryKey := false
+			for _, pk := range primaryKeys {
+				if pk == col {
+					isPrimaryKey = true
+					break
+				}
+			}
+			if !isPrimaryKey {
+				updateParts = append(updateParts, fmt.Sprintf(`"%s" = EXCLUDED."%s"`, col, col))
+			}
+		}
+
+		// 构建冲突键（主键列表）
+		conflictKeys := make([]string, 0, len(primaryKeys))
+		for _, pk := range primaryKeys {
+			conflictKeys = append(conflictKeys, fmt.Sprintf(`"%s"`, pk))
+		}
+
+		// 构建UPSERT SQL
+		upsertSQL := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s",
+			fullTableName,
+			strings.Join(columns, ", "),
+			strings.Join(placeholders, ", "),
+			strings.Join(conflictKeys, ", "),
+			strings.Join(updateParts, ", "))
+
+		if i == 0 {
+			slog.Debug("UpsertTableData - UPSERT SQL", "value", upsertSQL)
+			slog.Debug("UpsertTableData - UPSERT参数", "data", values)
+		}
+
+		if err := tx.Exec(upsertSQL, values...).Error; err != nil {
+			slog.Error("UpsertTableData - UPSERT数据失败", "error", err)
+			slog.Error("UpsertTableData - 失败的SQL", "message", upsertSQL)
+			slog.Error("UpsertTableData - 失败的参数", "data", values)
+			tx.Rollback()
+			return 0, fmt.Errorf("UPSERT数据失败: %w", err)
+		}
+		upsertedRows++
+	}
+
+	// 5. 提交事务
+	if err := tx.Commit().Error; err != nil {
+		slog.Error("UpsertTableData - 提交事务失败", "error", err)
+		return 0, fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	slog.Debug("UpsertTableData - 成功UPSERT", "count", upsertedRows)
+	return upsertedRows, nil
+}
+
 // ReplaceTableData 替换表数据（全量同步）
 func (fm *FieldMapper) ReplaceTableData(ctx context.Context, db *gorm.DB, interfaceInfo InterfaceInfo, data []map[string]interface{}) (int64, error) {
 	// 构造表名
@@ -1155,58 +1286,110 @@ func (fm *FieldMapper) deduplicateData(data []map[string]interface{}, primaryKey
 }
 
 // UpsertBatchDataWithTx 使用提供的事务进行批量UPSERT操作（增量同步）
+// 不删除现有数据，只插入新数据或更新已存在的数据
 func (fm *FieldMapper) UpsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, interfaceInfo InterfaceInfo, data []map[string]interface{}) (int64, error) {
 	if len(data) == 0 {
 		return 0, nil
 	}
 
 	// 构造表名
-	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
+	schemaName := interfaceInfo.GetSchemaName()
+	tableName := interfaceInfo.GetTableName()
+	fullTableName := fmt.Sprintf(`"%s"."%s"`, schemaName, tableName)
 
-	slog.Debug("FieldMapper.UpsertBatchDataWithTx - 开始UPSERT批量数据到表", "value", fullTableName)
+	slog.Debug("FieldMapper.UpsertBatchDataWithTx - 开始UPSERT批量数据（增量同步）")
+	slog.Debug("UpsertBatchDataWithTx - 表名", "value", fullTableName)
 	slog.Debug("UpsertBatchDataWithTx - 数据行数", "count", len(data))
 
-	// 处理数据（使用提供的事务）
-	var processedRows int64
-	for i, row := range data {
-		slog.Debug("UpsertBatchDataWithTx - 处理行数据", "row_index", i+1, "row_data", row)
+	// 1. 获取表的主键信息
+	primaryKeys, err := fm.getPrimaryKeys(tx, schemaName, tableName)
+	if err != nil || len(primaryKeys) == 0 {
+		slog.Warn("UpsertBatchDataWithTx - 获取主键信息失败或表没有主键，无法执行UPSERT操作", "error", err)
+		return 0, fmt.Errorf("表必须有主键才能执行UPSERT操作")
+	}
 
-		// 应用parseConfig中的fieldMapping
-		parseConfig := interfaceInfo.GetParseConfig()
-		mappedRow := fm.ApplyFieldMapping(row, parseConfig)
-		slog.Debug("UpsertBatchDataWithTx - 字段映射后的数据", "data", mappedRow)
+	slog.Debug("UpsertBatchDataWithTx - 表的主键", "primary_keys", primaryKeys)
 
-		// 构建UPSERT SQL（这里简化为INSERT，实际应该实现UPSERT逻辑）
+	// 2. 对数据进行去重处理（基于主键）
+	deduplicatedData := fm.deduplicateData(data, primaryKeys, interfaceInfo)
+	slog.Debug("UpsertBatchDataWithTx - 去重后数据行数", "count", len(deduplicatedData))
+	if len(data) > len(deduplicatedData) {
+		slog.Info("UpsertBatchDataWithTx - 发现并去除重复数据",
+			"original_count", len(data),
+			"deduplicated_count", len(deduplicatedData),
+			"removed_count", len(data)-len(deduplicatedData))
+	}
+
+	// 3. 使用UPSERT插入或更新数据
+	var upsertedRows int64
+	parseConfig := interfaceInfo.GetParseConfig()
+
+	for i, row := range deduplicatedData {
+		// 只对第一行和每100行输出调试信息
+		debug := (i == 0 || i%100 == 0)
+		if debug {
+			slog.Debug("UpsertBatchDataWithTx - 处理行数据", "row_index", i+1, "total", len(deduplicatedData))
+		}
+
+		// 应用字段映射
+		mappedRow := fm.ApplyFieldMapping(row, parseConfig, i == 0)
+		if i == 0 {
+			slog.Debug("UpsertBatchDataWithTx - 字段映射后的数据", "data", mappedRow)
+		}
+
+		// 构建UPSERT SQL (PostgreSQL: INSERT ... ON CONFLICT ... DO UPDATE)
 		columns := make([]string, 0, len(mappedRow))
 		placeholders := make([]string, 0, len(mappedRow))
 		values := make([]interface{}, 0, len(mappedRow))
+		updateParts := make([]string, 0, len(mappedRow))
 
 		for col, val := range mappedRow {
 			columns = append(columns, fmt.Sprintf(`"%s"`, col))
 			placeholders = append(placeholders, "?")
-			// 处理数据类型转换，基于字段配置
-			processedVal := fm.ProcessValueForDatabase(col, val, interfaceInfo)
+			processedVal := fm.ProcessValueForDatabase(col, val, interfaceInfo, i == 0)
 			values = append(values, processedVal)
+
+			// 非主键字段才需要更新
+			isPrimaryKey := false
+			for _, pk := range primaryKeys {
+				if pk == col {
+					isPrimaryKey = true
+					break
+				}
+			}
+			if !isPrimaryKey {
+				updateParts = append(updateParts, fmt.Sprintf(`"%s" = EXCLUDED."%s"`, col, col))
+			}
 		}
 
-		// 构建INSERT SQL（简化版，实际应该是UPSERT）
-		insertSQL := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+		// 构建冲突键（主键列表）
+		conflictKeys := make([]string, 0, len(primaryKeys))
+		for _, pk := range primaryKeys {
+			conflictKeys = append(conflictKeys, fmt.Sprintf(`"%s"`, pk))
+		}
+
+		// 构建UPSERT SQL
+		upsertSQL := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s",
 			fullTableName,
 			strings.Join(columns, ", "),
-			strings.Join(placeholders, ", "))
+			strings.Join(placeholders, ", "),
+			strings.Join(conflictKeys, ", "),
+			strings.Join(updateParts, ", "))
 
-		slog.Debug("UpsertBatchDataWithTx - 插入SQL", "value", insertSQL)
-		slog.Debug("UpsertBatchDataWithTx - 插入参数", "data", values)
-
-		if err := tx.Exec(insertSQL, values...).Error; err != nil {
-			slog.Error("UpsertBatchDataWithTx - 插入数据失败", "error", err)
-			slog.Error("UpsertBatchDataWithTx - 失败的SQL", "message", insertSQL)
-			slog.Error("UpsertBatchDataWithTx - 失败的参数", "data", values)
-			return 0, fmt.Errorf("插入数据失败: %w", err)
+		if i == 0 {
+			slog.Debug("UpsertBatchDataWithTx - UPSERT SQL", "value", upsertSQL)
+			slog.Debug("UpsertBatchDataWithTx - UPSERT参数", "data", values)
 		}
-		processedRows++
+
+		if err := tx.Exec(upsertSQL, values...).Error; err != nil {
+			slog.Error("UpsertBatchDataWithTx - UPSERT数据失败", "error", err)
+			slog.Error("UpsertBatchDataWithTx - 失败的SQL", "message", upsertSQL)
+			slog.Error("UpsertBatchDataWithTx - 失败的参数", "data", values)
+			return 0, fmt.Errorf("UPSERT数据失败: %w", err)
+		}
+		upsertedRows++
 	}
 
-	slog.Debug("UpsertBatchDataWithTx - 成功处理", "count", processedRows) // 行数据
-	return processedRows, nil
+	slog.Debug("UpsertBatchDataWithTx - 成功UPSERT", "count", upsertedRows)
+	return upsertedRows, nil
 }

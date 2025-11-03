@@ -613,8 +613,8 @@ func (ops *ExecuteOperations) ExecuteSingleSync(ctx context.Context, interfaceIn
 		// 全量同步：先清空表，再插入新数据
 		updatedRows, err = fieldMapper.ReplaceTableData(ctx, ops.executor.db, interfaceInfo, data)
 	} else {
-		// 增量同步：使用UPSERT操作
-		updatedRows, err = fieldMapper.UpdateTableData(ctx, ops.executor.db, interfaceInfo, data)
+		// 增量同步：使用真正的UPSERT操作（插入或更新，不删除现有数据）
+		updatedRows, err = fieldMapper.UpsertTableData(ctx, ops.executor.db, interfaceInfo, data)
 	}
 
 	if err != nil {

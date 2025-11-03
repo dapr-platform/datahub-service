@@ -533,6 +533,15 @@ func InitRoute(r *chi.Mux) {
 		r.Get("/system-activity-stats", dashboardController.GetSystemActivityStats)
 	})
 
+	// 系统配置管理（需要认证）
+	r.Route("/config", func(r chi.Router) {
+		configController := controllers.NewConfigController()
+		r.Get("/", configController.GetAllConfigs)
+		r.Get("/{key}", configController.GetConfig)
+		r.Put("/{key}", configController.UpdateConfig)
+		r.Post("/batch", configController.BatchUpdateConfigs)
+	})
+
 	// 认证中间件管理接口（需要管理员权限）
 	r.Route("/admin/auth", func(r chi.Router) {
 		// 需要管理员权限（全局中间件已经处理了基本认证）
