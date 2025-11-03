@@ -1299,11 +1299,41 @@ func (qb *QueryBuilder) buildDatabaseIncrementalRequest(syncStrategy string, par
 		var formattedValue string
 		switch v := incrementalParams.LastSyncValue.(type) {
 		case string:
-			formattedValue = fmt.Sprintf("'%s'", v)
+			// 尝试解析为时间，如果是时间格式则转换为PostgreSQL兼容格式
+			if t, err := time.Parse(time.RFC3339, v); err == nil {
+				// ISO 8601 格式，PostgreSQL 完全兼容
+				formattedValue = fmt.Sprintf("'%s'", t.Format(time.RFC3339))
+			} else {
+				formattedValue = fmt.Sprintf("'%s'", v)
+			}
+		case time.Time:
+			// time.Time 类型，转换为 PostgreSQL 兼容的 ISO 8601 格式
+			formattedValue = fmt.Sprintf("'%s'", v.Format(time.RFC3339))
+		case *time.Time:
+			// *time.Time 指针类型，转换为 PostgreSQL 兼容的 ISO 8601 格式
+			if v != nil {
+				formattedValue = fmt.Sprintf("'%s'", v.Format(time.RFC3339))
+			} else {
+				formattedValue = "NULL"
+			}
 		case int, int64, float64:
 			formattedValue = fmt.Sprintf("%v", v)
 		default:
-			formattedValue = fmt.Sprintf("'%v'", v)
+			// 检查是否是 time.Time 类型（通过类型断言）
+			if t, ok := v.(time.Time); ok {
+				formattedValue = fmt.Sprintf("'%s'", t.Format(time.RFC3339))
+			} else if t, ok := v.(*time.Time); ok && t != nil {
+				formattedValue = fmt.Sprintf("'%s'", t.Format(time.RFC3339))
+			} else {
+				// 默认情况：尝试解析为字符串
+				strVal := fmt.Sprintf("%v", v)
+				// 尝试解析 Go 的默认时间格式（包含时区信息）
+				if t, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", strVal); err == nil {
+					formattedValue = fmt.Sprintf("'%s'", t.Format(time.RFC3339))
+				} else {
+					formattedValue = fmt.Sprintf("'%s'", strVal)
+				}
+			}
 		}
 
 		// 添加增量条件到WHERE子句
