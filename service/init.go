@@ -43,9 +43,9 @@ var (
 	GlobalSyncTaskService        *basic_library.SyncTaskService // 现在包含调度功能
 	GlobalGovernanceService      *governance.GovernanceService
 	GlobalSharingService         *sharing.SharingService
-	GlobalDistributedLock        *distributed_lock.RedisLock   // Redis分布式锁
-	GlobalConfigService          *config.ConfigService          // 配置服务
-	GlobalLogCleanupService      *cleanup.LogCleanupService    // 日志清理服务
+	GlobalDistributedLock        *distributed_lock.RedisLock // Redis分布式锁
+	GlobalConfigService          *config.ConfigService       // 配置服务
+	GlobalLogCleanupService      *cleanup.LogCleanupService  // 日志清理服务
 )
 
 func init() {
@@ -118,7 +118,7 @@ func runMigrations() {
 func initServices() {
 	// 初始化配置服务（优先初始化，其他服务可能需要）
 	GlobalConfigService = config.NewConfigService(DB)
-	
+
 	// 初始化事件服务
 	GlobalEventService = event.NewEventService(DB)
 	// 将事件服务作为参数传递给BasicLibraryService
@@ -154,6 +154,9 @@ func initServices() {
 
 	// 初始化数据源
 	initializeDataSources()
+
+	// 重置运行中的任务状态（程序重启会中断正在执行的任务）
+	resetRunningTasksOnStartup()
 
 	// 启动基础库调度器
 	if err := GlobalSyncTaskService.StartScheduler(); err != nil {
@@ -250,4 +253,26 @@ func initializeRealtimeInterfaceBindings(ctx context.Context, datasourceInitServ
 	// 这里暂时跳过，因为需要在interface_service中实现相关方法
 
 	slog.Info("实时接口绑定初始化完成")
+}
+
+// resetRunningTasksOnStartup 在程序启动时重置所有运行中的任务状态
+// 因为程序重启会中断正在执行的任务，需要将其标记为失败
+func resetRunningTasksOnStartup() {
+	slog.Info("开始重置运行中的任务状态...")
+
+	// 重置基础库运行中的任务
+	if GlobalSyncTaskService != nil {
+		if err := GlobalSyncTaskService.ResetRunningTasksOnStartup(); err != nil {
+			slog.Error("重置基础库运行中的任务失败", "error", err)
+		}
+	}
+
+	// 重置主题库运行中的任务
+	if GlobalThematicSyncService != nil {
+		if err := GlobalThematicSyncService.ResetRunningTasksOnStartup(); err != nil {
+			slog.Error("重置主题库运行中的任务失败", "error", err)
+		}
+	}
+
+	slog.Info("运行中的任务状态重置完成")
 }

@@ -1669,3 +1669,45 @@ func (tss *ThematicSyncService) ReloadScheduledTasks() error {
 
 	return tss.loadScheduledTasks()
 }
+
+// ResetRunningTasksOnStartup 在程序启动时重置所有运行中的执行记录状态为失败
+// 因为程序重启会中断正在执行的任务
+func (tss *ThematicSyncService) ResetRunningTasksOnStartup() error {
+	slog.Info("开始重置主题库运行中的任务状态...")
+
+	// 查找所有 status 为 pending 或 running 的主题库执行记录
+	var runningExecutions []models.ThematicSyncExecution
+	if err := tss.db.Where("status IN (?)", []string{"pending", "running"}).
+		Find(&runningExecutions).Error; err != nil {
+		return fmt.Errorf("查询运行中的执行记录失败: %w", err)
+	}
+
+	if len(runningExecutions) == 0 {
+		slog.Info("没有发现运行中的主题库任务")
+		return nil
+	}
+
+	slog.Info("发现运行中的主题库执行记录", "count", len(runningExecutions))
+
+	// 批量更新执行记录状态
+	endTime := time.Now()
+	updates := map[string]interface{}{
+		"status":        "failed",
+		"end_time":      &endTime,
+		"error_details": models.JSONB{"error": "任务因程序重启而中断"},
+		"updated_at":    time.Now(),
+	}
+
+	if err := tss.db.Model(&models.ThematicSyncExecution{}).
+		Where("status IN (?)", []string{"pending", "running"}).
+		Updates(updates).Error; err != nil {
+		return fmt.Errorf("更新执行记录状态失败: %w", err)
+	}
+
+	slog.Info("已重置主题库运行中的任务状态", "count", len(runningExecutions))
+	for _, exec := range runningExecutions {
+		slog.Debug("重置执行记录", "execution_id", exec.ID, "task_id", exec.TaskID)
+	}
+
+	return nil
+}

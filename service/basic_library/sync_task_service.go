@@ -1612,6 +1612,62 @@ func (s *SyncTaskService) ReloadScheduledTasks() error {
 	return s.loadScheduledTasks()
 }
 
+// ResetRunningTasksOnStartup 在程序启动时重置所有运行中的任务状态为失败
+// 因为程序重启会中断正在执行的任务
+func (s *SyncTaskService) ResetRunningTasksOnStartup() error {
+	slog.Info("开始重置基础库运行中的任务状态...")
+
+	// 查找所有 execution_status 为 running 的基础库任务
+	var runningTasks []models.SyncTask
+	if err := s.db.Where("library_type = ? AND execution_status = ?",
+		meta.LibraryTypeBasic, meta.SyncExecutionStatusRunning).
+		Find(&runningTasks).Error; err != nil {
+		return fmt.Errorf("查询运行中的任务失败: %w", err)
+	}
+
+	if len(runningTasks) == 0 {
+		slog.Info("没有发现运行中的基础库任务")
+		return nil
+	}
+
+	slog.Info("发现运行中的基础库任务", "count", len(runningTasks))
+
+	// 批量更新任务状态
+	updates := map[string]interface{}{
+		"execution_status": meta.SyncExecutionStatusFailed,
+		"end_time":         time.Now(),
+		"error_message":    "任务因程序重启而中断",
+		"updated_at":       time.Now(),
+	}
+
+	if err := s.db.Model(&models.SyncTask{}).
+		Where("library_type = ? AND execution_status = ?",
+			meta.LibraryTypeBasic, meta.SyncExecutionStatusRunning).
+		Updates(updates).Error; err != nil {
+		return fmt.Errorf("更新任务状态失败: %w", err)
+	}
+
+	// 同时更新相关的执行记录
+	if err := s.db.Model(&models.SyncTaskExecution{}).
+		Where("status = ?", meta.SyncExecutionStatusRunning).
+		Updates(map[string]interface{}{
+			"status":        meta.SyncExecutionStatusFailed,
+			"end_time":      time.Now(),
+			"error_message": "任务因程序重启而中断",
+			"updated_at":    time.Now(),
+		}).Error; err != nil {
+		slog.Warn("更新执行记录状态失败", "error", err)
+		// 不返回错误，继续处理
+	}
+
+	slog.Info("已重置基础库运行中的任务状态", "count", len(runningTasks))
+	for _, task := range runningTasks {
+		slog.Debug("重置任务状态", "task_id", task.ID, "task_type", task.TaskType)
+	}
+
+	return nil
+}
+
 // 辅助函数
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
