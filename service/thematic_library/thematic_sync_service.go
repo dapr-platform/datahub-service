@@ -1690,12 +1690,12 @@ func (tss *ThematicSyncService) ResetRunningTasksOnStartup() error {
 	slog.Info("发现运行中的主题库执行记录", "count", len(runningExecutions))
 
 	// 批量更新执行记录状态
+	// 注意: ThematicSyncExecution 模型没有 updated_at 字段，只有 created_at
 	endTime := time.Now()
 	updates := map[string]interface{}{
 		"status":        "failed",
 		"end_time":      &endTime,
 		"error_details": models.JSONB{"error": "任务因程序重启而中断"},
-		"updated_at":    time.Now(),
 	}
 
 	if err := tss.db.Model(&models.ThematicSyncExecution{}).
