@@ -218,6 +218,25 @@ definitions:
     required:
     - task_ids
     type: object
+  controllers.BatchUpdateConfigsRequest:
+    properties:
+      configs:
+        items:
+          properties:
+            description:
+              type: string
+            key:
+              type: string
+            value:
+              type: string
+          required:
+          - key
+          - value
+          type: object
+        type: array
+    required:
+    - configs
+    type: object
   controllers.BroadcastEventRequest:
     properties:
       data:
@@ -1603,6 +1622,15 @@ definitions:
         type: string
     required:
     - id
+    type: object
+  controllers.UpdateConfigRequest:
+    properties:
+      description:
+        type: string
+      value:
+        type: string
+    required:
+    - value
     type: object
   controllers.UpdateDataInterfaceRequest:
     properties:
@@ -6847,6 +6875,94 @@ paths:
       summary: 更新接口字段配置
       tags:
       - 数据基础库
+  /config:
+    get:
+      consumes:
+      - application/json
+      description: 获取系统所有配置项
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取所有系统配置
+      tags:
+      - 系统配置
+  /config/{key}:
+    get:
+      consumes:
+      - application/json
+      description: 根据键名获取配置值
+      parameters:
+      - description: 配置键
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取单个配置
+      tags:
+      - 系统配置
+    put:
+      consumes:
+      - application/json
+      description: 更新指定键的配置值
+      parameters:
+      - description: 配置键
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: 更新配置请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 更新配置
+      tags:
+      - 系统配置
+  /config/batch:
+    post:
+      consumes:
+      - application/json
+      description: 批量更新多个配置项
+      parameters:
+      - description: 批量更新配置请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.BatchUpdateConfigsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 批量更新配置
+      tags:
+      - 系统配置
   /dashboard/basic-library-stats:
     get:
       description: 获取基础库的详细统计信息

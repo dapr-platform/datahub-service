@@ -1684,6 +1684,138 @@ const docTemplate = `{
                 }
             }
         },
+        "/config": {
+            "get": {
+                "description": "获取系统所有配置项",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统配置"
+                ],
+                "summary": "获取所有系统配置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/config/batch": {
+            "post": {
+                "description": "批量更新多个配置项",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统配置"
+                ],
+                "summary": "批量更新配置",
+                "parameters": [
+                    {
+                        "description": "批量更新配置请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.BatchUpdateConfigsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/config/{key}": {
+            "get": {
+                "description": "根据键名获取配置值",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统配置"
+                ],
+                "summary": "获取单个配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "配置键",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新指定键的配置值",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统配置"
+                ],
+                "summary": "更新配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "配置键",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新配置请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/dashboard/basic-library-stats": {
             "get": {
                 "description": "获取基础库的详细统计信息",
@@ -11288,6 +11420,35 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.BatchUpdateConfigsRequest": {
+            "type": "object",
+            "required": [
+                "configs"
+            ],
+            "properties": {
+                "configs": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "key",
+                            "value"
+                        ],
+                        "properties": {
+                            "description": {
+                                "type": "string"
+                            },
+                            "key": {
+                                "type": "string"
+                            },
+                            "value": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "controllers.BroadcastEventRequest": {
             "type": "object",
             "properties": {
@@ -13301,6 +13462,20 @@ const docTemplate = `{
                 "status": {
                     "type": "string",
                     "example": "active"
+                }
+            }
+        },
+        "controllers.UpdateConfigRequest": {
+            "type": "object",
+            "required": [
+                "value"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },

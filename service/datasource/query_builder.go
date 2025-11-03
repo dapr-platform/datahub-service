@@ -1296,23 +1296,36 @@ func (qb *QueryBuilder) buildDatabaseIncrementalRequest(syncStrategy string, par
 			"batch_size", incrementalParams.BatchSize)
 
 		// 格式化增量值（根据类型决定是否加引号）
+		// 对于时间类型，如果本地数据库是 timestamp without time zone，
+		// 需要将时间转换为本地时区（Asia/Shanghai），去除时区信息
+		shanghaiLoc, _ := time.LoadLocation("Asia/Shanghai")
+		
 		var formattedValue string
 		switch v := incrementalParams.LastSyncValue.(type) {
 		case string:
-			// 尝试解析为时间，如果是时间格式则转换为PostgreSQL兼容格式
+			// 尝试解析为时间，如果是时间格式则转换为本地时区格式（不带时区）
 			if t, err := time.Parse(time.RFC3339, v); err == nil {
-				// ISO 8601 格式，PostgreSQL 完全兼容
-				formattedValue = fmt.Sprintf("'%s'", t.Format(time.RFC3339))
+				// 转换到上海时区，并使用不带时区的格式
+				localTime := t.In(shanghaiLoc)
+				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
+				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
+					"original", v, "parsed", t, "local", localTime, "formatted", formattedValue)
 			} else {
 				formattedValue = fmt.Sprintf("'%s'", v)
 			}
 		case time.Time:
-			// time.Time 类型，转换为 PostgreSQL 兼容的 ISO 8601 格式
-			formattedValue = fmt.Sprintf("'%s'", v.Format(time.RFC3339))
+			// time.Time 类型，转换到上海时区，使用不带时区的格式
+			localTime := v.In(shanghaiLoc)
+			formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
+			slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
+				"original", v, "local", localTime, "formatted", formattedValue)
 		case *time.Time:
-			// *time.Time 指针类型，转换为 PostgreSQL 兼容的 ISO 8601 格式
+			// *time.Time 指针类型，转换到上海时区，使用不带时区的格式
 			if v != nil {
-				formattedValue = fmt.Sprintf("'%s'", v.Format(time.RFC3339))
+				localTime := v.In(shanghaiLoc)
+				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
+				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
+					"original", *v, "local", localTime, "formatted", formattedValue)
 			} else {
 				formattedValue = "NULL"
 			}
@@ -1321,15 +1334,47 @@ func (qb *QueryBuilder) buildDatabaseIncrementalRequest(syncStrategy string, par
 		default:
 			// 检查是否是 time.Time 类型（通过类型断言）
 			if t, ok := v.(time.Time); ok {
-				formattedValue = fmt.Sprintf("'%s'", t.Format(time.RFC3339))
+				localTime := t.In(shanghaiLoc)
+				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
+				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
+					"original", t, "local", localTime, "formatted", formattedValue)
 			} else if t, ok := v.(*time.Time); ok && t != nil {
-				formattedValue = fmt.Sprintf("'%s'", t.Format(time.RFC3339))
+				localTime := t.In(shanghaiLoc)
+				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
+				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
+					"original", *t, "local", localTime, "formatted", formattedValue)
 			} else {
 				// 默认情况：尝试解析为字符串
 				strVal := fmt.Sprintf("%v", v)
-				// 尝试解析 Go 的默认时间格式（包含时区信息）
-				if t, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", strVal); err == nil {
-					formattedValue = fmt.Sprintf("'%s'", t.Format(time.RFC3339))
+				// 尝试多种时间格式解析
+				var parsedTime time.Time
+				var parseErr error
+				
+				timeFormats := []string{
+					"2006-01-02 15:04:05.999999999 -0700 MST",
+					"2006-01-02 15:04:05.999999999 -0700",
+					"2006-01-02 15:04:05 -0700",
+					time.RFC3339Nano,
+					time.RFC3339,
+					"2006-01-02 15:04:05",
+					"2006-01-02T15:04:05",
+				}
+				
+				for _, format := range timeFormats {
+					if t, err := time.Parse(format, strVal); err == nil {
+						parsedTime = t
+						parseErr = nil
+						break
+					} else {
+						parseErr = err
+					}
+				}
+				
+				if parseErr == nil {
+					localTime := parsedTime.In(shanghaiLoc)
+					formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
+					slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
+						"original", strVal, "parsed", parsedTime, "local", localTime, "formatted", formattedValue)
 				} else {
 					formattedValue = fmt.Sprintf("'%s'", strVal)
 				}
