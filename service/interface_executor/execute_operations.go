@@ -537,40 +537,12 @@ func (ops *ExecuteOperations) getLastSyncValue(interfaceInfo InterfaceInfo, sour
 	}
 
 	// 3. 查询最新值
-	// 注意: 如果数据库字段是 timestamp without time zone，需要指定为 Asia/Shanghai 时区
 	var lastValue interface{}
 	sql := fmt.Sprintf(`SELECT MAX("%s") FROM %s`, mappedFieldName, fullTableName)
 
 	row := ops.executor.db.Raw(sql).Row()
 	if err := row.Scan(&lastValue); err != nil {
 		return mappedFieldName, nil, fmt.Errorf("查询最新值失败: %w", err)
-	}
-
-	// 4. 如果查询结果是时间类型，需要确保时区设置为 Asia/Shanghai
-	// 因为数据库字段可能是 timestamp without time zone
-	if lastValue != nil {
-		switch v := lastValue.(type) {
-		case time.Time:
-			// 如果数据库返回的时间没有时区信息，将其视为 Asia/Shanghai 时区
-			shanghaiLocation, err := time.LoadLocation("Asia/Shanghai")
-			if err != nil {
-				slog.Warn("getLastSyncValue - 加载Asia/Shanghai时区失败，使用UTC", "error", err)
-				shanghaiLocation = time.UTC
-			}
-
-			// 如果时间的时区是UTC（这通常意味着数据库字段是without time zone），
-			// 我们将其解释为Asia/Shanghai时区
-			if v.Location() == time.UTC {
-				// 保持相同的时间值，但改变时区标记
-				localTime := time.Date(v.Year(), v.Month(), v.Day(),
-					v.Hour(), v.Minute(), v.Second(), v.Nanosecond(), shanghaiLocation)
-				lastValue = localTime
-				slog.Debug("getLastSyncValue - 时区转换",
-					"original_utc", v.Format("2006-01-02 15:04:05"),
-					"interpreted_as_shanghai", localTime.Format("2006-01-02 15:04:05"),
-					"for_comparison", localTime.Format(time.RFC3339))
-			}
-		}
 	}
 
 	slog.Debug("getLastSyncValue - 查询结果", "sql", sql, "result", lastValue)

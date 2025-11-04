@@ -74,22 +74,32 @@ func (qb *QueryBuilder) BuildTestRequest(parameters map[string]interface{}) (*Ex
 	}
 }
 
-// BuildSyncRequest 构建同步请求
+// BuildSyncRequest 构建同步请求（仅用于全量同步）
 func (qb *QueryBuilder) BuildSyncRequest(syncStrategy string, parameters map[string]interface{}) (*ExecuteRequest, error) {
+	// 增量同步应使用 BuildIncrementalRequest
+	if syncStrategy == "incremental" {
+		return nil, fmt.Errorf("增量同步请使用 BuildIncrementalRequest 方法")
+	}
+
 	switch qb.sourceTypeDef.Category {
 	case meta.DataSourceCategoryDatabase:
-		return qb.buildDatabaseSyncRequest(syncStrategy, parameters)
+		return qb.buildDatabaseFullRequest(parameters)
 	case meta.DataSourceCategoryAPI:
-		return qb.buildAPISyncRequest(syncStrategy, parameters)
+		return qb.buildAPISyncRequest("full", parameters)
 	case meta.DataSourceCategoryMessaging:
-		return qb.buildMessagingSyncRequest(syncStrategy, parameters)
+		return qb.buildMessagingSyncRequest("full", parameters)
 	default:
 		return nil, fmt.Errorf("不支持的数据源类别: %s", qb.sourceTypeDef.Category)
 	}
 }
 
-// BuildSyncRequestWithPagination 构建带分页的同步请求
+// BuildSyncRequestWithPagination 构建带分页的同步请求（仅用于全量同步）
 func (qb *QueryBuilder) BuildSyncRequestWithPagination(syncStrategy string, parameters map[string]interface{}, pageParams map[string]interface{}) (*ExecuteRequest, error) {
+	// 增量同步应使用 BuildIncrementalRequest
+	if syncStrategy == "incremental" {
+		return nil, fmt.Errorf("增量同步请使用 BuildIncrementalRequest 方法")
+	}
+
 	// 合并分页参数到基础参数中
 	allParams := make(map[string]interface{})
 	for k, v := range parameters {
@@ -101,11 +111,27 @@ func (qb *QueryBuilder) BuildSyncRequestWithPagination(syncStrategy string, para
 
 	switch qb.sourceTypeDef.Category {
 	case meta.DataSourceCategoryDatabase:
-		return qb.buildDatabaseSyncRequestWithPagination(syncStrategy, allParams, pageParams)
+		// 数据库分页：构建基础查询并添加 LIMIT/OFFSET
+		baseRequest, err := qb.buildDatabaseFullRequest(allParams)
+		if err != nil {
+			return nil, err
+		}
+		// 添加分页信息到查询中
+		if page, exists := pageParams["page"]; exists {
+			if pageSize, exists := pageParams["page_size"]; exists {
+				pageInt := cast.ToInt(page)
+				pageSizeInt := cast.ToInt(pageSize)
+				if pageInt > 0 && pageSizeInt > 0 {
+					offset := (pageInt - 1) * pageSizeInt
+					baseRequest.Query = fmt.Sprintf("%s LIMIT %d OFFSET %d", baseRequest.Query, pageSizeInt, offset)
+				}
+			}
+		}
+		return baseRequest, nil
 	case meta.DataSourceCategoryAPI:
 		return qb.buildAPISyncRequestWithPagination(syncStrategy, allParams, pageParams)
 	case meta.DataSourceCategoryMessaging:
-		return qb.buildMessagingSyncRequest(syncStrategy, allParams)
+		return qb.buildMessagingSyncRequest("full", allParams)
 	default:
 		return nil, fmt.Errorf("不支持的数据源类别: %s", qb.sourceTypeDef.Category)
 	}
@@ -118,38 +144,22 @@ func (qb *QueryBuilder) BuildPaginatedRequest(syncStrategy string, pageParams ma
 }
 
 // BuildIncrementalRequest 构建增量查询请求
-func (qb *QueryBuilder) BuildIncrementalRequest(syncStrategy string, incrementalParams *IncrementalParams) (*ExecuteRequest, error) {
+func (qb *QueryBuilder) BuildIncrementalRequest(incrementalParams *IncrementalParams) (*ExecuteRequest, error) {
 	slog.Debug("QueryBuilder.BuildIncrementalRequest - 开始构建增量请求",
-		"sync_strategy", syncStrategy,
 		"incremental_params", incrementalParams,
 		"datasource_category", qb.sourceTypeDef.Category)
 
-	parameters := make(map[string]interface{})
-
-	// 添加增量参数
-	if incrementalParams != nil {
-		parameters["last_sync_value"] = incrementalParams.LastSyncValue
-		parameters["incremental_field"] = incrementalParams.IncrementalKey
-		parameters["comparison_type"] = incrementalParams.ComparisonType
-		parameters["batch_size"] = incrementalParams.BatchSize
-		slog.Debug("QueryBuilder.BuildIncrementalRequest - 增量参数已添加", "parameters", parameters)
-	}
-
 	switch qb.sourceTypeDef.Category {
 	case meta.DataSourceCategoryDatabase:
-		slog.Debug("QueryBuilder.BuildIncrementalRequest - 数据库类型，调用 buildDatabaseIncrementalRequest")
-		return qb.buildDatabaseIncrementalRequest(syncStrategy, parameters, incrementalParams)
+		return qb.buildDatabaseIncrementalRequest(incrementalParams)
 
 	case meta.DataSourceCategoryAPI:
-		slog.Debug("QueryBuilder.BuildIncrementalRequest - API类型，调用 buildAPIIncrementalRequest")
-		return qb.buildAPIIncrementalRequest(syncStrategy, parameters, incrementalParams)
+		return qb.buildAPIIncrementalRequest(incrementalParams)
 
 	case meta.DataSourceCategoryMessaging:
-		slog.Debug("QueryBuilder.BuildIncrementalRequest - 消息队列类型，调用 buildMessagingSyncRequest")
-		return qb.buildMessagingSyncRequest(syncStrategy, parameters)
+		return nil, fmt.Errorf("消息队列类型不支持增量同步")
 
 	default:
-		slog.Error("QueryBuilder.BuildIncrementalRequest - 不支持的数据源类别", "category", qb.sourceTypeDef.Category)
 		return nil, fmt.Errorf("不支持的数据源类别: %s", qb.sourceTypeDef.Category)
 	}
 }
@@ -666,219 +676,72 @@ func (qb *QueryBuilder) buildMessagingTestRequest(parameters map[string]interfac
 	return request, nil
 }
 
-// buildDatabaseSyncRequest 构建数据库同步请求
-func (qb *QueryBuilder) buildDatabaseSyncRequest(syncStrategy string, parameters map[string]interface{}) (*ExecuteRequest, error) {
-	slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 开始构建数据库同步请求", "sync_strategy", syncStrategy, "parameters", parameters)
-
-	var query string
-	var operation string = "query"
-
-	// 从接口配置中获取查询信息
-	if qb.dataInterface == nil {
-		slog.Error("QueryBuilder.buildDatabaseSyncRequest - dataInterface 为空")
-		return nil, fmt.Errorf("数据接口配置为空")
-	}
-
-	interfaceConfig := map[string]interface{}(qb.dataInterface.InterfaceConfig)
-	slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 接口配置", "interface_config", interfaceConfig)
-
-	// 尝试获取自定义查询
-	if q, exists := interfaceConfig["query"]; exists {
-		if queryStr, ok := q.(string); ok {
-			query = queryStr
-			slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 使用自定义查询", "query", query)
+// formatTimeForSQL 格式化时间值为SQL字符串
+func formatTimeForSQL(value interface{}) string {
+	switch v := value.(type) {
+	case time.Time:
+		return fmt.Sprintf("'%s'", v.Format("2006-01-02 15:04:05"))
+	case *time.Time:
+		if v != nil {
+			return fmt.Sprintf("'%s'", v.Format("2006-01-02 15:04:05"))
 		}
-	}
-
-	// 尝试获取表名并构建查询
-	if query == "" {
-		slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 没有自定义查询，尝试从表名构建")
-
-		if tableName, exists := interfaceConfig[meta.DataInterfaceConfigFieldTableName]; exists {
-			slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 找到表名配置", "table_name", tableName)
-
-			if tableStr, ok := tableName.(string); ok {
-				slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 表名类型正确", "table_str", tableStr)
-
-				switch syncStrategy {
-				case "full":
-					query = fmt.Sprintf("SELECT * FROM %s", tableStr)
-					slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 构建全量同步查询", "query", query)
-
-				case "incremental":
-					slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 构建增量同步查询")
-
-					// 增量同步需要增量字段
-					incrementalField := "updated_at" // 默认字段
-					if incField, exists := parameters["incremental_field"]; exists {
-						if incFieldStr, ok := incField.(string); ok {
-							incrementalField = incFieldStr
-							slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 使用参数中的增量字段", "incremental_field", incrementalField)
-						}
-					}
-
-					if lastSyncValue, exists := parameters["last_sync_value"]; exists {
-						query = fmt.Sprintf("SELECT * FROM %s WHERE %s > '%v'", tableStr, incrementalField, lastSyncValue)
-						slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 构建增量查询（有上次同步值）", "query", query, "last_sync_value", lastSyncValue)
-					} else {
-						query = fmt.Sprintf("SELECT * FROM %s", tableStr)
-						slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 构建增量查询（无上次同步值，退化为全量）", "query", query)
-					}
-
-				default:
-					slog.Warn("QueryBuilder.buildDatabaseSyncRequest - 未知的同步策略，使用全量查询", "sync_strategy", syncStrategy)
-					query = fmt.Sprintf("SELECT * FROM %s", tableStr)
-				}
-			} else {
-				slog.Error("QueryBuilder.buildDatabaseSyncRequest - 表名类型转换失败", "table_name_type", fmt.Sprintf("%T", tableName))
-			}
-		} else {
-			slog.Error("QueryBuilder.buildDatabaseSyncRequest - 接口配置中没有找到表名字段", "field_name", meta.DataInterfaceConfigFieldTableName)
+		return "NULL"
+	case string:
+		// 尝试解析为RFC3339时间格式
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			return fmt.Sprintf("'%s'", t.Format("2006-01-02 15:04:05"))
 		}
+		// 如果不是时间格式，直接返回字符串
+		return fmt.Sprintf("'%s'", v)
+	case int, int64, float64:
+		return fmt.Sprintf("%v", v)
+	default:
+		// 尝试转换为字符串
+		return fmt.Sprintf("'%v'", v)
 	}
-
-	if query == "" {
-		slog.Error("QueryBuilder.buildDatabaseSyncRequest - 无法构建查询", "interface_id", qb.dataInterface.ID, "interface_config", interfaceConfig)
-		return nil, fmt.Errorf("无法构建数据库同步查询")
-	}
-
-	slog.Debug("QueryBuilder.buildDatabaseSyncRequest - 最终查询语句", "query", query)
-
-	// 合并参数
-	allParams := make(map[string]interface{})
-	allParams["sync_strategy"] = syncStrategy
-	for k, v := range parameters {
-		allParams[k] = v
-	}
-
-	request := &ExecuteRequest{
-		Operation: operation,
-		Query:     query,
-		Params:    allParams,
-		Timeout:   5 * time.Minute, // 同步操作使用更长的超时时间
-	}
-
-	return request, nil
 }
 
-// buildDatabaseSyncRequestWithPagination 构建带分页的数据库同步请求
-func (qb *QueryBuilder) buildDatabaseSyncRequestWithPagination(syncStrategy string, parameters map[string]interface{}, pageParams map[string]interface{}) (*ExecuteRequest, error) {
-	slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 开始构建", "sync_strategy", syncStrategy, "parameters", parameters, "page_params", pageParams)
-
-	var query string
-	var operation string = "query"
-
-	// 从接口配置中获取查询信息
+// buildDatabaseFullRequest 构建数据库全量查询请求
+func (qb *QueryBuilder) buildDatabaseFullRequest(parameters map[string]interface{}) (*ExecuteRequest, error) {
 	if qb.dataInterface == nil {
-		slog.Error("QueryBuilder.buildDatabaseSyncRequestWithPagination - dataInterface 为空")
 		return nil, fmt.Errorf("数据接口配置为空")
 	}
 
 	interfaceConfig := map[string]interface{}(qb.dataInterface.InterfaceConfig)
-	slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 接口配置", "interface_config", interfaceConfig)
+	var query string
 
 	// 尝试获取自定义查询
 	if q, exists := interfaceConfig["query"]; exists {
 		if queryStr, ok := q.(string); ok {
 			query = queryStr
-			slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 使用自定义查询", "query", query)
 		}
 	}
 
-	// 尝试获取表名并构建查询
+	// 如果没有自定义查询，从表名构建
 	if query == "" {
-		slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 没有自定义查询，尝试从表名构建")
-
 		if tableName, exists := interfaceConfig[meta.DataInterfaceConfigFieldTableName]; exists {
-			slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 找到表名配置", "table_name", tableName)
-
 			if tableStr, ok := tableName.(string); ok {
-				slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 表名类型正确", "table_str", tableStr)
-
-				switch syncStrategy {
-				case "full":
-					query = fmt.Sprintf("SELECT * FROM %s", tableStr)
-					slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 构建全量同步查询", "query", query)
-
-				case "incremental":
-					slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 构建增量同步查询")
-
-					// 增量同步需要增量字段
-					incrementField := "updated_at" // 默认字段
-					if tf, exists := parameters["time_field"]; exists {
-						if tfStr, ok := tf.(string); ok {
-							incrementField = tfStr
-							slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 使用参数中的增量字段", "increment_field", incrementField)
-						}
-					} else if incField, exists := parameters["incremental_key"]; exists {
-						if incFieldStr, ok := incField.(string); ok {
-							incrementField = incFieldStr
-							slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 使用incremental_key作为增量字段", "increment_field", incrementField)
-						}
-					}
-
-					if lastSyncTime, exists := parameters["last_sync_time"]; exists {
-						query = fmt.Sprintf("SELECT * FROM %s WHERE %s > '%v'", tableStr, incrementField, lastSyncTime)
-						slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 构建增量查询（有上次同步值）", "query", query, "last_sync_value", lastSyncTime)
-					} else {
-						query = fmt.Sprintf("SELECT * FROM %s", tableStr)
-						slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 构建增量查询（无上次同步值，退化为全量）", "query", query)
-					}
-
-				case "sync":
-					// sync 类型：构建基础查询，后续会由增量处理添加条件
-					query = fmt.Sprintf("SELECT * FROM %s", tableStr)
-					slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 构建sync基础查询", "query", query)
-
-				default:
-					slog.Warn("QueryBuilder.buildDatabaseSyncRequestWithPagination - 未知的同步策略，使用全量查询", "sync_strategy", syncStrategy)
-					query = fmt.Sprintf("SELECT * FROM %s", tableStr)
-				}
-			} else {
-				slog.Error("QueryBuilder.buildDatabaseSyncRequestWithPagination - 表名类型转换失败", "table_name_type", fmt.Sprintf("%T", tableName))
+				query = fmt.Sprintf("SELECT * FROM %s", tableStr)
 			}
-		} else {
-			slog.Error("QueryBuilder.buildDatabaseSyncRequestWithPagination - 接口配置中没有找到表名字段", "field_name", meta.DataInterfaceConfigFieldTableName)
 		}
 	}
 
 	if query == "" {
-		slog.Error("QueryBuilder.buildDatabaseSyncRequestWithPagination - 无法构建查询", "interface_id", qb.dataInterface.ID, "interface_config", interfaceConfig)
-		return nil, fmt.Errorf("无法构建数据库同步查询")
+		return nil, fmt.Errorf("无法构建数据库查询")
 	}
 
-	slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 基础查询语句", "query", query)
-
-	// 添加分页信息到查询中
-	if page, exists := pageParams["page"]; exists {
-		if pageSize, exists := pageParams["page_size"]; exists {
-			pageInt := cast.ToInt(page)
-			pageSizeInt := cast.ToInt(pageSize)
-			slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 分页参数", "page", pageInt, "page_size", pageSizeInt)
-
-			if pageInt > 0 && pageSizeInt > 0 {
-				offset := (pageInt - 1) * pageSizeInt
-				query = fmt.Sprintf("%s LIMIT %d OFFSET %d", query, pageSizeInt, offset)
-				slog.Debug("QueryBuilder.buildDatabaseSyncRequestWithPagination - 添加分页", "limit", pageSizeInt, "offset", offset, "final_query", query)
-			}
-		}
-	}
-
-	// 合并参数
 	allParams := make(map[string]interface{})
-	allParams["sync_strategy"] = syncStrategy
+	allParams["sync_strategy"] = "full"
 	for k, v := range parameters {
 		allParams[k] = v
 	}
 
-	request := &ExecuteRequest{
-		Operation: operation,
+	return &ExecuteRequest{
+		Operation: "query",
 		Query:     query,
 		Params:    allParams,
-		Timeout:   5 * time.Minute, // 同步操作使用更长的超时时间
-	}
-
-	return request, nil
+		Timeout:   5 * time.Minute,
+	}, nil
 }
 
 // buildAPISyncRequest 构建API同步请求
@@ -1260,168 +1123,102 @@ func (qb *QueryBuilder) BuildNextPageParams(currentPage int, pageSize int) map[s
 }
 
 // buildDatabaseIncrementalRequest 构建数据库增量请求
-func (qb *QueryBuilder) buildDatabaseIncrementalRequest(syncStrategy string, parameters map[string]interface{}, incrementalParams *IncrementalParams) (*ExecuteRequest, error) {
-	slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 开始构建",
-		"sync_strategy", syncStrategy,
-		"parameters", parameters,
-		"incremental_params", incrementalParams)
-
-	// 先构建基本的数据库同步请求
-	baseRequest, err := qb.buildDatabaseSyncRequest(syncStrategy, parameters)
-	if err != nil {
-		slog.Error("QueryBuilder.buildDatabaseIncrementalRequest - 构建基础请求失败", "error", err)
-		return nil, fmt.Errorf("构建基础数据库请求失败: %w", err)
+func (qb *QueryBuilder) buildDatabaseIncrementalRequest(incrementalParams *IncrementalParams) (*ExecuteRequest, error) {
+	if qb.dataInterface == nil {
+		return nil, fmt.Errorf("数据接口配置为空")
 	}
 
-	slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 基础请求已构建", "base_query", baseRequest.Query)
+	if incrementalParams == nil || incrementalParams.IncrementalKey == "" {
+		return nil, fmt.Errorf("增量参数不能为空")
+	}
 
-	// 修改查询以支持增量同步
-	if incrementalParams != nil && incrementalParams.IncrementalKey != "" {
-		originalQuery := baseRequest.Query
-		comparisonOp := ">"
+	interfaceConfig := map[string]interface{}(qb.dataInterface.InterfaceConfig)
+	var baseQuery string
 
-		switch incrementalParams.ComparisonType {
-		case "gte":
-			comparisonOp = ">="
-		case "eq":
-			comparisonOp = "="
-		case "gt":
-			comparisonOp = ">"
+	// 尝试获取自定义查询
+	if q, exists := interfaceConfig["query"]; exists {
+		if queryStr, ok := q.(string); ok {
+			baseQuery = queryStr
 		}
+	}
 
-		slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 增量参数",
-			"incremental_key", incrementalParams.IncrementalKey,
-			"last_sync_value", incrementalParams.LastSyncValue,
-			"comparison_op", comparisonOp,
-			"batch_size", incrementalParams.BatchSize)
-
-		// 格式化增量值（根据类型决定是否加引号）
-		// 注意: 如果本地数据库字段是 timestamp without time zone，需要将时间转换为 Asia/Shanghai 时区
-		var formattedValue string
-
-		// 加载 Asia/Shanghai 时区
-		shanghaiLocation, tzErr := time.LoadLocation("Asia/Shanghai")
-		if tzErr != nil {
-			slog.Warn("QueryBuilder.buildDatabaseIncrementalRequest - 加载Asia/Shanghai时区失败，使用UTC", "error", tzErr)
-			shanghaiLocation = time.UTC
-		}
-
-		switch v := incrementalParams.LastSyncValue.(type) {
-		case string:
-			// 尝试解析为时间，如果是时间格式则转换为 Asia/Shanghai 时区的无时区格式
-			if t, err := time.Parse(time.RFC3339, v); err == nil {
-				// 转换为 Asia/Shanghai 时区，然后格式化为 timestamp without time zone 格式
-				localTime := t.In(shanghaiLocation)
-				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
-				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-					"original", v,
-					"utc", t.Format(time.RFC3339),
-					"local", localTime.Format("2006-01-02 15:04:05"))
-			} else {
-				formattedValue = fmt.Sprintf("'%s'", v)
-			}
-		case time.Time:
-			// time.Time 类型，转换为 Asia/Shanghai 时区的 timestamp without time zone 格式
-			localTime := v.In(shanghaiLocation)
-			formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
-			slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-				"original", v.Format(time.RFC3339),
-				"local", localTime.Format("2006-01-02 15:04:05"))
-		case *time.Time:
-			// *time.Time 指针类型，转换为 Asia/Shanghai 时区的 timestamp without time zone 格式
-			if v != nil {
-				localTime := v.In(shanghaiLocation)
-				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
-				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-					"original", v.Format(time.RFC3339),
-					"local", localTime.Format("2006-01-02 15:04:05"))
-			} else {
-				formattedValue = "NULL"
-			}
-		case int, int64, float64:
-			formattedValue = fmt.Sprintf("%v", v)
-		default:
-			// 检查是否是 time.Time 类型（通过类型断言）
-			if t, ok := v.(time.Time); ok {
-				localTime := t.In(shanghaiLocation)
-				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
-				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-					"original", t.Format(time.RFC3339),
-					"local", localTime.Format("2006-01-02 15:04:05"))
-			} else if t, ok := v.(*time.Time); ok && t != nil {
-				localTime := t.In(shanghaiLocation)
-				formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
-				slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-					"original", t.Format(time.RFC3339),
-					"local", localTime.Format("2006-01-02 15:04:05"))
-			} else {
-				// 默认情况：尝试解析为字符串
-				strVal := fmt.Sprintf("%v", v)
-				// 尝试解析 Go 的默认时间格式（包含时区信息）
-				if t, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", strVal); err == nil {
-					localTime := t.In(shanghaiLocation)
-					formattedValue = fmt.Sprintf("'%s'", localTime.Format("2006-01-02 15:04:05"))
-					slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 时间格式化",
-						"original", strVal,
-						"local", localTime.Format("2006-01-02 15:04:05"))
-				} else {
-					formattedValue = fmt.Sprintf("'%s'", strVal)
-				}
+	// 如果没有自定义查询，从表名构建
+	if baseQuery == "" {
+		if tableName, exists := interfaceConfig[meta.DataInterfaceConfigFieldTableName]; exists {
+			if tableStr, ok := tableName.(string); ok {
+				baseQuery = fmt.Sprintf("SELECT * FROM %s", tableStr)
 			}
 		}
-
-		// 添加增量条件到WHERE子句
-		if strings.Contains(strings.ToUpper(originalQuery), "WHERE") {
-			baseRequest.Query = fmt.Sprintf("%s AND %s %s %s",
-				originalQuery, incrementalParams.IncrementalKey, comparisonOp, formattedValue)
-			slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 添加AND条件", "query", baseRequest.Query)
-		} else {
-			baseRequest.Query = fmt.Sprintf("%s WHERE %s %s %s",
-				originalQuery, incrementalParams.IncrementalKey, comparisonOp, formattedValue)
-			slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 添加WHERE条件", "query", baseRequest.Query)
-		}
-
-		// 添加排序以确保增量同步的一致性
-		if !strings.Contains(strings.ToUpper(originalQuery), "ORDER BY") {
-			baseRequest.Query = fmt.Sprintf("%s ORDER BY %s ASC", baseRequest.Query, incrementalParams.IncrementalKey)
-			slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 添加ORDER BY", "query", baseRequest.Query)
-		}
-
-		// 添加批量限制
-		if incrementalParams.BatchSize > 0 {
-			baseRequest.Query = fmt.Sprintf("%s LIMIT %d", baseRequest.Query, incrementalParams.BatchSize)
-			slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 添加LIMIT", "query", baseRequest.Query, "limit", incrementalParams.BatchSize)
-		}
-
-		// 添加增量参数到请求参数中
-		if baseRequest.Params == nil {
-			baseRequest.Params = make(map[string]interface{})
-		}
-		baseRequest.Params["last_sync_value"] = incrementalParams.LastSyncValue
-		slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 添加参数", "params", baseRequest.Params)
 	}
 
-	// 标记为增量同步请求
-	if baseRequest.Data == nil {
-		baseRequest.Data = make(map[string]interface{})
-	}
-	if dataMap, ok := baseRequest.Data.(map[string]interface{}); ok {
-		dataMap["sync_strategy"] = "incremental"
-		dataMap["incremental_params"] = incrementalParams
+	if baseQuery == "" {
+		return nil, fmt.Errorf("无法构建数据库查询")
 	}
 
-	slog.Debug("QueryBuilder.buildDatabaseIncrementalRequest - 最终请求",
-		"query", baseRequest.Query,
-		"operation", baseRequest.Operation,
-		"params", baseRequest.Params)
+	// 确定比较操作符
+	comparisonOp := ">"
+	switch incrementalParams.ComparisonType {
+	case "gte":
+		comparisonOp = ">="
+	case "eq":
+		comparisonOp = "="
+	case "gt":
+		comparisonOp = ">"
+	}
 
-	return baseRequest, nil
+	// 格式化增量值
+	formattedValue := formatTimeForSQL(incrementalParams.LastSyncValue)
+
+	// 构建完整的增量查询
+	var query string
+	if strings.Contains(strings.ToUpper(baseQuery), "WHERE") {
+		query = fmt.Sprintf("%s AND %s %s %s", baseQuery, incrementalParams.IncrementalKey, comparisonOp, formattedValue)
+	} else {
+		query = fmt.Sprintf("%s WHERE %s %s %s", baseQuery, incrementalParams.IncrementalKey, comparisonOp, formattedValue)
+	}
+
+	// 添加排序
+	if !strings.Contains(strings.ToUpper(baseQuery), "ORDER BY") {
+		query = fmt.Sprintf("%s ORDER BY %s ASC", query, incrementalParams.IncrementalKey)
+	}
+
+	// 添加批量限制
+	if incrementalParams.BatchSize > 0 {
+		query = fmt.Sprintf("%s LIMIT %d", query, incrementalParams.BatchSize)
+	}
+
+	// 准备参数
+	allParams := make(map[string]interface{})
+	allParams["sync_strategy"] = "incremental"
+	allParams["last_sync_value"] = incrementalParams.LastSyncValue
+	allParams["incremental_field"] = incrementalParams.IncrementalKey
+	allParams["comparison_type"] = incrementalParams.ComparisonType
+	allParams["batch_size"] = incrementalParams.BatchSize
+
+	request := &ExecuteRequest{
+		Operation: "query",
+		Query:     query,
+		Params:    allParams,
+		Timeout:   5 * time.Minute,
+		Data: map[string]interface{}{
+			"sync_strategy":      "incremental",
+			"incremental_params": incrementalParams,
+		},
+	}
+
+	slog.Debug("buildDatabaseIncrementalRequest - 构建完成",
+		"query", query,
+		"incremental_key", incrementalParams.IncrementalKey,
+		"last_sync_value", incrementalParams.LastSyncValue)
+
+	return request, nil
 }
 
 // buildAPIIncrementalRequest 构建API增量请求
-func (qb *QueryBuilder) buildAPIIncrementalRequest(syncStrategy string, parameters map[string]interface{}, incrementalParams *IncrementalParams) (*ExecuteRequest, error) {
-	// 先构建基本的API同步请求
-	baseRequest, err := qb.buildAPISyncRequest(syncStrategy, parameters)
+func (qb *QueryBuilder) buildAPIIncrementalRequest(incrementalParams *IncrementalParams) (*ExecuteRequest, error) {
+	// 构建基本的API同步请求
+	parameters := make(map[string]interface{})
+	baseRequest, err := qb.buildAPISyncRequest("incremental", parameters)
 	if err != nil {
 		return nil, fmt.Errorf("构建基础API请求失败: %w", err)
 	}
@@ -1441,17 +1238,13 @@ func (qb *QueryBuilder) buildAPIIncrementalRequest(syncStrategy string, paramete
 
 		if incrementalParams.IncrementalKey != "" {
 			baseRequest.Params["incremental_key"] = incrementalParams.IncrementalKey
+			baseRequest.Params["sort"] = incrementalParams.IncrementalKey
+			baseRequest.Params["order"] = "asc"
 		}
 
 		if incrementalParams.BatchSize > 0 {
 			baseRequest.Params["limit"] = incrementalParams.BatchSize
 			baseRequest.Params["page_size"] = incrementalParams.BatchSize
-		}
-
-		// 添加排序参数确保增量同步的一致性
-		if incrementalParams.IncrementalKey != "" {
-			baseRequest.Params["sort"] = incrementalParams.IncrementalKey
-			baseRequest.Params["order"] = "asc"
 		}
 	}
 

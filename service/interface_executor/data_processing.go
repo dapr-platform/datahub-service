@@ -140,25 +140,26 @@ func (dp *DataProcessor) FetchDataFromSourceWithSyncStrategy(ctx context.Context
 	case "full":
 		executeRequest, err = queryBuilder.BuildSyncRequest("full", parameters)
 	case "incremental":
-		// 如果有增量参数，使用增量请求构建器
-		if incrementalField, exists := parameters["incremental_field"]; exists {
-			incrementalParams := &datasource.IncrementalParams{
-				LastSyncValue:  parameters["last_sync_value"],
-				IncrementalKey: cast.ToString(incrementalField),
-				ComparisonType: cast.ToString(parameters["comparison_type"]),
-				BatchSize:      cast.ToInt(parameters["batch_size"]),
-			}
-			if incrementalParams.ComparisonType == "" {
-				incrementalParams.ComparisonType = "gt"
-			}
-			if incrementalParams.BatchSize <= 0 {
-				incrementalParams.BatchSize = 1000
-			}
-
-			executeRequest, err = queryBuilder.BuildIncrementalRequest("sync", incrementalParams)
-		} else {
-			executeRequest, err = queryBuilder.BuildSyncRequest("incremental", parameters)
+		// 增量同步必须提供增量参数
+		incrementalField, exists := parameters["incremental_field"]
+		if !exists {
+			return nil, nil, nil, fmt.Errorf("增量同步缺少必要参数 incremental_field")
 		}
+
+		incrementalParams := &datasource.IncrementalParams{
+			LastSyncValue:  parameters["last_sync_value"],
+			IncrementalKey: cast.ToString(incrementalField),
+			ComparisonType: cast.ToString(parameters["comparison_type"]),
+			BatchSize:      cast.ToInt(parameters["batch_size"]),
+		}
+		if incrementalParams.ComparisonType == "" {
+			incrementalParams.ComparisonType = "gt"
+		}
+		if incrementalParams.BatchSize <= 0 {
+			incrementalParams.BatchSize = 1000
+		}
+
+		executeRequest, err = queryBuilder.BuildIncrementalRequest(incrementalParams)
 	default:
 		executeRequest, err = queryBuilder.BuildTestRequest(parameters)
 	}
@@ -506,7 +507,7 @@ func (dp *DataProcessor) FetchBatchDataFromSourceWithStrategy(ctx context.Contex
 				"comparison_type", incrementalParams.ComparisonType,
 				"batch_size", incrementalParams.BatchSize)
 
-			executeRequest, err = queryBuilder.BuildIncrementalRequest("sync", incrementalParams)
+			executeRequest, err = queryBuilder.BuildIncrementalRequest(incrementalParams)
 		} else {
 			slog.Debug("FetchBatchDataFromSourceWithStrategy - 没有增量参数，退化为全量分页同步")
 			// 没有增量参数，使用普通分页同步请求
