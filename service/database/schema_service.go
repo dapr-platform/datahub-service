@@ -1134,6 +1134,10 @@ func (s *SchemaService) GetTableData(fullTableName string, limit, offset int) ([
 			val := values[i]
 			if b, ok := val.([]byte); ok {
 				rowData[col] = string(b)
+			} else if b, ok := val.(time.Time); ok {
+				rowData[col] = b.Format("2006-01-02 15:04:05")
+			} else if b, ok := val.(*time.Time); ok {
+				rowData[col] = b.Format("2006-01-02 15:04:05")
 			} else {
 				rowData[col] = val
 			}
