@@ -19,6 +19,7 @@ RUN  apk add --no-cache tzdata && cp /usr/share/zoneinfo/Asia/Shanghai /etc/loca
     && rm -rf /root/.cache \
     && rm -rf /tmp/*
 
+    
 RUN mkdir /app
 WORKDIR /app
 COPY --from=build /app/datahub-service .
