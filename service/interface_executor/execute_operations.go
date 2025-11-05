@@ -195,6 +195,10 @@ func (ops *ExecuteOperations) ExecuteSync(ctx context.Context, interfaceInfo Int
 				if err != nil {
 					slog.Warn("ExecuteSync - 获取最后同步值失败，将使用全量同步", "error", err)
 					syncStrategy = "full"
+				} else if lastValue == nil {
+					// 表为空或无数据，退化为全量同步
+					slog.Info("ExecuteSync - 本地表为空或无数据，退化为全量同步", "source_field", sourceFieldName)
+					syncStrategy = "full"
 				} else {
 					lastSyncValue = lastValue
 					incrementalKey = sourceFieldName
@@ -685,14 +689,20 @@ func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, 
 
 	slog.Debug("ExecuteBatchSyncWithStrategy - 原始请求参数", "parameters", request.Parameters)
 
-	if syncStrategy == "incremental" && lastSyncValue != nil {
-		syncParams["incremental_field"] = incrementalKey
-		syncParams["last_sync_value"] = lastSyncValue
-		syncParams["comparison_type"] = "gt"
-		slog.Debug("ExecuteBatchSyncWithStrategy - 添加增量参数",
-			"incremental_field", incrementalKey,
-			"last_sync_value", lastSyncValue,
-			"comparison_type", "gt")
+	if syncStrategy == "incremental" {
+		if lastSyncValue != nil {
+			syncParams["incremental_field"] = incrementalKey
+			syncParams["last_sync_value"] = lastSyncValue
+			syncParams["comparison_type"] = "gt"
+			slog.Debug("ExecuteBatchSyncWithStrategy - 添加增量参数",
+				"incremental_field", incrementalKey,
+				"last_sync_value", lastSyncValue,
+				"comparison_type", "gt")
+		} else {
+			// 如果是增量策略但没有lastSyncValue，退化为全量同步
+			slog.Info("ExecuteBatchSyncWithStrategy - 增量同步但无最后同步值，退化为全量同步")
+			syncStrategy = "full"
+		}
 	}
 
 	slog.Debug("ExecuteBatchSyncWithStrategy - 最终同步参数", "sync_params", syncParams)

@@ -1132,6 +1132,12 @@ func (qb *QueryBuilder) buildDatabaseIncrementalRequest(incrementalParams *Incre
 		return nil, fmt.Errorf("增量参数不能为空")
 	}
 
+	// 检查LastSyncValue是否为空，如果为空应该使用全量同步
+	if incrementalParams.LastSyncValue == nil {
+		slog.Warn("buildDatabaseIncrementalRequest - LastSyncValue为空，应该使用全量同步而非增量同步")
+		return nil, fmt.Errorf("LastSyncValue为空，建议使用全量同步")
+	}
+
 	interfaceConfig := map[string]interface{}(qb.dataInterface.InterfaceConfig)
 	var baseQuery string
 
@@ -1234,6 +1240,8 @@ func (qb *QueryBuilder) buildAPIIncrementalRequest(incrementalParams *Incrementa
 			baseRequest.Params["last_sync_value"] = incrementalParams.LastSyncValue
 			baseRequest.Params["since"] = incrementalParams.LastSyncValue
 			baseRequest.Params["updated_after"] = incrementalParams.LastSyncValue
+		} else {
+			slog.Warn("buildAPIIncrementalRequest - LastSyncValue为空，API增量同步可能无法正常工作")
 		}
 
 		if incrementalParams.IncrementalKey != "" {
