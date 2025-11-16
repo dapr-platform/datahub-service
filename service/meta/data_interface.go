@@ -245,7 +245,6 @@ func initializeDefaultDataInterfaceConfigs() {
 					"increment_field": "updated_at",
 					"field_type":      "timestamp", // timestamp, number
 					"initial_value":   "",
-					"auto_increment":  true,
 				},
 				Description: "增量查询配置，用于数据同步",
 				Group:       "增量配置",

@@ -283,29 +283,8 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 		return ops.ExecuteSync(ctx, interfaceInfo, request, startTime)
 	}
 
-	// 开始事务，确保批量同步的原子性
-	tx := ops.executor.db.Begin()
-	if tx.Error != nil {
-		slog.Error("ExecuteBatchSync - 开始事务失败", "error", tx.Error)
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "开始事务失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       tx.Error.Error(),
-		}, tx.Error
-	}
-
-	// 确保在函数结束时处理事务
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			slog.Error("ExecuteBatchSync - 发生panic，事务已回滚", "error", r)
-		}
-	}()
-
 	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
-	slog.Debug("ExecuteBatchSync - 开始事务批量同步，目标表", "value", fullTableName)
+	slog.Debug("ExecuteBatchSync - 开始流式批量同步，目标表", "value", fullTableName)
 
 	// 批量数据同步
 	dataProcessor := NewDataProcessor(ops.executor)
@@ -314,9 +293,21 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 	var totalRows int64 = 0
 	var allDataTypes map[string]string
 	var allWarnings []string
-	var allBatchData []map[string]interface{} // 收集所有批次的数据
 	currentPage := 1
 	hasMoreData := true
+
+	// 先清空目标表（全量同步）
+	slog.Debug("ExecuteBatchSync - 清空表", "value", fullTableName)
+	if err := ops.executor.db.Exec(fmt.Sprintf("DELETE FROM %s", fullTableName)).Error; err != nil {
+		slog.Error("ExecuteBatchSync - 清空表失败", "error", err)
+		return &ExecuteResponse{
+			Success:     false,
+			Message:     "清空表数据失败",
+			Duration:    time.Since(startTime).Milliseconds(),
+			ExecuteType: request.ExecuteType,
+			Error:       err.Error(),
+		}, err
+	}
 
 	// 根据数据源类型确定分页参数
 	var pageParamName, sizeParamName string
@@ -363,8 +354,6 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 		batchData, dataTypes, warnings, err := dataProcessor.FetchBatchDataFromSource(ctx, interfaceInfo, request.Parameters, pageParams)
 		if err != nil {
 			slog.Error("ExecuteBatchSync - 获取批数据失败", "page", currentPage, "error", err)
-			// 回滚事务
-			tx.Rollback()
 			return &ExecuteResponse{
 				Success:     false,
 				Message:     fmt.Sprintf("获取第 %d 批数据失败", currentPage),
@@ -384,18 +373,61 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 
 		// 判断是否还有更多数据
 		if len(batchData) == 0 {
-			slog.Debug("ExecuteBatchSync - 批次没有数据，结束数据收集", "batch", currentPage)
+			slog.Debug("ExecuteBatchSync - 批次没有数据，结束同步", "batch", currentPage)
 			hasMoreData = false
 			break
 		}
 
-		// 将批次数据添加到总数据中
-		allBatchData = append(allBatchData, batchData...)
-		slog.Debug("ExecuteBatchSync - 批次收集数据", "batch", currentPage, "batch_count", len(batchData), "total", len(allBatchData))
+		// 流式处理：立即插入当前批次数据，不累积在内存中
+		slog.Debug("ExecuteBatchSync - 开始插入批次数据", "batch", currentPage, "batch_count", len(batchData))
+
+		// 为每批开启独立事务，提高稳定性和错误恢复能力
+		tx := ops.executor.db.Begin()
+		if tx.Error != nil {
+			slog.Error("ExecuteBatchSync - 开始批次事务失败", "batch", currentPage, "error", tx.Error)
+			return &ExecuteResponse{
+				Success:     false,
+				Message:     fmt.Sprintf("第 %d 批开始事务失败", currentPage),
+				Duration:    time.Since(startTime).Milliseconds(),
+				ExecuteType: request.ExecuteType,
+				Error:       tx.Error.Error(),
+			}, tx.Error
+		}
+
+		batchRows, err := fieldMapper.InsertBatchDataWithTx(ctx, tx, interfaceInfo, batchData)
+		if err != nil {
+			slog.Error("ExecuteBatchSync - 插入批次数据失败", "batch", currentPage, "error", err)
+			tx.Rollback()
+			return &ExecuteResponse{
+				Success:     false,
+				Message:     fmt.Sprintf("插入第 %d 批数据失败", currentPage),
+				Duration:    time.Since(startTime).Milliseconds(),
+				ExecuteType: request.ExecuteType,
+				Error:       err.Error(),
+			}, err
+		}
+
+		// 提交批次事务
+		if err := tx.Commit().Error; err != nil {
+			slog.Error("ExecuteBatchSync - 提交批次事务失败", "batch", currentPage, "error", err)
+			return &ExecuteResponse{
+				Success:     false,
+				Message:     fmt.Sprintf("提交第 %d 批事务失败", currentPage),
+				Duration:    time.Since(startTime).Milliseconds(),
+				ExecuteType: request.ExecuteType,
+				Error:       err.Error(),
+			}, err
+		}
+
+		totalRows += batchRows
+		slog.Debug("ExecuteBatchSync - 批次处理完成", "batch", currentPage, "batch_rows", batchRows, "total_rows", totalRows)
+
+		// 显式释放批次数据，帮助GC回收内存
+		batchData = nil
 
 		// 判断是否有更多数据的逻辑
-		if len(batchData) < batchSize {
-			slog.Debug("ExecuteBatchSync - 批次数据不足，停止收集", "batch", currentPage, "batch_size", batchSize)
+		if batchRows < int64(batchSize) {
+			slog.Debug("ExecuteBatchSync - 批次数据不足，停止同步", "batch", currentPage, "batch_size", batchSize)
 			hasMoreData = false
 		}
 
@@ -403,85 +435,13 @@ func (ops *ExecuteOperations) ExecuteBatchSync(ctx context.Context, interfaceInf
 
 		// 防止无限循环
 		if currentPage > 1000 {
-			slog.Warn("ExecuteBatchSync - 达到最大批次限制(1000)，停止数据收集")
+			slog.Warn("ExecuteBatchSync - 达到最大批次限制(1000)，停止数据同步")
 			allWarnings = append(allWarnings, "达到最大批次限制，可能还有更多数据未同步")
 			break
 		}
 	}
 
-	slog.Debug("ExecuteBatchSync - 数据收集完成", "total_batches", currentPage-1, "total_rows", len(allBatchData))
-
-	// 如果没有数据，提交事务并返回
-	if len(allBatchData) == 0 {
-		tx.Commit()
-		return &ExecuteResponse{
-			Success:      true,
-			Message:      "批量同步完成，但没有新数据",
-			Duration:     time.Since(startTime).Milliseconds(),
-			ExecuteType:  request.ExecuteType,
-			RowCount:     0,
-			ColumnCount:  len(allDataTypes),
-			DataTypes:    allDataTypes,
-			TableUpdated: false,
-			UpdatedRows:  0,
-			Warnings:     allWarnings,
-			Metadata: map[string]interface{}{
-				"interface_id":   interfaceInfo.GetID(),
-				"interface_name": interfaceInfo.GetName(),
-				"schema_name":    interfaceInfo.GetSchemaName(),
-				"table_name":     interfaceInfo.GetTableName(),
-				"batch_count":    currentPage - 1,
-				"batch_size":     batchSize,
-			},
-		}, nil
-	}
-
-	// 在事务中执行数据库操作
-	slog.Debug("ExecuteBatchSync - 开始在事务中执行数据库操作")
-
-	// 1. 清空目标表（在事务中执行）
-	slog.Debug("ExecuteBatchSync - 清空表", "value", fullTableName)
-	if err := tx.Exec(fmt.Sprintf("DELETE FROM %s", fullTableName)).Error; err != nil {
-		slog.Error("ExecuteBatchSync - 清空表失败", "error", err)
-		tx.Rollback()
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "清空表数据失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
-	}
-
-	// 2. 批量插入所有数据（在事务中执行）
-	slog.Debug("ExecuteBatchSync - 开始批量插入数据", "row_count", len(allBatchData))
-	insertedRows, err := fieldMapper.InsertBatchDataWithTx(ctx, tx, interfaceInfo, allBatchData)
-	if err != nil {
-		slog.Error("ExecuteBatchSync - 批量插入数据失败", "error", err)
-		tx.Rollback()
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "批量插入数据失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
-	}
-
-	// 3. 提交事务
-	if err := tx.Commit().Error; err != nil {
-		slog.Error("ExecuteBatchSync - 提交事务失败", "error", err)
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "提交事务失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
-	}
-
-	totalRows = insertedRows
-	slog.Debug("ExecuteBatchSync - 事务提交成功，总共插入", "count", totalRows) // 行
+	slog.Debug("ExecuteBatchSync - 流式同步完成", "total_batches", currentPage-1, "total_rows", totalRows)
 
 	return &ExecuteResponse{
 		Success:      true,
@@ -707,30 +667,11 @@ func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, 
 
 	slog.Debug("ExecuteBatchSyncWithStrategy - 最终同步参数", "sync_params", syncParams)
 
-	// 开始事务
-	tx := ops.executor.db.Begin()
-	if tx.Error != nil {
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "开始事务失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       tx.Error.Error(),
-		}, tx.Error
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			slog.Error("ExecuteBatchSyncWithStrategy - 发生panic，事务已回滚", "error", r)
-		}
-	}()
-
-	// 如果是全量同步，先清空表
+	// 如果是全量同步，先清空表（在事务外执行）
+	fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
 	if syncStrategy == "full" {
-		fullTableName := fmt.Sprintf(`"%s"."%s"`, interfaceInfo.GetSchemaName(), interfaceInfo.GetTableName())
-		if err := tx.Exec(fmt.Sprintf("DELETE FROM %s", fullTableName)).Error; err != nil {
-			tx.Rollback()
+		slog.Debug("ExecuteBatchSyncWithStrategy - 清空表", "value", fullTableName)
+		if err := ops.executor.db.Exec(fmt.Sprintf("DELETE FROM %s", fullTableName)).Error; err != nil {
 			return &ExecuteResponse{
 				Success:     false,
 				Message:     "清空表数据失败",
@@ -741,7 +682,7 @@ func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, 
 		}
 	}
 
-	// 批量获取并处理数据
+	// 流式批量获取并处理数据
 	dataProcessor := NewDataProcessor(ops.executor)
 	fieldMapper := NewFieldMapper()
 
@@ -759,7 +700,6 @@ func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, 
 
 		batchData, dataTypes, warnings, err := dataProcessor.FetchBatchDataFromSourceWithStrategy(ctx, interfaceInfo, syncParams, pageParams, syncStrategy)
 		if err != nil {
-			tx.Rollback()
 			return &ExecuteResponse{
 				Success:     false,
 				Message:     fmt.Sprintf("获取第 %d 批数据失败", currentPage),
@@ -779,7 +719,21 @@ func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, 
 			break
 		}
 
-		// 批量处理数据
+		// 流式处理：为每批数据开启独立事务，立即处理
+		slog.Debug("ExecuteBatchSyncWithStrategy - 处理批次", "batch", currentPage, "batch_count", len(batchData), "strategy", syncStrategy)
+
+		tx := ops.executor.db.Begin()
+		if tx.Error != nil {
+			return &ExecuteResponse{
+				Success:     false,
+				Message:     fmt.Sprintf("第 %d 批开始事务失败", currentPage),
+				Duration:    time.Since(startTime).Milliseconds(),
+				ExecuteType: request.ExecuteType,
+				Error:       tx.Error.Error(),
+			}, tx.Error
+		}
+
+		// 根据策略处理数据
 		var batchRows int64
 		if syncStrategy == "full" {
 			batchRows, err = fieldMapper.InsertBatchDataWithTx(ctx, tx, interfaceInfo, batchData)
@@ -798,9 +752,24 @@ func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, 
 			}, err
 		}
 
-		totalRows += batchRows
+		// 提交批次事务
+		if err := tx.Commit().Error; err != nil {
+			return &ExecuteResponse{
+				Success:     false,
+				Message:     fmt.Sprintf("提交第 %d 批事务失败", currentPage),
+				Duration:    time.Since(startTime).Milliseconds(),
+				ExecuteType: request.ExecuteType,
+				Error:       err.Error(),
+			}, err
+		}
 
-		if len(batchData) < batchSize {
+		totalRows += batchRows
+		slog.Debug("ExecuteBatchSyncWithStrategy - 批次完成", "batch", currentPage, "batch_rows", batchRows, "total_rows", totalRows)
+
+		// 显式释放批次数据，帮助GC
+		batchData = nil
+
+		if batchRows < int64(batchSize) {
 			hasMoreData = false
 		}
 
@@ -812,16 +781,7 @@ func (ops *ExecuteOperations) ExecuteBatchSyncWithStrategy(ctx context.Context, 
 		}
 	}
 
-	// 提交事务
-	if err := tx.Commit().Error; err != nil {
-		return &ExecuteResponse{
-			Success:     false,
-			Message:     "提交事务失败",
-			Duration:    time.Since(startTime).Milliseconds(),
-			ExecuteType: request.ExecuteType,
-			Error:       err.Error(),
-		}, err
-	}
+	slog.Debug("ExecuteBatchSyncWithStrategy - 流式同步完成", "total_batches", currentPage-1, "total_rows", totalRows, "strategy", syncStrategy)
 
 	return &ExecuteResponse{
 		Success:      true,
