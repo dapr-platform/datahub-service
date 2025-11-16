@@ -375,24 +375,46 @@ func (fm *FieldMapper) InsertBatchDataWithTx(ctx context.Context, tx *gorm.DB, i
 			values = append(values, processedVal)
 		}
 
-		// 构建插入SQL
-		insertSQL := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-			fullTableName,
-			strings.Join(columns, ", "),
-			strings.Join(placeholders, ", "))
+		// 构建插入SQL，使用 ON CONFLICT DO NOTHING 处理主键冲突
+		// 这样可以优雅地跳过数据源中的重复数据，避免同步失败
+		var insertSQL string
+		if len(primaryKeys) > 0 {
+			// 有主键时，使用 ON CONFLICT DO NOTHING
+			conflictColumns := make([]string, len(primaryKeys))
+			for idx, pk := range primaryKeys {
+				conflictColumns[idx] = fmt.Sprintf(`"%s"`, pk)
+			}
+			insertSQL = fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO NOTHING",
+				fullTableName,
+				strings.Join(columns, ", "),
+				strings.Join(placeholders, ", "),
+				strings.Join(conflictColumns, ", "))
+		} else {
+			// 无主键时，使用普通 INSERT
+			insertSQL = fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+				fullTableName,
+				strings.Join(columns, ", "),
+				strings.Join(placeholders, ", "))
+		}
 
 		if i == 0 {
 			slog.Debug("InsertBatchDataWithTx - 插入SQL", "value", insertSQL)
 			slog.Debug("InsertBatchDataWithTx - 插入参数", "data", values)
+			if len(primaryKeys) > 0 {
+				slog.Info("InsertBatchDataWithTx - 使用 ON CONFLICT 策略，主键冲突时跳过", "primary_keys", primaryKeys)
+			}
 		}
 
-		if err := tx.Exec(insertSQL, values...).Error; err != nil {
-			slog.Error("InsertBatchDataWithTx - 插入数据失败", "error", err)
+		result := tx.Exec(insertSQL, values...)
+		if result.Error != nil {
+			slog.Error("InsertBatchDataWithTx - 插入数据失败", "error", result.Error)
 			slog.Error("InsertBatchDataWithTx - 失败的SQL", "message", insertSQL)
 			slog.Error("InsertBatchDataWithTx - 失败的参数", "data", values)
-			return 0, fmt.Errorf("插入数据失败: %w", err)
+			return 0, fmt.Errorf("插入数据失败: %w", result.Error)
 		}
-		insertedRows++
+		
+		// 统计实际插入的行数（如果发生冲突，RowsAffected 会是 0）
+		insertedRows += result.RowsAffected
 	}
 
 	slog.Debug("InsertBatchDataWithTx - 成功插入", "count", insertedRows)
