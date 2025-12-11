@@ -304,6 +304,10 @@ definitions:
         type: string
       description:
         type: string
+      masking_rules:
+        items:
+          $ref: '#/definitions/models.DataMaskingConfig'
+        type: array
       path:
         type: string
       thematic_interface_id:
@@ -1590,6 +1594,24 @@ definitions:
       count:
         type: integer
       trigger_type:
+        type: string
+    type: object
+  controllers.UpdateApiInterfaceMaskingRulesRequest:
+    properties:
+      masking_rules:
+        items:
+          $ref: '#/definitions/models.DataMaskingConfig'
+        type: array
+    required:
+    - masking_rules
+    type: object
+  controllers.UpdateApiInterfaceRequest:
+    properties:
+      description:
+        type: string
+      path:
+        type: string
+      status:
         type: string
     type: object
   controllers.UpdateApiKeyApplicationsRequest:
@@ -4081,6 +4103,10 @@ definitions:
         type: string
       id:
         type: string
+      masking_rules:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: 数据脱敏规则配置
       path:
         description: 对外暴露的路径，例如 "users"
         type: string
@@ -8965,6 +8991,11 @@ paths:
         minimum: 0
         name: offset
         type: integer
+      - description: WHERE条件(不包含WHERE关键字，由前端拼好并转义)
+        example: '"age > 18 AND status = ''active''"'
+        in: query
+        name: where
+        type: string
       produces:
       - application/json
       responses:
@@ -10056,7 +10087,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: 创建一个共享接口，请求体包含 api_application_id, thematic_interface_id, path
+      description: 创建一个共享接口，请求体包含 api_application_id, thematic_interface_id, path,
+        masking_rules
       parameters:
       - description: 接口信息
         in: body
@@ -10110,6 +10142,151 @@ paths:
           schema:
             $ref: '#/definitions/controllers.APIResponse'
       summary: 删除共享接口
+      tags:
+      - 数据共享服务
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取共享接口详细信息，包括关联的应用和主题接口信息
+      parameters:
+      - description: 接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ApiInterface'
+              type: object
+        "404":
+          description: 接口不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 根据ID获取共享接口
+      tags:
+      - 数据共享服务
+    put:
+      consumes:
+      - application/json
+      description: 更新共享接口信息（路径、描述、状态等）
+      parameters:
+      - description: 接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: updates
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateApiInterfaceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 接口不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新共享接口
+      tags:
+      - 数据共享服务
+  /sharing/api-interfaces/{id}/masking-rules:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定API接口的数据脱敏规则配置
+      parameters:
+      - description: 接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.DataMaskingConfig'
+                  type: array
+              type: object
+        "404":
+          description: 接口不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 获取API接口脱敏规则
+      tags:
+      - 数据共享服务
+    put:
+      consumes:
+      - application/json
+      description: 更新指定API接口的数据脱敏规则配置
+      parameters:
+      - description: 接口ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 脱敏规则配置
+        in: body
+        name: rules
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateApiInterfaceMaskingRulesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "404":
+          description: 接口不存在
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/controllers.APIResponse'
+      summary: 更新API接口脱敏规则
       tags:
       - 数据共享服务
   /sharing/api-keys:

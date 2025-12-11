@@ -14,9 +14,11 @@ package controllers
 import (
 	"context"
 	"datahub-service/client"
+	"datahub-service/service/governance"
 	"datahub-service/service/models"
 	"datahub-service/service/rate_limiter"
 	"datahub-service/service/sharing"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -62,18 +64,19 @@ type SimplifiedFieldInfo struct {
 
 // DataProxyController 数据访问代理控制器
 type DataProxyController struct {
-	sharingService  *sharing.SharingService
-	rateLimiter     *rate_limiter.RedisRateLimiter
-	postgrestURL    string
-	clientCache     map[string]*client.PostgRESTClient // API Key ID -> PostgREST Client
-	cacheMutex      sync.RWMutex                       // 缓存读写锁
-	clientTimeout   time.Duration
-	refreshInterval time.Duration
-	maxRetries      int
+	sharingService    *sharing.SharingService
+	governanceService *governance.GovernanceService
+	rateLimiter       *rate_limiter.RedisRateLimiter
+	postgrestURL      string
+	clientCache       map[string]*client.PostgRESTClient // API Key ID -> PostgREST Client
+	cacheMutex        sync.RWMutex                       // 缓存读写锁
+	clientTimeout     time.Duration
+	refreshInterval   time.Duration
+	maxRetries        int
 }
 
 // NewDataProxyController 创建数据访问代理控制器实例
-func NewDataProxyController(sharingService *sharing.SharingService) *DataProxyController {
+func NewDataProxyController(sharingService *sharing.SharingService, governanceService *governance.GovernanceService) *DataProxyController {
 	postgrestURL := os.Getenv("POSTGREST_URL")
 	if postgrestURL == "" {
 		postgrestURL = "http://postgrest:3000"
@@ -86,13 +89,14 @@ func NewDataProxyController(sharingService *sharing.SharingService) *DataProxyCo
 	}
 
 	return &DataProxyController{
-		sharingService:  sharingService,
-		rateLimiter:     rateLimiter,
-		postgrestURL:    postgrestURL,
-		clientCache:     make(map[string]*client.PostgRESTClient),
-		clientTimeout:   30 * time.Second,
-		refreshInterval: 55 * time.Minute, // 55分钟刷新一次Token
-		maxRetries:      3,
+		sharingService:    sharingService,
+		governanceService: governanceService,
+		rateLimiter:       rateLimiter,
+		postgrestURL:      postgrestURL,
+		clientCache:       make(map[string]*client.PostgRESTClient),
+		clientTimeout:     30 * time.Second,
+		refreshInterval:   55 * time.Minute, // 55分钟刷新一次Token
+		maxRetries:        3,
 	}
 }
 
@@ -348,26 +352,92 @@ func (c *DataProxyController) ProxyDataAccess(w http.ResponseWriter, r *http.Req
 	}
 	defer proxyResp.Body.Close()
 
-	// 13. 复制响应头
+	// 13. 读取响应体以便应用脱敏规则
+	responseBody, err := io.ReadAll(proxyResp.Body)
+	if err != nil {
+		c.logApiUsage(r, apiInterface.ApiApplicationID, apiKey.ID, http.StatusInternalServerError, time.Since(startTime), "读取响应体失败: "+err.Error())
+		render.JSON(w, r, APIResponse{
+			Status: http.StatusInternalServerError,
+			Msg:    "读取响应体失败",
+		})
+		return
+	}
+
+	// 14. 应用数据脱敏规则（如果配置了）
+	var finalResponseBody []byte
+	if len(apiInterface.MaskingRules) > 0 && proxyResp.StatusCode == http.StatusOK {
+		// 解析脱敏规则
+		var maskingConfigs []models.DataMaskingConfig
+		for _, ruleValue := range apiInterface.MaskingRules {
+			if ruleData, ok := ruleValue.(map[string]interface{}); ok {
+				var rule models.DataMaskingConfig
+
+				// 解析规则配置
+				if templateID, ok := ruleData["template_id"].(string); ok {
+					rule.TemplateID = templateID
+				}
+				if targetFields, ok := ruleData["target_fields"].([]interface{}); ok {
+					for _, field := range targetFields {
+						if fieldStr, ok := field.(string); ok {
+							rule.TargetFields = append(rule.TargetFields, fieldStr)
+						}
+					}
+				}
+				if maskingConfig, ok := ruleData["masking_config"].(map[string]interface{}); ok {
+					rule.MaskingConfig = maskingConfig
+				}
+				if applyCondition, ok := ruleData["apply_condition"].(string); ok {
+					rule.ApplyCondition = applyCondition
+				}
+				if preserveFormat, ok := ruleData["preserve_format"].(bool); ok {
+					rule.PreserveFormat = preserveFormat
+				}
+				if isEnabled, ok := ruleData["is_enabled"].(bool); ok {
+					rule.IsEnabled = isEnabled
+				} else {
+					rule.IsEnabled = true
+				}
+
+				maskingConfigs = append(maskingConfigs, rule)
+			}
+		}
+
+		// 应用脱敏处理
+		maskedData, maskErr := c.applyMaskingToResponseData(responseBody, maskingConfigs)
+		if maskErr != nil {
+			// 脱敏失败记录日志但不中断请求，返回原始数据
+			slog.Error("应用脱敏规则失败", "error", maskErr, "interface_id", apiInterface.ID)
+			finalResponseBody = responseBody
+		} else {
+			finalResponseBody = maskedData
+		}
+	} else {
+		finalResponseBody = responseBody
+	}
+
+	// 15. 复制响应头
 	for key, values := range proxyResp.Header {
 		for _, value := range values {
 			w.Header().Add(key, value)
 		}
 	}
 
-	// 14. 设置响应状态码
+	// 更新Content-Length头
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(finalResponseBody)))
+
+	// 16. 设置响应状态码
 	w.WriteHeader(proxyResp.StatusCode)
 
-	// 15. 流式返回响应体
-	responseSize, err := io.Copy(w, proxyResp.Body)
+	// 17. 返回响应体
+	responseSize, err := w.Write(finalResponseBody)
 	if err != nil {
 		// 日志记录错误，但不能再返回HTTP响应了
-		c.logApiUsage(r, apiInterface.ApiApplicationID, apiKey.ID, proxyResp.StatusCode, time.Since(startTime), "复制响应体失败: "+err.Error())
+		c.logApiUsage(r, apiInterface.ApiApplicationID, apiKey.ID, proxyResp.StatusCode, time.Since(startTime), "写入响应体失败: "+err.Error())
 		return
 	}
 
-	// 16. 记录成功的API使用日志
-	c.logApiUsageWithSize(r, apiInterface.ApiApplicationID, apiKey.ID, proxyResp.StatusCode, time.Since(startTime), "", int64(len(bodyBytes)), responseSize)
+	// 18. 记录成功的API使用日志
+	c.logApiUsageWithSize(r, apiInterface.ApiApplicationID, apiKey.ID, proxyResp.StatusCode, time.Since(startTime), "", int64(len(bodyBytes)), int64(responseSize))
 }
 
 // logApiUsage 记录API使用日志
@@ -803,4 +873,81 @@ func (c *DataProxyController) GetApiApplicationByKey(w http.ResponseWriter, r *h
 		Msg:    "获取应用信息成功",
 		Data:   simplifiedInfos,
 	})
+}
+
+// === 数据脱敏处理方法 ===
+
+// applyMaskingToResponseData 对响应数据应用脱敏规则
+func (c *DataProxyController) applyMaskingToResponseData(responseBody []byte, maskingConfigs []models.DataMaskingConfig) ([]byte, error) {
+	// 解析JSON响应
+	var data interface{}
+	if err := json.Unmarshal(responseBody, &data); err != nil {
+		// 如果不是JSON格式，直接返回原数据
+		return responseBody, nil
+	}
+
+	// 处理不同的响应格式
+	var maskedData interface{}
+	var err error
+
+	switch v := data.(type) {
+	case map[string]interface{}:
+		// 单条记录
+		maskedData, err = c.maskSingleRecord(v, maskingConfigs)
+	case []interface{}:
+		// 多条记录
+		maskedData, err = c.maskMultipleRecords(v, maskingConfigs)
+	default:
+		// 其他格式，不处理
+		return responseBody, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// 将脱敏后的数据转回JSON
+	maskedBytes, err := json.Marshal(maskedData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化脱敏数据失败: %w", err)
+	}
+
+	return maskedBytes, nil
+}
+
+// maskSingleRecord 对单条记录应用脱敏
+func (c *DataProxyController) maskSingleRecord(record map[string]interface{}, maskingConfigs []models.DataMaskingConfig) (map[string]interface{}, error) {
+	if c.governanceService == nil {
+		return record, nil
+	}
+
+	// 使用 GovernanceService 应用脱敏规则
+	result, err := c.governanceService.ApplyMaskingRules(record, maskingConfigs)
+	if err != nil {
+		return record, err
+	}
+
+	return result.ProcessedData, nil
+}
+
+// maskMultipleRecords 对多条记录应用脱敏
+func (c *DataProxyController) maskMultipleRecords(records []interface{}, maskingConfigs []models.DataMaskingConfig) ([]interface{}, error) {
+	maskedRecords := make([]interface{}, len(records))
+
+	for i, item := range records {
+		if record, ok := item.(map[string]interface{}); ok {
+			masked, err := c.maskSingleRecord(record, maskingConfigs)
+			if err != nil {
+				// 记录错误但继续处理其他记录
+				slog.Error("脱敏记录失败", "index", i, "error", err)
+				maskedRecords[i] = record
+			} else {
+				maskedRecords[i] = masked
+			}
+		} else {
+			maskedRecords[i] = item
+		}
+	}
+
+	return maskedRecords, nil
 }

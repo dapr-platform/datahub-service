@@ -578,6 +578,7 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 			Description:     "对手机号进行掩码处理，保留前3位和后4位",
 			ApplicableTypes: pq.StringArray{"varchar", "char", "text"},
 			MaskingLogic: map[string]interface{}{
+				"pattern":    "phone",
 				"keep_start": 3,
 				"keep_end":   4,
 				"mask_char":  "*",
@@ -611,57 +612,68 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 				"type":     "phone",
 			},
 		},
-		// 身份证号替换脱敏模板
+		// 身份证号脱敏模板（统一处理15位和18位）
 		{
 			ID:              "masking_template_002",
-			Name:            "身份证号替换脱敏",
-			MaskingType:     "replace",
+			Name:            "身份证号掩码脱敏",
+			MaskingType:     "mask",
 			Category:        "personal_info",
-			Description:     "将身份证号完全替换为固定字符串",
+			Description:     "对身份证号进行掩码处理，自动识别15位或18位。18位保留前6位和后4位，15位保留前6位和后3位",
 			ApplicableTypes: pq.StringArray{"varchar", "char"},
 			MaskingLogic: map[string]interface{}{
-				"replacement": "***************",
+				"pattern":   "id_card",
+				"mask_char": "*",
 			},
 			Parameters: map[string]interface{}{
-				"replacement": map[string]interface{}{
+				"mask_char": map[string]interface{}{
 					"type":        "string",
-					"default":     "***************",
-					"description": "替换值",
+					"default":     "*",
+					"description": "掩码字符",
 				},
 			},
 			DefaultConfig: map[string]interface{}{
-				"replacement": "***************",
+				"preserve_format": true,
 			},
 			SecurityLevel: "high",
 			IsBuiltIn:     true,
 			IsEnabled:     true,
-			Version:       "1.0",
+			Version:       "1.1",
 			Tags: map[string]interface{}{
 				"category": "masking",
 				"type":     "id_card",
+				"supports": []string{"15位身份证", "18位身份证"},
 			},
 		},
-		// 银行卡号加密脱敏模板
+		// 银行卡号掩码脱敏模板
 		{
 			ID:              "masking_template_003",
-			Name:            "银行卡号加密脱敏",
-			MaskingType:     "encrypt",
+			Name:            "银行卡号掩码脱敏",
+			MaskingType:     "mask",
 			Category:        "financial",
-			Description:     "对银行卡号进行加密处理",
+			Description:     "对银行卡号进行掩码处理，保留前6位（卡BIN）和后4位，中间用*填充，按4位分组显示",
 			ApplicableTypes: pq.StringArray{"varchar", "char"},
 			MaskingLogic: map[string]interface{}{
-				"encryption_algorithm": "AES256",
-				"key_rotation":         true,
+				"pattern":    "bank_card",
+				"keep_start": 6,
+				"keep_end":   4,
+				"mask_char":  "*",
+				"group_size": 4,
 			},
 			Parameters: map[string]interface{}{
-				"algorithm": map[string]interface{}{
+				"mask_char": map[string]interface{}{
 					"type":        "string",
-					"default":     "AES256",
-					"description": "加密算法",
+					"default":     "*",
+					"description": "掩码字符",
+				},
+				"group_size": map[string]interface{}{
+					"type":        "number",
+					"default":     4,
+					"description": "分组大小",
 				},
 			},
 			DefaultConfig: map[string]interface{}{
-				"algorithm": "AES256",
+				"preserve_format": true,
+				"group_format":    true,
 			},
 			SecurityLevel: "critical",
 			IsBuiltIn:     true,
@@ -672,27 +684,27 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 				"type":     "bank_card",
 			},
 		},
-		// 姓名假名化脱敏模板
+		// 姓名掩码脱敏模板
 		{
 			ID:              "masking_template_004",
-			Name:            "姓名假名化脱敏",
-			MaskingType:     "pseudonymize",
+			Name:            "姓名掩码脱敏",
+			MaskingType:     "mask",
 			Category:        "personal_info",
-			Description:     "将真实姓名替换为假名",
+			Description:     "对姓名进行掩码处理，单字名保留完整；双字名隐藏后1位；3字及以上隐藏中间字（保留首尾）",
 			ApplicableTypes: pq.StringArray{"varchar", "char", "text"},
 			MaskingLogic: map[string]interface{}{
-				"pseudonym_type": "consistent_hash",
-				"name_pool":      []string{"用户A", "用户B", "用户C", "用户D", "用户E"},
+				"pattern":   "chinese_name",
+				"mask_char": "*",
 			},
 			Parameters: map[string]interface{}{
-				"name_pool_size": map[string]interface{}{
-					"type":        "integer",
-					"default":     100,
-					"description": "假名池大小",
+				"mask_char": map[string]interface{}{
+					"type":        "string",
+					"default":     "*",
+					"description": "掩码字符",
 				},
 			},
 			DefaultConfig: map[string]interface{}{
-				"consistent_mapping": true,
+				"preserve_format": true,
 			},
 			SecurityLevel: "medium",
 			IsBuiltIn:     true,
@@ -701,6 +713,42 @@ func (s *TemplateService) initMaskingRuleTemplates() {
 			Tags: map[string]interface{}{
 				"category": "masking",
 				"type":     "name",
+			},
+		},
+		// 邮箱掩码脱敏模板
+		{
+			ID:              "masking_template_005",
+			Name:            "邮箱掩码脱敏",
+			MaskingType:     "mask",
+			Category:        "personal_info",
+			Description:     "对邮箱地址进行掩码处理，保留用户名前2位和域名，隐藏中间用户名",
+			ApplicableTypes: pq.StringArray{"varchar", "char", "text"},
+			MaskingLogic: map[string]interface{}{
+				"pattern":   "email",
+				"mask_char": "*",
+			},
+			Parameters: map[string]interface{}{
+				"mask_char": map[string]interface{}{
+					"type":        "string",
+					"default":     "*",
+					"description": "掩码字符",
+				},
+				"keep_username_chars": map[string]interface{}{
+					"type":        "number",
+					"default":     2,
+					"description": "保留用户名前几位字符",
+				},
+			},
+			DefaultConfig: map[string]interface{}{
+				"preserve_format": true,
+			},
+			SecurityLevel: "medium",
+			IsBuiltIn:     true,
+			IsEnabled:     true,
+			Version:       "1.0",
+			Tags: map[string]interface{}{
+				"category": "masking",
+				"type":     "email",
 			},
 		},
 	}

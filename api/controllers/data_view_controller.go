@@ -234,6 +234,7 @@ func (c *DataViewController) GetLibraryTables(w http.ResponseWriter, r *http.Req
 // @Param table_name path string true "表名"
 // @Param limit query int false "限制返回行数" default(100) minimum(1) maximum(1000)
 // @Param offset query int false "偏移量" default(0) minimum(0)
+// @Param where query string false "WHERE条件(不包含WHERE关键字，由前端拼好并转义)" example("age > 18 AND status = 'active'")
 // @Success 200 {object} APIResponse
 // @Failure 400 {object} APIResponse
 // @Failure 404 {object} APIResponse
@@ -253,6 +254,7 @@ func (c *DataViewController) GetTableData(w http.ResponseWriter, r *http.Request
 	// 解析查询参数
 	limit := 100
 	offset := 0
+	whereCondition := strings.TrimSpace(r.URL.Query().Get("where"))
 
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 1000 {
@@ -266,6 +268,14 @@ func (c *DataViewController) GetTableData(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	slog.Debug("GetTableData - 请求参数",
+		"library_type", libraryType,
+		"library_id", libraryID,
+		"table_name", tableName,
+		"limit", limit,
+		"offset", offset,
+		"where", whereCondition)
+
 	// 获取库信息
 	libraryInfo, err := c.getLibraryInfo(libraryType, libraryID)
 	if err != nil {
@@ -275,22 +285,27 @@ func (c *DataViewController) GetTableData(w http.ResponseWriter, r *http.Request
 
 	// 使用schema服务获取表数据
 	fullTableName := libraryInfo.SchemaName + "." + tableName
-	data, totalCount, err := c.schemaService.GetTableData(fullTableName, limit, offset)
+	data, totalCount, err := c.schemaService.GetTableData(fullTableName, limit, offset, whereCondition)
 	if err != nil {
+		slog.Error("GetTableData - 获取表数据失败",
+			"table", fullTableName,
+			"where", whereCondition,
+			"error", err)
 		render.JSON(w, r, InternalErrorResponse("获取表数据失败: "+err.Error(), err))
 		return
 	}
 
 	response := map[string]interface{}{
-		"library_id":   libraryID,
-		"library_type": libraryType,
-		"library_name": libraryInfo.Name,
-		"schema_name":  libraryInfo.SchemaName,
-		"table_name":   tableName,
-		"data":         data,
-		"total_count":  totalCount,
-		"limit":        limit,
-		"offset":       offset,
+		"library_id":      libraryID,
+		"library_type":    libraryType,
+		"library_name":    libraryInfo.Name,
+		"schema_name":     libraryInfo.SchemaName,
+		"table_name":      tableName,
+		"data":            data,
+		"total_count":     totalCount,
+		"limit":           limit,
+		"offset":          offset,
+		"where_condition": whereCondition,
 	}
 
 	render.JSON(w, r, SuccessResponse("获取表数据成功", response))

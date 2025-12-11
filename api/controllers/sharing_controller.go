@@ -14,6 +14,7 @@ package controllers
 import (
 	"datahub-service/service/models"
 	"datahub-service/service/sharing"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -902,15 +903,16 @@ func (c *SharingController) DeleteApiKey(w http.ResponseWriter, r *http.Request)
 
 // CreateApiInterfaceRequest 创建ApiInterface请求结构
 type CreateApiInterfaceRequest struct {
-	ApiApplicationID    string `json:"api_application_id" validate:"required"`
-	ThematicInterfaceID string `json:"thematic_interface_id" validate:"required"`
-	Path                string `json:"path" validate:"required"`
-	Description         string `json:"description"`
+	ApiApplicationID    string                     `json:"api_application_id" validate:"required"`
+	ThematicInterfaceID string                     `json:"thematic_interface_id" validate:"required"`
+	Path                string                     `json:"path" validate:"required"`
+	Description         string                     `json:"description"`
+	MaskingRules        []models.DataMaskingConfig `json:"masking_rules,omitempty"`
 }
 
 // CreateApiInterface 创建一个共享接口
 // @Summary 创建共享接口
-// @Description 创建一个共享接口，请求体包含 api_application_id, thematic_interface_id, path
+// @Description 创建一个共享接口，请求体包含 api_application_id, thematic_interface_id, path, masking_rules
 // @Tags 数据共享服务
 // @Accept json
 // @Produce json
@@ -931,6 +933,22 @@ func (c *SharingController) CreateApiInterface(w http.ResponseWriter, r *http.Re
 		ThematicInterfaceID: req.ThematicInterfaceID,
 		Path:                req.Path,
 		Description:         req.Description,
+	}
+
+	// 如果提供了脱敏规则，先验证并转换为JSONB
+	if len(req.MaskingRules) > 0 {
+		// 验证脱敏规则
+		if err := c.sharingService.ValidateMaskingRules(req.ThematicInterfaceID, req.MaskingRules); err != nil {
+			render.JSON(w, r, BadRequestResponse("脱敏规则验证失败: "+err.Error(), err))
+			return
+		}
+
+		// 转换为JSONB格式
+		maskingRulesJSON := make(models.JSONB)
+		for i, rule := range req.MaskingRules {
+			maskingRulesJSON[fmt.Sprintf("rule_%d", i)] = rule
+		}
+		apiInterface.MaskingRules = maskingRulesJSON
 	}
 
 	if err := c.sharingService.CreateApiInterface(apiInterface); err != nil {
@@ -963,6 +981,88 @@ func (c *SharingController) GetApiInterfaces(w http.ResponseWriter, r *http.Requ
 	render.JSON(w, r, SuccessResponse("获取共享接口列表成功", interfaces))
 }
 
+// GetApiInterfaceByID 根据ID获取共享接口
+// @Summary 根据ID获取共享接口
+// @Description 根据ID获取共享接口详细信息，包括关联的应用和主题接口信息
+// @Tags 数据共享服务
+// @Accept json
+// @Produce json
+// @Param id path string true "接口ID"
+// @Success 200 {object} APIResponse{data=models.ApiInterface} "获取成功"
+// @Failure 404 {object} APIResponse "接口不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /sharing/api-interfaces/{id} [get]
+func (c *SharingController) GetApiInterfaceByID(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	apiInterface, err := c.sharingService.GetApiInterfaceByID(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取共享接口失败", err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取共享接口成功", apiInterface))
+}
+
+// UpdateApiInterfaceRequest 更新API接口请求结构
+type UpdateApiInterfaceRequest struct {
+	Path        *string `json:"path,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Status      *string `json:"status,omitempty"`
+}
+
+// UpdateApiInterface 更新共享接口
+// @Summary 更新共享接口
+// @Description 更新共享接口信息（路径、描述、状态等）
+// @Tags 数据共享服务
+// @Accept json
+// @Produce json
+// @Param id path string true "接口ID"
+// @Param updates body UpdateApiInterfaceRequest true "更新信息"
+// @Success 200 {object} APIResponse "更新成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 404 {object} APIResponse "接口不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /sharing/api-interfaces/{id} [put]
+func (c *SharingController) UpdateApiInterface(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req UpdateApiInterfaceRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	// 构建更新map
+	updates := make(map[string]interface{})
+	if req.Path != nil {
+		updates["path"] = *req.Path
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
+	}
+	if req.Status != nil {
+		// 验证状态值
+		if *req.Status != "active" && *req.Status != "inactive" {
+			render.JSON(w, r, BadRequestResponse("无效的状态值，必须是active或inactive", nil))
+			return
+		}
+		updates["status"] = *req.Status
+	}
+
+	if len(updates) == 0 {
+		render.JSON(w, r, BadRequestResponse("没有提供任何更新字段", nil))
+		return
+	}
+
+	if err := c.sharingService.UpdateApiInterface(id, updates); err != nil {
+		render.JSON(w, r, InternalErrorResponse("更新共享接口失败: "+err.Error(), err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("更新共享接口成功", nil))
+}
+
 // DeleteApiInterface 删除一个共享接口
 // @Summary 删除共享接口
 // @Description 删除一个共享接口
@@ -982,6 +1082,66 @@ func (c *SharingController) DeleteApiInterface(w http.ResponseWriter, r *http.Re
 	}
 
 	render.JSON(w, r, SuccessResponse("删除共享接口成功", nil))
+}
+
+// === API接口脱敏规则管理 ===
+
+// UpdateApiInterfaceMaskingRulesRequest 更新API接口脱敏规则请求结构
+type UpdateApiInterfaceMaskingRulesRequest struct {
+	MaskingRules []models.DataMaskingConfig `json:"masking_rules" validate:"required"`
+}
+
+// UpdateApiInterfaceMaskingRules 更新API接口脱敏规则
+// @Summary 更新API接口脱敏规则
+// @Description 更新指定API接口的数据脱敏规则配置
+// @Tags 数据共享服务
+// @Accept json
+// @Produce json
+// @Param id path string true "接口ID"
+// @Param rules body UpdateApiInterfaceMaskingRulesRequest true "脱敏规则配置"
+// @Success 200 {object} APIResponse "更新成功"
+// @Failure 400 {object} APIResponse "请求参数错误"
+// @Failure 404 {object} APIResponse "接口不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /sharing/api-interfaces/{id}/masking-rules [put]
+func (c *SharingController) UpdateApiInterfaceMaskingRules(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req UpdateApiInterfaceMaskingRulesRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		render.JSON(w, r, BadRequestResponse("请求参数格式错误", err))
+		return
+	}
+
+	if err := c.sharingService.UpdateApiInterfaceMaskingRules(id, req.MaskingRules); err != nil {
+		render.JSON(w, r, InternalErrorResponse("更新API接口脱敏规则失败: "+err.Error(), err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("更新API接口脱敏规则成功", nil))
+}
+
+// GetApiInterfaceMaskingRules 获取API接口脱敏规则
+// @Summary 获取API接口脱敏规则
+// @Description 获取指定API接口的数据脱敏规则配置
+// @Tags 数据共享服务
+// @Accept json
+// @Produce json
+// @Param id path string true "接口ID"
+// @Success 200 {object} APIResponse{data=[]models.DataMaskingConfig} "获取成功"
+// @Failure 404 {object} APIResponse "接口不存在"
+// @Failure 500 {object} APIResponse "服务器内部错误"
+// @Router /sharing/api-interfaces/{id}/masking-rules [get]
+func (c *SharingController) GetApiInterfaceMaskingRules(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	rules, err := c.sharingService.GetApiInterfaceMaskingRules(id)
+	if err != nil {
+		render.JSON(w, r, InternalErrorResponse("获取API接口脱敏规则失败: "+err.Error(), err))
+		return
+	}
+
+	render.JSON(w, r, SuccessResponse("获取API接口脱敏规则成功", rules))
 }
 
 // === 统计接口 ===

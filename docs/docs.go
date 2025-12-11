@@ -5052,6 +5052,13 @@ const docTemplate = `{
                         "description": "偏移量",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"age \u003e 18 AND status = 'active'\"",
+                        "description": "WHERE条件(不包含WHERE关键字，由前端拼好并转义)",
+                        "name": "where",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6761,7 +6768,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "创建一个共享接口，请求体包含 api_application_id, thematic_interface_id, path",
+                "description": "创建一个共享接口，请求体包含 api_application_id, thematic_interface_id, path, masking_rules",
                 "consumes": [
                     "application/json"
                 ],
@@ -6818,6 +6825,117 @@ const docTemplate = `{
             }
         },
         "/sharing/api-interfaces/{id}": {
+            "get": {
+                "description": "根据ID获取共享接口详细信息，包括关联的应用和主题接口信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "根据ID获取共享接口",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.ApiInterface"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "接口不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新共享接口信息（路径、描述、状态等）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "更新共享接口",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新信息",
+                        "name": "updates",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateApiInterfaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "接口不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
             "delete": {
                 "description": "删除一个共享接口",
                 "consumes": [
@@ -6842,6 +6960,122 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sharing/api-interfaces/{id}/masking-rules": {
+            "get": {
+                "description": "获取指定API接口的数据脱敏规则配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "获取API接口脱敏规则",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.DataMaskingConfig"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "接口不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新指定API接口的数据脱敏规则配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "数据共享服务"
+                ],
+                "summary": "更新API接口脱敏规则",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "接口ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "脱敏规则配置",
+                        "name": "rules",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateApiInterfaceMaskingRulesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "接口不存在",
                         "schema": {
                             "$ref": "#/definitions/controllers.APIResponse"
                         }
@@ -11553,6 +11787,12 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "masking_rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DataMaskingConfig"
+                    }
+                },
                 "path": {
                     "type": "string"
                 },
@@ -13417,6 +13657,34 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "trigger_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.UpdateApiInterfaceMaskingRulesRequest": {
+            "type": "object",
+            "required": [
+                "masking_rules"
+            ],
+            "properties": {
+                "masking_rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DataMaskingConfig"
+                    }
+                }
+            }
+        },
+        "controllers.UpdateApiInterfaceRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -16949,6 +17217,14 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                },
+                "masking_rules": {
+                    "description": "数据脱敏规则配置",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.JSONB"
+                        }
+                    ]
                 },
                 "path": {
                     "description": "对外暴露的路径，例如 \"users\"",

@@ -522,6 +522,147 @@ func (s *SharingService) DeleteApiInterface(id string) error {
 	return s.db.Delete(&models.ApiInterface{}, "id = ?", id).Error
 }
 
+// UpdateApiInterface 更新API接口
+func (s *SharingService) UpdateApiInterface(id string, updates map[string]interface{}) error {
+	// 如果更新了path，需要验证唯一性
+	if newPath, ok := updates["path"].(string); ok {
+		var count int64
+		if err := s.db.Model(&models.ApiInterface{}).
+			Where("path = ? AND id != ?", newPath, id).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return errors.New("接口路径已存在")
+		}
+	}
+
+	return s.db.Model(&models.ApiInterface{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// === API接口脱敏规则管理 ===
+
+// ValidateMaskingRules 验证脱敏规则配置
+func (s *SharingService) ValidateMaskingRules(thematicInterfaceID string, maskingRules []models.DataMaskingConfig) error {
+	// 获取主题接口信息
+	var thematicInterface models.ThematicInterface
+	if err := s.db.First(&thematicInterface, "id = ?", thematicInterfaceID).Error; err != nil {
+		return errors.New("主题接口不存在")
+	}
+
+	// 获取主题接口的字段配置
+	fieldMap := make(map[string]bool)
+	if len(thematicInterface.TableFieldsConfig) > 0 {
+		for _, fieldValue := range thematicInterface.TableFieldsConfig {
+			if fieldData, ok := fieldValue.(map[string]interface{}); ok {
+				if nameEn, ok := fieldData["name_en"].(string); ok && nameEn != "" {
+					fieldMap[nameEn] = true
+				}
+			}
+		}
+	}
+
+	// 验证每个脱敏规则
+	for i, rule := range maskingRules {
+		// 验证脱敏模板是否存在
+		var template models.DataMaskingTemplate
+		if err := s.db.First(&template, "id = ?", rule.TemplateID).Error; err != nil {
+			return fmt.Errorf("脱敏规则 %d: 脱敏模板 %s 不存在", i, rule.TemplateID)
+		}
+
+		// 验证目标字段是否存在
+		for _, fieldName := range rule.TargetFields {
+			if !fieldMap[fieldName] {
+				return fmt.Errorf("脱敏规则 %d: 字段 %s 在主题接口中不存在", i, fieldName)
+			}
+		}
+
+		// 可以进一步验证字段数据类型是否适用于脱敏模板
+		// 这里简化处理，假设所有字段都可以应用脱敏
+	}
+
+	return nil
+}
+
+// UpdateApiInterfaceMaskingRules 更新API接口脱敏规则
+func (s *SharingService) UpdateApiInterfaceMaskingRules(interfaceID string, maskingRules []models.DataMaskingConfig) error {
+	// 验证接口是否存在
+	var apiInterface models.ApiInterface
+	if err := s.db.Preload("ThematicInterface").First(&apiInterface, "id = ?", interfaceID).Error; err != nil {
+		return errors.New("API接口不存在")
+	}
+
+	// 验证脱敏规则
+	if err := s.ValidateMaskingRules(apiInterface.ThematicInterfaceID, maskingRules); err != nil {
+		return err
+	}
+
+	// 转换为JSONB格式
+	maskingRulesJSON := make(models.JSONB)
+	for i, rule := range maskingRules {
+		maskingRulesJSON[fmt.Sprintf("rule_%d", i)] = rule
+	}
+
+	// 更新数据库
+	return s.db.Model(&models.ApiInterface{}).
+		Where("id = ?", interfaceID).
+		Update("masking_rules", maskingRulesJSON).Error
+}
+
+// GetApiInterfaceMaskingRules 获取API接口脱敏规则
+func (s *SharingService) GetApiInterfaceMaskingRules(interfaceID string) ([]models.DataMaskingConfig, error) {
+	var apiInterface models.ApiInterface
+	if err := s.db.First(&apiInterface, "id = ?", interfaceID).Error; err != nil {
+		return nil, errors.New("API接口不存在")
+	}
+
+	// 解析脱敏规则
+	var maskingRules []models.DataMaskingConfig
+	if len(apiInterface.MaskingRules) > 0 {
+		for _, ruleValue := range apiInterface.MaskingRules {
+			if ruleData, ok := ruleValue.(map[string]interface{}); ok {
+				var rule models.DataMaskingConfig
+
+				// 解析 template_id
+				if templateID, ok := ruleData["template_id"].(string); ok {
+					rule.TemplateID = templateID
+				}
+
+				// 解析 target_fields
+				if targetFields, ok := ruleData["target_fields"].([]interface{}); ok {
+					for _, field := range targetFields {
+						if fieldStr, ok := field.(string); ok {
+							rule.TargetFields = append(rule.TargetFields, fieldStr)
+						}
+					}
+				}
+
+				// 解析 masking_config
+				if maskingConfig, ok := ruleData["masking_config"].(map[string]interface{}); ok {
+					rule.MaskingConfig = maskingConfig
+				}
+
+				// 解析其他字段
+				if applyCondition, ok := ruleData["apply_condition"].(string); ok {
+					rule.ApplyCondition = applyCondition
+				}
+				if preserveFormat, ok := ruleData["preserve_format"].(bool); ok {
+					rule.PreserveFormat = preserveFormat
+				}
+				if isEnabled, ok := ruleData["is_enabled"].(bool); ok {
+					rule.IsEnabled = isEnabled
+				} else {
+					rule.IsEnabled = true // 默认启用
+				}
+
+				maskingRules = append(maskingRules, rule)
+			}
+		}
+	}
+
+	return maskingRules, nil
+}
+
 // === API限流管理 ===
 
 // CreateApiRateLimit 创建API限流规则

@@ -498,11 +498,37 @@ func (re *RuleEngine) maskValue(value string, config map[string]interface{}, pre
 		return value, nil
 	}
 
+	// 获取掩码字符
 	maskChar := "*"
 	if mc, ok := config["mask_char"].(string); ok {
 		maskChar = mc
 	}
 
+	// 检查是否有特定的模式
+	if pattern, ok := config["pattern"].(string); ok {
+		switch pattern {
+		case "id_card":
+			return re.maskIDCard(value, maskChar)
+		case "bank_card":
+			groupFormat := false
+			if gf, ok := config["group_format"].(bool); ok {
+				groupFormat = gf
+			}
+			return re.maskBankCard(value, maskChar, groupFormat)
+		case "chinese_name":
+			return re.maskChineseName(value, maskChar)
+		case "email":
+			keepUsernameChars := 2
+			if kuc, ok := config["keep_username_chars"].(float64); ok {
+				keepUsernameChars = int(kuc)
+			} else if kuc, ok := config["keep_username_chars"].(int); ok {
+				keepUsernameChars = kuc
+			}
+			return re.maskEmail(value, maskChar, keepUsernameChars)
+		}
+	}
+
+	// 默认的掩码处理逻辑
 	keepStart := 0
 	if ks, ok := config["keep_start"].(float64); ok {
 		keepStart = int(ks)
@@ -542,6 +568,121 @@ func (re *RuleEngine) maskValue(value string, config map[string]interface{}, pre
 	}
 
 	return result.String(), nil
+}
+
+// maskIDCard 对身份证号进行脱敏，自动识别15位或18位
+// 18位：保留前6位（行政区划码）和后4位（校验码/尾号），隐藏中间8位（生日+顺序码）
+// 15位：保留前6位（行政区划码）和后3位（尾号），隐藏中间6位（生日信息）
+func (re *RuleEngine) maskIDCard(value string, maskChar string) (string, error) {
+	// 去除空格
+	value = strings.TrimSpace(value)
+
+	// 根据长度判断身份证类型
+	length := len(value)
+
+	switch length {
+	case 18:
+		// 18位身份证：前6位 + 8个掩码字符 + 后4位
+		return value[:6] + strings.Repeat(maskChar, 8) + value[14:], nil
+	case 15:
+		// 15位身份证：前6位 + 6个掩码字符 + 后3位
+		return value[:6] + strings.Repeat(maskChar, 6) + value[12:], nil
+	default:
+		return value, fmt.Errorf("身份证号长度应为15位或18位，当前长度为%d位", length)
+	}
+}
+
+// maskBankCard 对银行卡号进行脱敏
+// 保留前6位（卡BIN）和后4位，中间用*填充，可按4位分组
+func (re *RuleEngine) maskBankCard(value string, maskChar string, groupFormat bool) (string, error) {
+	// 去除空格和分隔符
+	value = strings.ReplaceAll(value, " ", "")
+	value = strings.ReplaceAll(value, "-", "")
+	value = strings.TrimSpace(value)
+
+	// 验证长度（银行卡号通常为16-19位）
+	if len(value) < 16 || len(value) > 19 {
+		return value, fmt.Errorf("银行卡号长度应为16-19位")
+	}
+
+	// 构建脱敏后的字符串
+	maskedMiddle := strings.Repeat(maskChar, len(value)-10)
+	result := value[:6] + maskedMiddle + value[len(value)-4:]
+
+	// 如果需要分组格式
+	if groupFormat {
+		var formatted strings.Builder
+		for i, char := range result {
+			if i > 0 && i%4 == 0 {
+				formatted.WriteString(" ")
+			}
+			formatted.WriteRune(char)
+		}
+		return formatted.String(), nil
+	}
+
+	return result, nil
+}
+
+// maskChineseName 对中文姓名进行脱敏
+// 单字名保留完整；双字名隐藏后1位；3字及以上隐藏中间字（保留首尾）
+func (re *RuleEngine) maskChineseName(value string, maskChar string) (string, error) {
+	// 去除空格
+	value = strings.TrimSpace(value)
+
+	// 将字符串转换为rune数组以正确处理中文字符
+	runes := []rune(value)
+	length := len(runes)
+
+	// 单字名：保留完整
+	if length == 1 {
+		return value, nil
+	}
+
+	// 双字名：隐藏后1位
+	if length == 2 {
+		return string(runes[0]) + maskChar, nil
+	}
+
+	// 3字及以上：隐藏中间字（保留首尾）
+	var result strings.Builder
+	result.WriteRune(runes[0]) // 保留第一个字
+
+	// 中间部分用掩码替换
+	for i := 1; i < length-1; i++ {
+		result.WriteString(maskChar)
+	}
+
+	result.WriteRune(runes[length-1]) // 保留最后一个字
+
+	return result.String(), nil
+}
+
+// maskEmail 对邮箱地址进行脱敏
+// 保留用户名前N位和域名，隐藏中间用户名
+func (re *RuleEngine) maskEmail(value string, maskChar string, keepUsernameChars int) (string, error) {
+	// 去除空格
+	value = strings.TrimSpace(value)
+
+	// 查找@符号
+	atIndex := strings.Index(value, "@")
+	if atIndex == -1 {
+		return value, fmt.Errorf("无效的邮箱格式")
+	}
+
+	// 分割用户名和域名
+	username := value[:atIndex]
+	domain := value[atIndex:]
+
+	// 如果用户名长度小于等于保留字符数，全部保留
+	if len(username) <= keepUsernameChars {
+		return username + maskChar + domain, nil
+	}
+
+	// 保留用户名前N位，其余用掩码替换
+	maskedUsername := username[:keepUsernameChars] + strings.Repeat(maskChar, len(username)-keepUsernameChars)
+
+	return maskedUsername + domain, nil
 }
 
 // 替换处理
@@ -1211,4 +1352,9 @@ func (re *RuleEngine) checkStandardizationWithConfig(fieldName string, fieldValu
 	}
 
 	return true, ""
+}
+
+// ExecuteMasking 执行单个值的脱敏处理（用于测试和独立调用）
+func (re *RuleEngine) ExecuteMasking(value string, config map[string]interface{}) (string, error) {
+	return re.maskValue(value, config, true)
 }

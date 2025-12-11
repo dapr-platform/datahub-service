@@ -54,6 +54,11 @@ func (s *GovernanceService) GetTemplateService() *TemplateService {
 	return s.templateService
 }
 
+// ApplyMaskingRules 应用数据脱敏规则（暴露RuleEngine的功能）
+func (s *GovernanceService) ApplyMaskingRules(data map[string]interface{}, configs []models.DataMaskingConfig) (*RuleExecutionResult, error) {
+	return s.ruleEngine.ApplyMaskingRules(data, configs)
+}
+
 // === 数据质量规则管理 ===
 
 // CreateQualityRule 创建数据质量规则

@@ -1073,7 +1073,8 @@ func (s *SchemaService) ListSchemas() ([]string, error) {
 }
 
 // GetTableData 获取表数据
-func (s *SchemaService) GetTableData(fullTableName string, limit, offset int) ([]map[string]interface{}, int, error) {
+// whereCondition: SQL WHERE 条件，由前端拼好并做好转义后传递（不包含 WHERE 关键字）
+func (s *SchemaService) GetTableData(fullTableName string, limit, offset int, whereCondition string) ([]map[string]interface{}, int, error) {
 	parts := strings.Split(fullTableName, ".")
 	if len(parts) != 2 {
 		return nil, 0, fmt.Errorf("无效的表名格式，应为 schema.table")
@@ -1090,20 +1091,29 @@ func (s *SchemaService) GetTableData(fullTableName string, limit, offset int) ([
 		return nil, 0, fmt.Errorf("表 %s 不存在", fullTableName)
 	}
 
-	// 获取总行数
+	// 构建 WHERE 子句
+	whereClause := ""
+	if whereCondition != "" {
+		whereClause = " WHERE " + whereCondition
+		slog.Debug("SchemaService.GetTableData - 使用 WHERE 条件", "condition", whereCondition)
+	}
+
+	// 获取总行数（应用 WHERE 条件）
 	var totalCount int64
-	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s",
+	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s%s",
 		s.quoteIdentifier(schemaName),
-		s.quoteIdentifier(tableName))
+		s.quoteIdentifier(tableName),
+		whereClause)
 	err = s.db.Raw(countSQL).Scan(&totalCount).Error
 	if err != nil {
 		return nil, 0, fmt.Errorf("获取总行数失败: %v", err)
 	}
 
-	// 获取数据
-	dataSQL := fmt.Sprintf("SELECT * FROM %s.%s ORDER BY 1 LIMIT %d OFFSET %d",
+	// 获取数据（应用 WHERE 条件）
+	dataSQL := fmt.Sprintf("SELECT * FROM %s.%s%s ORDER BY 1 LIMIT %d OFFSET %d",
 		s.quoteIdentifier(schemaName),
 		s.quoteIdentifier(tableName),
+		whereClause,
 		limit, offset)
 
 	rows, err := s.db.Raw(dataSQL).Rows()

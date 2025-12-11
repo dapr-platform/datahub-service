@@ -409,13 +409,20 @@ func InitRoute(r *chi.Mux) {
 		r.Route("/api-interfaces", func(r chi.Router) {
 			r.Post("/", sharingController.CreateApiInterface)
 			r.Get("/", sharingController.GetApiInterfaces)
+			r.Get("/{id}", sharingController.GetApiInterfaceByID)
+			r.Put("/{id}", sharingController.UpdateApiInterface)
 			r.Delete("/{id}", sharingController.DeleteApiInterface)
+			// 脱敏规则管理
+			r.Put("/{id}/masking-rules", sharingController.UpdateApiInterfaceMaskingRules)
+			r.Get("/{id}/masking-rules", sharingController.GetApiInterfaceMaskingRules)
 		})
 	})
 
 	// 数据访问代理API（只读查询）
 	r.Route("/api/v1", func(r chi.Router) {
-		dataProxyController := controllers.NewDataProxyController(sharing.NewSharingService(service.DB))
+		sharingService := sharing.NewSharingService(service.DB)
+		governanceService := governance.NewGovernanceService(service.DB)
+		dataProxyController := controllers.NewDataProxyController(sharingService, governanceService)
 
 		// 数据代理接口，URL格式：/api/v1/share/{app_path}/{interface_path}
 		r.Route("/share", func(r chi.Router) {

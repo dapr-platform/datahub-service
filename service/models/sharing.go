@@ -130,7 +130,8 @@ type ApiInterface struct {
 	ThematicInterfaceID string            `gorm:"not null;index" json:"thematic_interface_id"`
 	Path                string            `gorm:"not null;unique" json:"path"` // 对外暴露的路径，例如 "users"
 	Description         string            `json:"description"`
-	Status              string            `gorm:"not null;default:'active'" json:"status"` // active, inactive
+	Status              string            `gorm:"not null;default:'active'" json:"status"`   // active, inactive
+	MaskingRules        JSONB             `gorm:"type:jsonb" json:"masking_rules,omitempty"` // 数据脱敏规则配置
 	CreatedAt           time.Time         `json:"created_at"`
 	CreatedBy           string            `gorm:"size:100" json:"created_by"`
 	ApiApplication      ApiApplication    `gorm:"foreignKey:ApiApplicationID" json:"api_application,omitempty"`
