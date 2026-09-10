@@ -92,6 +92,7 @@ func NewPostgRESTAuthMiddleware() *PostgRESTAuthMiddleware {
 			"/ready",        // 就绪检查
 			"/swagger",      // Swagger文档
 			"/api/v1/share", // 数据访问代理API（有自己的鉴权机制）
+			"/auth/",        // 统一认证/SSO 桥接（换票发本地 JWT）
 		},
 	}
 }

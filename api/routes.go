@@ -52,6 +52,15 @@ func InitRoute(r *chi.Mux) {
 	r.Get("/health", healthController.Health)
 	r.Get("/ready", healthController.Ready)
 
+	// SSO 单点登录桥接（白名单，由 SSO_ENABLED 控制）
+	r.Route("/auth", func(r chi.Router) {
+		authBridge := controllers.NewAuthBridgeController()
+		r.Get("/status", authBridge.Status)
+		r.Get("/sso/auth-url", authBridge.SSOAuthURL)
+		r.Post("/sso/login-by-ticket", authBridge.SSOLoginByTicket)
+		r.Post("/sso/logout-call", authBridge.SSOLogoutCall)
+	})
+
 	// SSE事件订阅（需要认证）
 	eventController := controllers.NewEventController()
 	r.Get("/sse/{user_name}", eventController.HandleSSE)
