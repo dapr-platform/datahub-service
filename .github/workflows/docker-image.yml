@@ -41,4 +41,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           file: Dockerfile
           push: true
+          # 阿里云 ACR 不支持 buildx 默认 attestation（OCI empty manifest）
+          provenance: false
+          sbom: false
           tags: registry.cn-hangzhou.aliyuncs.com/daprplatform/datahub-service:latest
