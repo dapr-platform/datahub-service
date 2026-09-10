@@ -30,14 +30,22 @@ func NewAuthBridgeController() *AuthBridgeController {
 	}
 }
 
-// Status 返回 SSO 状态
+// Status 返回 SSO / 用户同步状态
 func (c *AuthBridgeController) Status(w http.ResponseWriter, r *http.Request) {
+	syncSvc := authbridge.GetGlobalUserSyncService()
+	userSyncEnabled := c.cfg.UserSyncEnabled
+	var last interface{}
+	if syncSvc != nil {
+		last = syncSvc.LastResult()
+	}
 	render.JSON(w, r, SuccessResponse("ok", map[string]interface{}{
-		"sso_enabled":   c.cfg.SSOEnabled,
-		"sso_auth_url":  c.cfg.SSOAuthURL,
-		"sso_client":    c.cfg.SSOClient,
-		"sso_redirect":  c.cfg.SSORedirectURI,
-		"sso_server_url": c.cfg.SSOServerURL,
+		"sso_enabled":       c.cfg.SSOEnabled,
+		"sso_auth_url":      c.cfg.SSOAuthURL,
+		"sso_client":        c.cfg.SSOClient,
+		"sso_redirect":      c.cfg.SSORedirectURI,
+		"sso_server_url":    c.cfg.SSOServerURL,
+		"user_sync_enabled": userSyncEnabled,
+		"user_sync_last":    last,
 	}))
 }
 
@@ -95,4 +103,52 @@ func (c *AuthBridgeController) SSOLogoutCall(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	render.JSON(w, r, SuccessResponse("ok", map[string]string{"loginId": loginID}))
+}
+
+type userSyncReq struct {
+	Mode string `json:"mode"` // full | incremental，默认 full
+}
+
+// UserSyncRun 管理员手动触发用户同步
+func (c *AuthBridgeController) UserSyncRun(w http.ResponseWriter, r *http.Request) {
+	syncSvc := authbridge.GetGlobalUserSyncService()
+	if syncSvc == nil {
+		render.JSON(w, r, InternalErrorResponse("用户同步服务未初始化", nil))
+		return
+	}
+	if !syncSvc.IsEnabled() {
+		render.JSON(w, r, BadRequestResponse("用户同步未启用", nil))
+		return
+	}
+	var req userSyncReq
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	mode := authbridge.SyncModeFull
+	if req.Mode == string(authbridge.SyncModeIncremental) {
+		mode = authbridge.SyncModeIncremental
+	}
+	result, err := syncSvc.Run(r.Context(), mode)
+	if err != nil && result == nil {
+		render.JSON(w, r, InternalErrorResponse("同步失败: "+err.Error(), err))
+		return
+	}
+	if err != nil {
+		render.JSON(w, r, SuccessResponse("同步结束但有错误: "+err.Error(), result))
+		return
+	}
+	render.JSON(w, r, SuccessResponse("同步完成", result))
+}
+
+// UserSyncStatus 最近一次同步结果
+func (c *AuthBridgeController) UserSyncStatus(w http.ResponseWriter, r *http.Request) {
+	syncSvc := authbridge.GetGlobalUserSyncService()
+	enabled := false
+	var last interface{}
+	if syncSvc != nil {
+		enabled = syncSvc.IsEnabled()
+		last = syncSvc.LastResult()
+	}
+	render.JSON(w, r, SuccessResponse("ok", map[string]interface{}{
+		"enabled": enabled,
+		"last":    last,
+	}))
 }

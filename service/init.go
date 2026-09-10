@@ -23,6 +23,7 @@ import (
 	"datahub-service/service/governance"
 	"datahub-service/service/sharing"
 	"datahub-service/service/thematic_library"
+	"datahub-service/service/authbridge"
 	"fmt"
 	"log"
 	"log/slog"
@@ -191,6 +192,9 @@ func initServices() {
 	} else {
 		slog.Info("日志清理调度器启动成功")
 	}
+
+	// 统一认证用户同步（USER_SYNC_ENABLED 控制）
+	authbridge.StartUserSyncScheduler()
 
 	slog.Info("服务初始化完成")
 }

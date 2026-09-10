@@ -584,4 +584,12 @@ func InitRoute(r *chi.Mux) {
 			})
 		})
 	})
+
+	// 统一认证用户同步（管理员）
+	r.Route("/admin/user-sync", func(r chi.Router) {
+		r.Use(middleware.RequireRole("admin"))
+		authBridge := controllers.NewAuthBridgeController()
+		r.Get("/status", authBridge.UserSyncStatus)
+		r.Post("/run", authBridge.UserSyncRun)
+	})
 }

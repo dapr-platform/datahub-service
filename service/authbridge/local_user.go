@@ -118,3 +118,44 @@ func (b *LocalUserBridge) EnsureAndIssueToken(ctx context.Context, user External
 	}
 	return &token, nil
 }
+
+// SyncedUser 同步落库用户
+type SyncedUser struct {
+	Username       string
+	DisplayName    string
+	Email          string
+	ExternalUserID string
+	Active         bool
+}
+
+// UpsertSyncedUserResult 同步 upsert 结果
+type UpsertSyncedUserResult struct {
+	Success  bool   `json:"success"`
+	Message  string `json:"message"`
+	Created  bool   `json:"created"`
+	Username string `json:"username"`
+}
+
+// UpsertSyncedUser 调用 PostgREST upsert_synced_user
+func (b *LocalUserBridge) UpsertSyncedUser(ctx context.Context, user SyncedUser) (*UpsertSyncedUserResult, error) {
+	if user.Username == "" {
+		return nil, fmt.Errorf("用户名为空")
+	}
+	var out UpsertSyncedUserResult
+	err := b.callRPC(ctx, "upsert_synced_user", map[string]interface{}{
+		"p_username":         user.Username,
+		"p_display_name":     user.DisplayName,
+		"p_email":            user.Email,
+		"p_external_user_id": user.ExternalUserID,
+		"p_is_active":        user.Active,
+		"p_auth_source":      "sync",
+		"p_target_schemas":   b.cfg.DefaultSchemas,
+	}, &out)
+	if err != nil {
+		return nil, err
+	}
+	if !out.Success {
+		return nil, fmt.Errorf("upsert 失败: %s", out.Message)
+	}
+	return &out, nil
+}
